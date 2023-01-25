@@ -32,7 +32,7 @@ def frame():
     # tight pID 
     # pT cut
 
-    frame = frame.Define("mll","pow(pow(Muon_pt[0]+Muon_pt[1],2)-pow(Muon_eta[0]+Muon_eta[1],2)-pow(Muon_phi[0]+Muon_phi[1],2)-pow(0.10566+0.10566,2),0.5)") #check muon masss
+    frame = frame.Define("mll","pow(2*Muon_pt[0]*Muon_pt[1]*(cosh(Muon_eta[0]-Muon_eta[1])-cos(Muon_phi[0]-Muon_phi[1])),0.5)") #check muon masss
 
     # Binning in eta {-2.47,-1.37,-0.4,0,0.4,1.37,2.47}
     frame = frame.Define("etabin1","double etabins[7]={-2.47,-1.37,-0.4,0,0.4,1.37,2.47}; for(int i=0;i<5;i++){if(etabins[i]<Muon_eta[0] && Muon_eta[0]<etabins[i+1]){return i;}} return -99999;")
@@ -52,7 +52,7 @@ def frame():
                     histtext = f"((etabin1=={x} && etabin2=={y}) || (etabin1=={y} && etabin2=={x})) && ((phibin1=={m} && phibin2=={n}) || (phibin1=={n} && phibin2=={m}))"
                     plottitle = f"mll Bins eta({x},{y}), phi({m},{n})"
                     var_name = f"h_{x}_{y}_{m}_{n}"
-                    histo[var_name] = frame.Filter(histtext).Histo1D(ROOT.RDF.TH1DModel(f"data_frame_{x}_{y}_{m}_{n}", plottitle, 100, 0, 500),"mll")
+                    histo[var_name] = frame.Filter(histtext).Histo1D(ROOT.RDF.TH1DModel(f"data_frame_{x}_{y}_{m}_{n}", plottitle, 10, 0, 50),"mll")
                     histo[var_name].GetXaxis().SetTitle("mll [GeV]")
                     histo[var_name].GetYaxis().SetTitle("Events")
 
