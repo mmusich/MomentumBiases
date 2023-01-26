@@ -30,7 +30,7 @@ def frame():
 
     # Muon selection, to be refined later
     frame = frame.Filter("HLT_IsoMu24 == 1")
-    frame = frame.Filter("nMuon == 2") 
+    frame = frame.Filter("nMuon == 2") # oblivious to events with >2 muons, to be changed
     frame = frame.Filter("Muon_charge[0]*Muon_charge[1] == -1") 
 
     # tight pID 
