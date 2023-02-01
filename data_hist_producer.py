@@ -19,31 +19,54 @@ c = TCanvas()
 
 def frame():
 
-    ROOT.EnableImplicitMT() 
+    ROOT.EnableImplicitMT(32) 
 
     names = ROOT.std.vector('string')()
+    #NanoV9Run2016FDataPostVFP_TrackFitV718_NanoProdv1
     for n in range(2,101):
-        filename = f"/scratchnvme/wmass/NANOV9/staging/NanoV9Run2016FDataPostVFP_TrackFitV718_NanoProdv1/221230_011433/0000/NanoV9DataPostVFP_{n}.root"
+        filename = f"/scratchnvme/wmass/NANOV9/postVFP/SingleMuon/NanoV9Run2016FDataPostVFP_TrackFitV718_NanoProdv1/221230_011433/0000/NanoV9DataPostVFP_{n}.root"
         names.push_back(filename)
         
     for n in range(102,185):
-        filename = f"/scratchnvme/wmass/NANOV9/staging/NanoV9Run2016FDataPostVFP_TrackFitV718_NanoProdv1/221230_011433/0000/NanoV9DataPostVFP_{n}.root"
+        filename = f"/scratchnvme/wmass/NANOV9/postVFP/SingleMuon/NanoV9Run2016FDataPostVFP_TrackFitV718_NanoProdv1/221230_011433/0000/NanoV9DataPostVFP_{n}.root"
         names.push_back(filename)
 
+    #NanoV9Run2016GDataPostVFP_TrackFitV718_NanoProdv1    
     for n in range(1,1000):
-        filename = f"/scratchnvme/wmass/NANOV9/staging/NanoV9Run2016GDataPostVFP_TrackFitV718_NanoProdv1/221230_011512/0000/NanoV9DataPostVFP_{n}.root"
+        filename = f"/scratchnvme/wmass/NANOV9/postVFP/SingleMuon/NanoV9Run2016GDataPostVFP_TrackFitV718_NanoProdv1/221230_011512/0000/NanoV9DataPostVFP_{n}.root"
         names.push_back(filename)
 
     for n in range(1000,2000):
-        filename = f"/scratchnvme/wmass/NANOV9/staging/NanoV9Run2016GDataPostVFP_TrackFitV718_NanoProdv1/221230_011512/0001/NanoV9DataPostVFP_{n}.root"
+        filename = f"/scratchnvme/wmass/NANOV9/postVFP/SingleMuon/NanoV9Run2016GDataPostVFP_TrackFitV718_NanoProdv1/221230_011512/0001/NanoV9DataPostVFP_{n}.root"
         names.push_back(filename)
 
     for n in range(2000,3000):
-        filename = f"/scratchnvme/wmass/NANOV9/staging/NanoV9Run2016GDataPostVFP_TrackFitV718_NanoProdv1/221230_011512/0002/NanoV9DataPostVFP_{n}.root"
+        filename = f"/scratchnvme/wmass/NANOV9/postVFP/SingleMuon/NanoV9Run2016GDataPostVFP_TrackFitV718_NanoProdv1/221230_011512/0002/NanoV9DataPostVFP_{n}.root"
         names.push_back(filename)
 
     for n in range(3000,3449):
-        filename = f"/scratchnvme/wmass/NANOV9/staging/NanoV9Run2016GDataPostVFP_TrackFitV718_NanoProdv1/221230_011512/0003/NanoV9DataPostVFP_{n}.root"
+        filename = f"/scratchnvme/wmass/NANOV9/postVFP/SingleMuon/NanoV9Run2016GDataPostVFP_TrackFitV718_NanoProdv1/221230_011512/0003/NanoV9DataPostVFP_{n}.root"
+        names.push_back(filename)
+
+    #NanoV9Run2016HDataPostVFP_TrackFitV718_NanoProdv1    
+    for n in range(1,1000):
+        filename = f"/scratchnvme/wmass/NANOV9/postVFP/SingleMuon/NanoV9Run2016HDataPostVFP_TrackFitV718_NanoProdv1/221230_011551/0000/NanoV9DataPostVFP_{n}.root"
+        names.push_back(filename)
+
+    for n in range(1000,2000):
+        filename = f"/scratchnvme/wmass/NANOV9/postVFP/SingleMuon/NanoV9Run2016HDataPostVFP_TrackFitV718_NanoProdv1/221230_011551/0001/NanoV9DataPostVFP_{n}.root"
+        names.push_back(filename)
+
+    for n in range(2000,3000):
+        filename = f"/scratchnvme/wmass/NANOV9/postVFP/SingleMuon/NanoV9Run2016HDataPostVFP_TrackFitV718_NanoProdv1/221230_011551/0002/NanoV9DataPostVFP_{n}.root"
+        names.push_back(filename)
+
+    for n in range(3000,4000):
+        filename = f"/scratchnvme/wmass/NANOV9/postVFP/SingleMuon/NanoV9Run2016HDataPostVFP_TrackFitV718_NanoProdv1/221230_011551/0003/NanoV9DataPostVFP_{n}.root"
+        names.push_back(filename)
+        
+    for n in range(4000,4596):
+        filename = f"/scratchnvme/wmass/NANOV9/postVFP/SingleMuon/NanoV9Run2016HDataPostVFP_TrackFitV718_NanoProdv1/221230_011551/0004/NanoV9DataPostVFP_{n}.root"
         names.push_back(filename)
         
     frame = RDataFrame("Events", names)
