@@ -26,6 +26,26 @@ def frame():
         filename = f"/scratchnvme/wmass/NANOV9/staging/NanoV9Run2016FDataPostVFP_TrackFitV718_NanoProdv1/221230_011433/0000/NanoV9DataPostVFP_{n}.root"
         names.push_back(filename)
         
+    for n in range(102,185):
+        filename = f"/scratchnvme/wmass/NANOV9/staging/NanoV9Run2016FDataPostVFP_TrackFitV718_NanoProdv1/221230_011433/0000/NanoV9DataPostVFP_{n}.root"
+        names.push_back(filename)
+
+    for n in range(1,1000):
+        filename = f"/scratchnvme/wmass/NANOV9/staging/NanoV9Run2016GDataPostVFP_TrackFitV718_NanoProdv1/221230_011512/0000/NanoV9DataPostVFP_{n}.root"
+        names.push_back(filename)
+
+    for n in range(1000,2000):
+        filename = f"/scratchnvme/wmass/NANOV9/staging/NanoV9Run2016GDataPostVFP_TrackFitV718_NanoProdv1/221230_011512/0001/NanoV9DataPostVFP_{n}.root"
+        names.push_back(filename)
+
+    for n in range(2000,3000):
+        filename = f"/scratchnvme/wmass/NANOV9/staging/NanoV9Run2016GDataPostVFP_TrackFitV718_NanoProdv1/221230_011512/0002/NanoV9DataPostVFP_{n}.root"
+        names.push_back(filename)
+
+    for n in range(3000,3449):
+        filename = f"/scratchnvme/wmass/NANOV9/staging/NanoV9Run2016GDataPostVFP_TrackFitV718_NanoProdv1/221230_011512/0003/NanoV9DataPostVFP_{n}.root"
+        names.push_back(filename)
+        
     frame = RDataFrame("Events", names)
 
     # Muon selection, to be refined later
@@ -35,8 +55,8 @@ def frame():
     # tight pID 
     # pT cut
 
-    # Define invariant mass per mu pairs
-    frame = frame.Define("pairs","std::vector<std::tuple<int,int,double>> pairs; for(int i=1;i<nMuon;i++){for(int j=0;j<i;j++){if(Muon_charge[i]*Muon_charge[j]==-1){double mll=pow(2*Muon_pt[i]*Muon_pt[j]*(cosh(Muon_eta[i]-Muon_eta[j])-cos(Muon_phi[i]-Muon_phi[j])),0.5); if(0<mll && mll<120){std::tuple<int,int,double> temp(i,j,mll); pairs.push_back(temp);}}}} return pairs;")
+    # Define invariant mass per mu pairs and filter through invariant mass
+    frame = frame.Define("pairs","std::vector<std::tuple<int,int,double>> pairs; for(int i=1;i<nMuon;i++){for(int j=0;j<i;j++){if(Muon_charge[i]*Muon_charge[j]==-1){double mll=pow(2*Muon_pt[i]*Muon_pt[j]*(cosh(Muon_eta[i]-Muon_eta[j])-cos(Muon_phi[i]-Muon_phi[j])),0.5); if(60<mll && mll<120){std::tuple<int,int,double> temp(i,j,mll); pairs.push_back(temp);}}}} return pairs;")
     frame = frame.Filter("pairs.size()>=1")
     
     # Binning in eta {-2.4,-1.6,-0.8,0,0.8,1.6,2.4}
@@ -46,32 +66,30 @@ def frame():
     frame = frame.Define("phibin","std::array<double, 2> phibin; for(int j=0;j<2;j++){phibin[j]=-99999;} double phibins[7]={-3,-2,-1,0,1,2,3}; for(int k=0;k<2;k++){for(int i=0;i<6;i++){if(phibins[i]<Muon_phi[k] && Muon_phi[k]<phibins[i+1]){phibin[k]=i+1;}}} return phibin;")
     
     # Book histograms per eta,phi region            
-    for x in range(1,3): # range changes depending on number of bins
+
+    histo = {}
+
+    for x in range(1,7): # range changes depending on number of bins
         for y in range(1,x+1): # x,y label eta bins
-            for m in range(1,3):
+            for m in range(1,7):
                 for n in range(1,m+1): # m,n label phi bins
                     branch_name = f"mll_{x}_{y}_{m}_{n}"
                     branch_text = f"std::vector<double> temporary; for(int i=0; i<pairs.size(); i++){{if(((etabin[get<0>(pairs.at(i))]=={x} && etabin[get<1>(pairs.at(i))]=={y}) || (etabin[get<0>(pairs.at(i))]=={y} && etabin[get<1>(pairs.at(i))]=={x})) && ((phibin[get<0>(pairs.at(i))]=={m} && phibin[get<1>(pairs.at(i))]=={n}) || (phibin[get<0>(pairs.at(i))]=={n} && phibin[get<1>(pairs.at(i))]=={m}))){{temporary.push_back(get<2>(pairs.at(i)));}}}} return temporary;"
                     frame = frame.Define(branch_name,branch_text)
-
-    histo = {}
-
-    for x in range(1,3): # range changes depending on number of bins
-        for y in range(1,x+1): # x,y label eta bins
-            for m in range(1,3):
-                for n in range(1,m+1): # m,n label phi bins
-                    plottitle = f"Inv mass bins eta({x},{y}), phi({m},{n})"
+                    eta_edges = np.array([-2.4,-1.6,-0.8,0,0.8,1.6,2.4]) 
+                    phi_edges = np.array([-3,-2,-1,0,1,2,3])
+                    plottitle = f"Inv mass bins eta([{eta_edges[x-1]},{eta_edges[x]}],[{eta_edges[y-1]},{eta_edges[y]}]), phi([{phi_edges[m-1]},{phi_edges[m]}],[{phi_edges[n-1]},{phi_edges[n]}])"
                     var_name = f"h_{x}_{y}_{m}_{n}"
-                    histo[var_name] = frame.Histo1D(ROOT.RDF.TH1DModel(f"data_frame_{x}_{y}_{m}_{n}", plottitle, 100, 0, 120),f"mll_{x}_{y}_{m}_{n}")
+                    histo[var_name] = frame.Histo1D(ROOT.RDF.TH1DModel(f"data_frame_{x}_{y}_{m}_{n}", plottitle, 60, 60, 120),f"mll_{x}_{y}_{m}_{n}")
                     histo[var_name].GetXaxis().SetTitle("Inv mass [GeV]")
                     histo[var_name].GetYaxis().SetTitle("Events")
 
     # Writing the histograms in a root file
     outfile = ROOT.TFile.Open("data_histos.root","RECREATE")
     outfile.cd()
-    for x in range(1,3): # range changes depending on binning
+    for x in range(1,7): # range changes depending on binning
         for y in range(1,x+1):
-            for m in range(1,3):
+            for m in range(1,7):
                 for n in range(1,m+1):
                     histo[f"h_{x}_{y}_{m}_{n}"].Write()
     outfile.Close()
