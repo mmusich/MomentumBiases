@@ -64,9 +64,6 @@ bkg = RooExponential("bkg", "bkg", m, c)
 # Construct a signal and background PDF
 model = RooAddPdf("model","s+b", signal, bkg, frac_sig)
 
-# For plots
-mframe = m.frame()
-
 for eta1 in range(1,7): # range depends on number of eta bins
     for eta2 in range(1, 7):
         for phi1 in range(1,7): # range depends on number of phi bins
@@ -82,15 +79,17 @@ for eta1 in range(1,7): # range depends on number of eta bins
                     model.fitTo(data_rdh)
 
                 #Plot fits
+                    cal = ROOT.TCanvas()
+                    mframe = m.frame()
                     data_rdh.plotOn(mframe)
                     model.plotOn(mframe, LineColor="kGreen", LineWidth=2)
                     model.plotOn(mframe, Components = {signal}, LineColor="kBlue", LineWidth=2)
                     model.plotOn(mframe, Components = {bkg}, LineColor="kRed", LineWidth=2)
                     mframe.SetName(f"hist_region_{eta1}_{eta2}_{phi1}_{phi2}")
-                    mframe.SetTitle(f"Fit region {eta1} {eta2} {phi1} {phi2}")
+                    mframe.SetTitle(f"Fit region eta1={eta1} eta2={eta2} phi1={phi1} phi2={phi2}")
                     mframe.Draw("same")
-                    ca.Print(f"/home/users/alexe/workingarea/Sagitta/fits/sim_fit_region_{eta1}_{eta2}_{phi1}_{phi2}.pdf")
-                    ca.Clear()
+                    cal.SaveAs(f"/home/users/alexe/workingarea/Sagitta/fits/sim_fit_region_{eta1}_{eta2}_{phi1}_{phi2}.pdf")
+                    cal.Delete()
                     
                 # Plot eta, phi distribution of the means - pdg val
                     key_name = f"key_{eta1}_{phi1}"
