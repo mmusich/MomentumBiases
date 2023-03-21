@@ -63,12 +63,12 @@ def frame():
     
     # Binning in eta1 {-2.4,-1.6,-0.8,0,0.8,1.6,2.4}    
     frame = frame.Define("etabin1","int etabin_1; double etabins[7]={-2.4,-1.6,-0.8,0,0.8,1.6,2.4}; for(int i=0;i<8;i++){if(etabins[i]<Muon_eta[0] && Muon_eta[0]<etabins[i+1]){etabin_1=i+1;}} return etabin_1;")
-    # Binning in eta2 {-2.4,-1.6,-0.8,0,0.8,1.6,2.4}
-    frame = frame.Define("etabin2","int etabin_2; double etabins[7]={-2.4,-1.6,-0.8,0,0.8,1.6,2.4}; for(int i=0;i<6;i++){if(etabins[i]<Muon_eta[1] && Muon_eta[1]<etabins[i+1]){etabin_2=i+1;}} return etabin_2;")
+    # Binning in eta2 {-2.4,-0.8,0.8,2.4}
+    frame = frame.Define("etabin2","int etabin_2; double etabins[4]={-2.4,-0.8,0.8,2.4}; for(int i=0;i<6;i++){if(etabins[i]<Muon_eta[1] && Muon_eta[1]<etabins[i+1]){etabin_2=i+1;}} return etabin_2;")
     # Binning in phi1 {-3,-2,-1,0,1,2,3}
     frame = frame.Define("phibin1","int phibin_1; double phibins[7]={-3,-2,-1,0,1,2,3}; for(int i=0;i<8;i++){if(phibins[i]<Muon_phi[0] && Muon_phi[0]<phibins[i+1]){phibin_1=i+1;}} return phibin_1;")
-    # Binning in phi2 {-3,-2,-1,0,1,2,3}
-    frame = frame.Define("phibin2","int phibin_2; double phibins[7]={-3,-2,-1,0,1,2,3}; for(int i=0;i<6;i++){if(phibins[i]<Muon_phi[1] && Muon_phi[1]<phibins[i+1]){phibin_2=i+1;}} return phibin_2;")  
+    # Binning in phi2 {-3,-1,1,3}
+    frame = frame.Define("phibin2","int phibin_2; double phibins[4]={-3,-1,1,3}; for(int i=0;i<6;i++){if(phibins[i]<Muon_phi[1] && Muon_phi[1]<phibins[i+1]){phibin_2=i+1;}} return phibin_2;")  
 
     # Binning in eta {-2.4,-1.6,-0.8,0,0.8,1.6,2.4}
     frame = frame.Define("etabin","std::vector<int> etabin; for(int j=0;j<nMuon;j++){etabin.push_back(-99999);} double etabins[7]={-2.4,-1.6,-0.8,0,0.8,1.6,2.4}; for(int k=0;k<nMuon;k++){for(int i=0;i<6;i++){if(etabins[i]<Muon_eta[k] && Muon_eta[k]<etabins[i+1]){etabin[k]=i+1;}}} return etabin;")
@@ -78,6 +78,7 @@ def frame():
     
     frame.Snapshot("outputTree", "outputFile.root",{"MuonisGood","etabin1","etabin2","phibin1","phibin2","Muon_pt","mll"})
 
+    '''
     # Get average p and pT per eta,phi bin    # Remember to change the ranges for a new binning
     p_profile_1 = frame.Profile2D(("p", "p", 6, 1, 7, 6, 1, 7), "etabin1", "phibin1", "Muon_p") 
     hist_p_1 = p_profile_1.ProjectionXY()
@@ -90,20 +91,21 @@ def frame():
 
     pt_profile_2 = frame.Profile2D(("pt", "pt", 6, 1, 7, 6, 1, 7), "etabin2", "phibin2", "Muon_pt")
     hist_pt_2 = pt_profile_2.ProjectionXY()
+    '''
     
     # Book histograms per eta, phi as a 5D histogram
 
-    multi_hist = frame.HistoND(("multi_data_frame", "multi_data_frame", 5, (6,6,6,6,60), (1,1,1,1,60), (7,7,7,7,120)), ("etabin1","phibin1","etabin2","phibin2","mll"))
+    multi_hist = frame.HistoND(("multi_data_frame", "multi_data_frame", 5, (6,6,3,3,60), (1,1,1,1,60), (7,7,4,4,120)), ("etabin1","phibin1","etabin2","phibin2","mll"))
     hist_entries = multi_hist.Projection(4).GetEntries() # to compare entries in the inclusive profile vs the sum of the individual ones
     
     # Profiles
-    outfile_fast = ROOT.TFile.Open("data_histos_cuts_profiled.root","RECREATE")
+    outfile_fast = ROOT.TFile.Open("data_histos_binning_6_6_3_3.root","RECREATE")
     outfile_fast.cd()
     
     eta_1_edges = np.array([-2.4,-1.6,-0.8,0,0.8,1.6,2.4])
     phi_1_edges = np.array([-3,-2,-1,0,1,2,3])
-    eta_2_edges = np.array([-2.4,-1.6,-0.8,0,0.8,1.6,2.4])
-    phi_2_edges = np.array([-3,-2,-1,0,1,2,3])
+    eta_2_edges = np.array([-2.4,-0.8,0.8,2.4])
+    phi_2_edges = np.array([-3,-1,1,3])
     
     total_entries=0
     
@@ -116,15 +118,16 @@ def frame():
                     multi_hist.GetAxis(2).SetRange(etabin2_idx,etabin2_idx)
                     multi_hist.GetAxis(3).SetRange(phibin2_idx,phibin2_idx)
                     multi_hist_proj = multi_hist.Projection(4)
-                    multi_hist_proj.SetName(f"mll_fast_{etabin1_idx}_{etabin2_idx}_{phibin1_idx}_{phibin2_idx}") #this name matches the histograms from the other method
-                    multi_hist_proj.SetTitle(f"Inv mass bins eta([{eta_1_edges[etabin1_idx-1]},{eta_1_edges[etabin1_idx]}],[{eta_2_edges[etabin2_idx-1]},{eta_2_edges[etabin2_idx]}]), phi([{phi_1_edges[phibin1_idx-1]},{phi_1_edges[phibin1_idx]}],[{phi_2_edges[phibin2_idx-1]},{phi_2_edges[phibin2_idx]}])")
+                    multi_hist_proj.SetName(f"mll_fast_{etabin1_idx}_{phibin1_idx}_{etabin2_idx}_{phibin2_idx}") #this name DOES NOT match the slow histograms
+                    multi_hist_proj.SetTitle(f"Inv mass eta1 in [{eta_1_edges[etabin1_idx-1]},{eta_1_edges[etabin1_idx]}], phi1 in [{phi_1_edges[phibin1_idx-1]},{phi_1_edges[phibin1_idx]}], eta2 in [{eta_2_edges[etabin2_idx-1]},{eta_2_edges[etabin2_idx]}], phi2 in [{phi_2_edges[phibin2_idx-1]},{phi_2_edges[phibin2_idx]}]")
                     entries = multi_hist_proj.GetEntries()
                     total_entries = total_entries + entries
                     multi_hist_proj.Write()
     outfile_fast.Close()
 
     print("The profile inclusive in all eta and phi bins has: ", hist_entries, " entries and the sum from the individual histos (fast) is: ", total_entries, "the summed/initial (fast): ", total_entries/hist_entries)
-    
+
+    '''
     # The slow way of booking histograms per eta1,eta2,phi1,phi2
     histo = {}
 
@@ -159,6 +162,7 @@ def frame():
     outfile.Close()
 
     print("The profile inclusive in all eta and phi bins has: ", hist_entries, " entries and the sum from the individual histos (slow) is: ", total_entries_slow, "the summed/initial (slow): ", total_entries_slow/hist_entries)
+    '''
     
     # Book histograms with data from all eta, phi regions
     h1 = frame.Histo1D(ROOT.RDF.TH1DModel("pt", "Pt", 100, 0, 100),"Muon_pt")
@@ -168,10 +172,12 @@ def frame():
     
     outfilem = ROOT.TFile.Open("other_histos.root","RECREATE")
     outfilem.cd()
+    '''
     hist_p_1.Write()
     hist_pt_1.Write()
     hist_p_2.Write()
     hist_pt_2.Write()
+    '''
     multi_hist.Write()
     h1.Write()
     h2.Write()
