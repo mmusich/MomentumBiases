@@ -1,7 +1,7 @@
 import ROOT
 from ROOT import RooRealVar, RooConstVar, RooFormulaVar, RooVoigtian, RooExponential
 from ROOT import RooAddPdf, RooProdPdf, RooDataSet, RooPlot, RooArgList, RooCategory, RooSimultaneous
-from ROOT import gROOT, TLegend, TArrayD, TH2F
+from ROOT import gROOT, TLegend, TArrayD, TH2F, gStyle
 import numpy as np
 from array import array
 import time
@@ -15,18 +15,28 @@ start_time = time.time()
 
 # Get data
 #infile = ROOT.TFile.Open("data_histos_testfile.root","READ") #small sample for debugging 
-infile = ROOT.TFile.Open("data_histos_binning_6_6_3_3.root","READ")
+infile = ROOT.TFile.Open("data_histos_binning_6_6_6_6.root","READ")
+#infile = ROOT.TFile.Open("data_histos_binning_6_6_3_3.root","READ")
 
 # These must match the binning used to create the histograms
 eta_1_edges = np.array([-2.4,-1.6,-0.8,0,0.8,1.6,2.4])
 phi_1_edges = np.array([-3,-2,-1,0,1,2,3])
-eta_2_edges = np.array([-2.4,-0.8,0.8,2.4])
-phi_2_edges = np.array([-3,-1,1,3])
+eta_2_edges = np.array([-2.4,-1.6,-0.8,0,0.8,1.6,2.4])
+phi_2_edges = np.array([-3,-2,-1,0,1,2,3])
 
-# Plot eta, phi distribution of the means - pdg val
-m0_eta_phi = TH2F('m0_eta_phi', 'm0-pdg', len(eta_1_edges)-1, array('f',eta_1_edges), len(phi_1_edges)-1, array('f',phi_1_edges))
-sigma_eta_phi = TH2F('sigma_eta_phi', 'sigma', len(eta_1_edges)-1, array('f',eta_1_edges), len(phi_1_edges)-1, array('f',phi_1_edges))
-width_eta_phi = TH2F('width_eta_phi', 'width-pdg', len(eta_1_edges)-1, array('f',eta_1_edges), len(phi_1_edges)-1, array('f',phi_1_edges))
+#eta_2_edges = np.array([-2.4,-0.8,0.8,2.4])
+#phi_2_edges = np.array([-3,-1,1,3])
+
+# Needed for eta, phi distribution of the mean - pdg val and others
+m0_eta_phi = TH2F('m0_eta_phi', 'm0-pdg (fill bin method)', len(eta_1_edges)-1, array('f',eta_1_edges), len(phi_1_edges)-1, array('f',phi_1_edges))
+sigma_eta_phi = TH2F('sigma_eta_phi', 'sigma (fill bin method)', len(eta_1_edges)-1, array('f',eta_1_edges), len(phi_1_edges)-1, array('f',phi_1_edges))
+width_eta_phi = TH2F('width_eta_phi', 'width-pdg (fill bin method)', len(eta_1_edges)-1, array('f',eta_1_edges), len(phi_1_edges)-1, array('f',phi_1_edges))
+
+m0_eta_phi_weight = TH2F('m0_eta_phi_weight', 'm0-pdg (weight method)', len(eta_1_edges)-1, array('f',eta_1_edges), len(phi_1_edges)-1, array('f',phi_1_edges))
+sigma_eta_phi_weight = TH2F('sigma_eta_phi_weight', 'sigma (weight method)', len(eta_1_edges)-1, array('f',eta_1_edges), len(phi_1_edges)-1, array('f',phi_1_edges))
+width_eta_phi_weight = TH2F('width_eta_phi_weight', 'width-pdg (weight method)', len(eta_1_edges)-1, array('f',eta_1_edges), len(phi_1_edges)-1, array('f',phi_1_edges))
+
+fits_count = TH2F('fits_count', 'fits count', len(eta_1_edges)-1, array('f',eta_1_edges), len(phi_1_edges)-1, array('f',phi_1_edges))
 
 m0_weight = {}
 sigma_weight = {}
@@ -34,6 +44,11 @@ width_weight = {}
 m0_count = {}
 sigma_count = {}
 width_count = {}
+
+# Performance histograms
+fit_status = TH2F('fit_status', 'status', len(eta_1_edges)-1, array('f',eta_1_edges), len(phi_1_edges)-1, array('f',phi_1_edges))
+fit_cov_qual = TH2F('fit_cov_qual', 'covQual', len(eta_1_edges)-1, array('f',eta_1_edges), len(phi_1_edges)-1, array('f',phi_1_edges))
+reduced_chi2 = TH2F('reduced_chi2', 'reduced Chi2', len(eta_1_edges)-1, array('f',eta_1_edges), len(phi_1_edges)-1, array('f',phi_1_edges))
 
 #Fit variables
 m = RooRealVar("m", "m", 60, 120)
@@ -60,7 +75,7 @@ model = RooAddPdf("model","s+b", signal, bkg, frac_sig)
 
 for eta1 in range(1,len(eta_1_edges)):
     for phi1 in range(1,len(phi_1_edges)):
-        # Initialise values for the eta phi histos 
+        # Initialise values for the eta, phi histograms bin method 
         key_name = f"key_{eta1}_{phi1}"
         m0_weight[key_name] = 0
         sigma_weight[key_name] =  0
@@ -79,7 +94,7 @@ for eta1 in range(1,len(eta_1_edges)):
                     data_rdh = ROOT.RooDataHist(f"data_rdh[region_{eta1}_{phi1}_{eta2}_{phi2}]", f"data_rdh[region_{eta1}_{phi1}_{eta2}_{phi2}]", [m], Import=data_histo)
 
                 #Fit
-                    model.fitTo(data_rdh)
+                    fit_result = model.fitTo(data_rdh, Save=True)
 
                 #Plot  fits
                     cal = ROOT.TCanvas()
@@ -94,7 +109,7 @@ for eta1 in range(1,len(eta_1_edges)):
                     cal.SaveAs(f"/home/users/alexe/workingarea/Sagitta/fits/sim_fit_region_{eta1}_{phi1}_{eta2}_{phi2}.pdf")
                     cal.Delete()
                     
-                # Collect eta, phi distribution of the means - pdg val
+                # Collect eta, phi distribution of the means - pdg val and others for bin method
                     m0_weight[key_name] = m0_weight[key_name] + m0.getValV()-91.1876
                     sigma_weight[key_name] =  sigma_weight[key_name] + sigma.getValV()
                     width_weight[key_name] = width_weight[key_name] + width.getValV()-2.4952
@@ -102,7 +117,19 @@ for eta1 in range(1,len(eta_1_edges)):
                     sigma_count[key_name] = sigma_count[key_name]+1
                     width_count[key_name] = width_count[key_name]+1
 
-        # Fill eta phi histograms
+                # Fill eta, phi histograms weight method
+                    m0_eta_phi_weight.Fill(eta_1_edges[eta1-1]+0.0001, phi_1_edges[phi1-1]+0.0001, m0.getValV()-91.1876)
+                    sigma_eta_phi_weight.Fill(eta_1_edges[eta1-1]+0.0001, phi_1_edges[phi1-1]+0.0001, sigma.getValV())
+                    width_eta_phi_weight.Fill(eta_1_edges[eta1-1]+0.0001, phi_1_edges[phi1-1]+0.0001, width.getValV()-2.4952)
+
+                    fits_count.Fill(eta_1_edges[eta1-1]+0.0001, phi_1_edges[phi1-1]+0.0001)
+                    
+                # Fill performance histograms
+                    fit_status.Fill(eta_1_edges[eta1-1]+0.0001, phi_1_edges[phi1-1]+0.0001, fit_result.status())
+                    fit_cov_qual.Fill(eta_1_edges[eta1-1]+0.0001, phi_1_edges[phi1-1]+0.0001, fit_result.covQual())
+                    reduced_chi2.Fill(eta_1_edges[eta1-1]+0.0001, phi_1_edges[phi1-1]+0.0001, mframe.chiSquare(5)) # no of floating parameters in bracket 
+                    
+        # Fill eta, phi histograms bin method
         if m0_count[key_name]: # this if will be important once histos with low stats are vetoed
             m0_weight[key_name] = m0_weight[key_name]/m0_count[key_name]
             m0_eta_phi.Fill(eta_1_edges[eta1-1]+0.0001, phi_1_edges[phi1-1]+0.0001, m0_weight[key_name])
@@ -110,30 +137,83 @@ for eta1 in range(1,len(eta_1_edges)):
             sigma_eta_phi.Fill(eta_1_edges[eta1-1]+0.0001, phi_1_edges[phi1-1]+0.0001, sigma_weight[key_name])
             width_weight[key_name] = width_weight[key_name]/width_count[key_name]
             width_eta_phi.Fill(eta_1_edges[eta1-1]+0.0001, phi_1_edges[phi1-1]+0.0001, width_weight[key_name])
-            print(eta1, " ", phi1, "m0: ", m0_weight[key_name], "sig: ",sigma_weight[key_name], "width: ",width_weight[key_name], " ")
+
+# Needed to get averages from the width method
+m0_eta_phi_weight.Divide(fits_count)
+sigma_eta_phi_weight.Divide(fits_count)
+width_eta_phi_weight.Divide(fits_count)
+
+fit_status.Divide(fits_count)
+fit_cov_qual.Divide(fits_count)
+reduced_chi2.Divide(fits_count)
 
 infile.Close()
 
-# Plot eta phi histos
+# Plot eta, phi histograms
 ca = ROOT.TCanvas()
+gStyle.SetNumberContours(256)
 
 m0_eta_phi.GetYaxis().SetTitle("#phi")
 m0_eta_phi.GetXaxis().SetTitle("#eta")
 m0_eta_phi.SetStats(0)
 m0_eta_phi.Draw("COLZ")
-ca.SaveAs("m0_eta_phi.pdf")
+ca.SaveAs(f"/home/users/alexe/workingarea/Sagitta/fit_histos/m0_eta_phi.pdf")
+
+m0_eta_phi_weight.GetYaxis().SetTitle("#phi")
+m0_eta_phi_weight.GetXaxis().SetTitle("#eta")
+m0_eta_phi_weight.SetStats(0)
+m0_eta_phi_weight.Draw("COLZ")
+ca.SaveAs(f"/home/users/alexe/workingarea/Sagitta/fit_histos/m0_eta_phi_weight.pdf")
 
 sigma_eta_phi.GetYaxis().SetTitle("#phi")
 sigma_eta_phi.GetXaxis().SetTitle("#eta")
 sigma_eta_phi.SetStats(0)
 sigma_eta_phi.Draw("COLZ")
-ca.SaveAs("sigma_eta_phi.pdf")
+ca.SaveAs(f"/home/users/alexe/workingarea/Sagitta/fit_histos/sigma_eta_phi.pdf")
+
+sigma_eta_phi_weight.GetYaxis().SetTitle("#phi")
+sigma_eta_phi_weight.GetXaxis().SetTitle("#eta")
+sigma_eta_phi_weight.SetStats(0)
+sigma_eta_phi_weight.Draw("COLZ")
+ca.SaveAs(f"/home/users/alexe/workingarea/Sagitta/fit_histos/sigma_eta_phi_weight.pdf")
 
 width_eta_phi.GetYaxis().SetTitle("#phi")
 width_eta_phi.GetXaxis().SetTitle("#eta")
 width_eta_phi.SetStats(0)
 width_eta_phi.Draw("COLZ")
-ca.SaveAs("width_eta_phi.pdf")
+ca.SaveAs(f"/home/users/alexe/workingarea/Sagitta/fit_histos/width_eta_phi.pdf")
+
+width_eta_phi_weight.GetYaxis().SetTitle("#phi")
+width_eta_phi_weight.GetXaxis().SetTitle("#eta")
+width_eta_phi_weight.SetStats(0)
+width_eta_phi_weight.Draw("COLZ")
+ca.SaveAs(f"/home/users/alexe/workingarea/Sagitta/fit_histos/width_eta_phi_weight.pdf")
+
+fits_count.GetYaxis().SetTitle("#phi")
+fits_count.GetXaxis().SetTitle("#eta")
+fits_count.SetStats(0)
+fits_count.Draw("COLZ")
+ca.SaveAs(f"/home/users/alexe/workingarea/Sagitta/fit_histos/fits_count.pdf")
+
+# Performance histograms
+
+fit_status.GetYaxis().SetTitle("#phi")
+fit_status.GetXaxis().SetTitle("#eta")
+fit_status.SetStats(0)
+fit_status.Draw("COLZ")
+ca.SaveAs(f"/home/users/alexe/workingarea/Sagitta/fit_histos/fit_status.pdf")
+
+fit_cov_qual.GetYaxis().SetTitle("#phi")
+fit_cov_qual.GetXaxis().SetTitle("#eta")
+fit_cov_qual.SetStats(0)
+fit_cov_qual.Draw("COLZ")
+ca.SaveAs(f"/home/users/alexe/workingarea/Sagitta/fit_histos/fit_cov_qual.pdf")
+
+reduced_chi2.GetYaxis().SetTitle("#phi")
+reduced_chi2.GetXaxis().SetTitle("#eta")
+reduced_chi2.SetStats(0)
+reduced_chi2.Draw("COLZ")
+ca.SaveAs(f"/home/users/alexe/workingarea/Sagitta/fit_histos/reduced_chi2.pdf")
 
 ca.Delete()
 
