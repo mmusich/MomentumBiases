@@ -1,4 +1,4 @@
-# Stand alone code to produce histograms from data per eta, phi region
+# Stand alone code to produce histograms from MC per eta, phi region
 
 from ROOT import TFile, TLorentzVector, RDataFrame, TH1D, TH2D, TCanvas, TGraph
 from ROOT import gROOT
@@ -9,8 +9,7 @@ from array import array
 import numpy as np
 import os
 from os.path import exists
-import time
-import math
+import time, math
 
 # this is to supress ROOT garbage collector for histograms
 ROOT.TH1.AddDirectory(False)
@@ -93,7 +92,7 @@ def frame():
 
     files=[]
 
-    for root, dirnames, filenames in os.walk("/scratchnvme/wmass/NANOV9/postVFP/SingleMuon"):
+    for root, dirnames, filenames in os.walk("/scratchnvme/wmass/NANOV9/postVFP/DYJetsToMuMu_H2ErratumFix_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MCPostVFP_TrackFitV718_NanoProdv1"):
         for filename in filenames:
             if '.root' in filename:
                 files.append(os.path.join(root, filename))
@@ -131,19 +130,6 @@ def frame():
     frame = frame.Define("good_muon_eta","std::vector<double> temporary; temporary.push_back(Muon_eta[get<0>(pairs.at(0))]) ; temporary.push_back(Muon_eta[get<1>(pairs.at(0))]); return temporary;")
     frame = frame.Define("good_muon_phi","std::vector<double> temporary; temporary.push_back(Muon_phi[get<0>(pairs.at(0))]) ; temporary.push_back(Muon_phi[get<1>(pairs.at(0))]); return temporary;")
 
-    frame = frame.Define("posTrackEta","float posTrackEta; posTrackEta=Muon_eta[get<0>(pairs.at(0))]; return posTrackEta;")
-    frame = frame.Define("firstPairsIndex", "float first; first = get<0>(pairs.at(0)); return first;")
-    frame = frame.Define("secondPairsIndex", "float second; second = get<1>(pairs.at(0)); return second;")
-    frame = frame.Define("negTrackEta","float negTrackEta; negTrackEta=Muon_eta[get<1>(pairs.at(0))]; return negTrackEta;")
-    frame = frame.Define("posTrackPhi","float posTrackPhi; posTrackPhi=Muon_phi[get<0>(pairs.at(0))]; return posTrackPhi;")
-    frame = frame.Define("negTrackPhi","float negTrackPhi; negTrackPhi=Muon_phi[get<1>(pairs.at(0))]; return negTrackPhi;")
-    frame = frame.Define("posTrackPt","float posTrackPt; posTrackPt=Muon_pt[get<0>(pairs.at(0))]; return posTrackPt;")
-    frame = frame.Define("negTrackPt","float negTrackPt; negTrackPt=Muon_pt[get<1>(pairs.at(0))]; return negTrackPt;")
-    frame = frame.Define("posTrackDz","float posTrackDz; posTrackDz=Muon_dz[get<0>(pairs.at(0))]; return posTrackDz;")
-    frame = frame.Define("negTrackDz","float negTrackDz; negTrackDz=Muon_dz[get<1>(pairs.at(0))]; return negTrackDz;")
-    frame = frame.Define("posTrackD0","float posTrackD0; posTrackD0=Muon_dxy[get<0>(pairs.at(0))]; return posTrackD0;")
-    frame = frame.Define("negTrackD0","float negTrackD0; negTrackD0=Muon_dxy[get<1>(pairs.at(0))]; return negTrackD0;")
-    
     # Define momentum
     frame = frame.Define("good_muon_p", "std::vector<double> muon_p; muon_p.push_back(Muon_pt[get<0>(pairs.at(0))]*std::cosh(Muon_eta[get<0>(pairs.at(0))])); muon_p.push_back(Muon_pt[get<1>(pairs.at(0))]*std::cosh(Muon_eta[get<1>(pairs.at(0))])); return muon_p;")
 
@@ -160,13 +146,24 @@ def frame():
     # Binning in phi2 {-3,-2,-1,0,1,2,3}
     frame = frame.Define("phibin2","int phibin_2; double phibins[7]={-M_PI,-2*M_PI/3,-M_PI/3,0,M_PI/3,2*M_PI/3,M_PI}; for(int i=0;i<6;i++){if(phibins[i]<Muon_phi[get<1>(pairs.at(0))] && Muon_phi[get<1>(pairs.at(0))]<phibins[i+1]){phibin_2=i+1;}} return phibin_2;")  
 
+    frame = frame.Define("posTrackEta","float posTrackEta; posTrackEta=Muon_eta[get<0>(pairs.at(0))]; return posTrackEta;")
+    frame = frame.Define("negTrackEta","float negTrackEta; negTrackEta=Muon_eta[get<1>(pairs.at(0))]; return negTrackEta;")
+    frame = frame.Define("posTrackPhi","float posTrackPhi; posTrackPhi=Muon_phi[get<0>(pairs.at(0))]; return posTrackPhi;")
+    frame = frame.Define("negTrackPhi","float negTrackPhi; negTrackPhi=Muon_phi[get<1>(pairs.at(0))]; return negTrackPhi;")
+    frame = frame.Define("posTrackPt","float posTrackPt; posTrackPt=Muon_pt[get<0>(pairs.at(0))]; return posTrackPt;")
+    frame = frame.Define("negTrackPt","float negTrackPt; negTrackPt=Muon_pt[get<1>(pairs.at(0))]; return negTrackPt;")
+    frame = frame.Define("posTrackDz","float posTrackDz; posTrackDz=Muon_dz[get<0>(pairs.at(0))]; return posTrackDz;")
+    frame = frame.Define("negTrackDz","float negTrackDz; negTrackDz=Muon_dz[get<1>(pairs.at(0))]; return negTrackDz;")
+    frame = frame.Define("posTrackD0","float posTrackD0; posTrackD0=Muon_dxy[get<0>(pairs.at(0))]; return posTrackD0;")
+    frame = frame.Define("negTrackD0","float negTrackD0; negTrackD0=Muon_dxy[get<1>(pairs.at(0))]; return negTrackD0;")
+    
     # Binning in eta {-2.4,-1.6,-0.8,0,0.8,1.6,2.4}
     #frame = frame.Define("etabin","std::vector<int> etabin; for(int j=0;j<nMuon;j++){etabin.push_back(-99999);} double etabins[7]={-2.4,-1.6,-0.8,0,0.8,1.6,2.4}; for(int k=0;k<nMuon;k++){for(int i=0;i<6;i++){if(etabins[i]<Muon_eta[k] && Muon_eta[k]<etabins[i+1]){etabin[k]=i+1;}}} return etabin;")
            
     # Binning in phi {-3,-2,-1,0,1,2,3}    
     #frame = frame.Define("phibin","std::vector<int> phibin; for(int j=0;j<nMuon;j++){phibin.push_back(-99999);} double phibins[7]={-3,-2,-1,0,1,2,3}; for(int k=0;k<nMuon;k++){for(int i=0;i<6;i++){if(phibins[i]<Muon_phi[k] && Muon_phi[k]<phibins[i+1]){phibin[k]=i+1;}}} return phibin;")
     
-    frame.Snapshot("outputTree", "outputFile_std_shorter_range_medium.root",{"MuonisGood","Muon_charge","firstPairsIndex","secondPairsIndex","Muon_eta","posTrackEta","negTrackEta","Muon_phi","posTrackPhi","negTrackPhi","Muon_pt","posTrackPt","negTrackPt","posTrackDz","negTrackDz","posTrackD0","negTrackD0"})
+    frame.Snapshot("outputTree", "mc_outputFile_std_shorter_range_medium.root",{"posTrackEta","negTrackEta","posTrackPhi","negTrackPhi","posTrackPt","negTrackPt","posTrackDz","negTrackDz","posTrackD0","negTrackD0"})
 
     '''
     # Get average p and pT per eta,phi bin    # Remember to change the ranges for a new binning
@@ -187,31 +184,9 @@ def frame():
 
     multi_hist = frame.HistoND(("multi_data_frame", "multi_data_frame", 5, (6,6,6,6,30), (1,1,1,1,75), (7,7,7,7,105)), ("etabin1","phibin1","etabin2","phibin2","mll"))
     hist_entries = multi_hist.Projection(4).GetEntries() # to compare entries in the inclusive profile vs the sum of the individual ones
-
-    region_proj = ROOT.TFile.Open("region_proj.root","RECREATE")
-    region_proj.cd()
-
-    etabin1_proj = multi_hist.Projection(0)
-    etabin1_proj.Write()
-    multi_hist.GetAxis(0).SetRange(1,1)
-    etabin1_proj = multi_hist.Projection(0)
-    etabin1_proj.Write()
-    multi_hist.GetAxis(0).SetRange(3,3)
-    etabin1_proj = multi_hist.Projection(0)
-    etabin1_proj.Write()
-    etabin1_proj = multi_hist.Projection(0)
-    phibin1_proj = multi_hist.Projection(1)
-    etabin2_proj = multi_hist.Projection(2)
-    phibin2_proj = multi_hist.Projection(3)
-    
-    etabin1_proj.Write()
-    phibin1_proj.Write()
-    etabin2_proj.Write()
-    phibin2_proj.Write()
-    region_proj.Close()
     
     # Profiles
-    outfile_fast = ROOT.TFile.Open("data_histos_std_shorter_range_medium.root","RECREATE")
+    outfile_fast = ROOT.TFile.Open("mc_histos_std_shorter_range_medium.root","RECREATE")
     outfile_fast.cd()
     
     eta_1_edges = np.array([-2.4,-1.6,-0.8,0,0.8,1.6,2.4])
@@ -221,16 +196,11 @@ def frame():
 
     #eta_2_edges = np.array([-2.4,-0.8,0.8,2.4])
     #phi_2_edges = np.array([-3,-1,1,3])
-
-    open("events_per_region.txt", "w").close() # this deletes the previous content of the file
-    f = open('events_per_region.txt', 'a')
     
     total_entries=0
-    total_entries_region = 0 
     
     for etabin1_idx in range(1,len(eta_1_edges)): 
         for phibin1_idx in range(1,len(phi_1_edges)):
-            total_entries_region = 0
             for etabin2_idx  in range(1,len(eta_2_edges)):
                 for phibin2_idx in range(1,len(phi_2_edges)):
                     multi_hist.GetAxis(0).SetRange(etabin1_idx,etabin1_idx)
@@ -242,12 +212,7 @@ def frame():
                     multi_hist_proj.SetTitle(f"Inv mass eta1 in [{eta_1_edges[etabin1_idx-1]},{eta_1_edges[etabin1_idx]}], phi1 in [{phi_1_edges[phibin1_idx-1]},{phi_1_edges[phibin1_idx]}], eta2 in [{eta_2_edges[etabin2_idx-1]},{eta_2_edges[etabin2_idx]}], phi2 in [{phi_2_edges[phibin2_idx-1]},{phi_2_edges[phibin2_idx]}]")
                     entries = multi_hist_proj.GetEntries()
                     total_entries = total_entries + entries
-                    total_entries_region = total_entries_region + entries
                     multi_hist_proj.Write()
-            #count events in eta,phi region of the first muon
-            f.write(f"lower eta bin bound:{eta_1_edges[etabin1_idx-1]}, lower phi bin bound:{phi_1_edges[phibin1_idx-1]}, total_entries_region: ")
-            f.write("{0:.0f}".format(total_entries_region))
-            f.write("\n")
     outfile_fast.Close()
 
     print("The profile inclusive in all eta and phi bins has: ", hist_entries, " entries and the sum from the individual histos (fast) is: ", total_entries, "the summed/initial (fast): ", total_entries/hist_entries)
@@ -297,7 +262,7 @@ def frame():
     h5 = frame.Histo1D(ROOT.RDF.TH1DModel("leading_pt", "Leading Pt", 100, 0, 100),"leading_pt")
     h6 = frame.Histo1D(ROOT.RDF.TH1DModel("subleading_pt", "Subleading Pt", 100, 0, 100),"subleading_pt")
     
-    outfilem = ROOT.TFile.Open("other_histos_std_shorter_range_medium.root","RECREATE")
+    outfilem = ROOT.TFile.Open("mc_other_histos_std_shorter_range_medium.root","RECREATE")
     outfilem.cd()
     '''
     hist_p_1.Write()
