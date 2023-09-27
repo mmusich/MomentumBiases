@@ -40,9 +40,11 @@ return muonisgood;
 
 //Pairs
 
-ROOT::RVec<std::tuple<int,int,double>> pairs(ROOT::RVecD Muon_cvhPt, ROOT::RVecD Muon_cvhCharge, ROOT::RVecD Muon_cvhEta, ROOT::RVecD Muon_cvhPhi, ROOT::RVecB MuonisGood, ROOT::RVecD Muon_dxy, ROOT::RVecD Muon_dz){
+ROOT::RVec<std::tuple<int,int,double>> pairs(ROOT::RVecD Muon_cvhPt, ROOT::RVecD Muon_cvhCharge, ROOT::RVecD Muon_cvhEta, ROOT::RVecD Muon_cvhPhi, ROOT::RVecB MuonisGood, ROOT::RVecD Muon_dxy, ROOT::RVecD Muon_dz, double rest_mass){
 
 ROOT::RVec<std::tuple<int,int,double>> pairs;
+std::tuple<int,int,double> temp;
+
 for(int i=1;i<Muon_cvhPt.size();i++){
      for(int j=0;j<i;j++){
           if(MuonisGood[i] && MuonisGood[j] && Muon_cvhCharge[i]*Muon_cvhCharge[j]==-1 && abs(Muon_dxy[i]-Muon_dxy[j])<0.1 && abs(Muon_dz[i]-Muon_dz[j])<0.6){
@@ -50,9 +52,12 @@ for(int i=1;i<Muon_cvhPt.size();i++){
                double gamma_angle = 0;
                gamma_angle = acos(sin(2*atan(exp((-1)*Muon_cvhEta[i])))*sin(2*atan(exp((-1)*Muon_cvhEta[j])))*cos(Muon_cvhPhi[i])*cos(Muon_cvhPhi[j]) + sin(2*atan(exp((-1)*Muon_cvhEta[i])))*sin(2*atan(exp((-1)*Muon_cvhEta[j])))*sin(Muon_cvhPhi[i])*sin(Muon_cvhPhi[j]) + cos(2*atan(exp((-1)*Muon_cvhEta[i])))*cos(2*atan(exp((-1)*Muon_cvhEta[j]))));
                if(gamma_angle > 3.141592653/4){
-                    double mll=pow(2*Muon_cvhPt[i]*Muon_cvhPt[j]*(cosh(Muon_cvhEta[i]-Muon_cvhEta[j])-cos(Muon_cvhPhi[i]-Muon_cvhPhi[j])),0.5);
+                    TLorentzVector firstTrack, secondTrack, mother;
+                    firstTrack.SetPtEtaPhiM(Muon_cvhPt[i], Muon_cvhEta[i], Muon_cvhPhi[i], rest_mass);
+                    secondTrack.SetPtEtaPhiM(Muon_cvhPt[j], Muon_cvhEta[j], Muon_cvhPhi[j], rest_mass);
+                    mother = firstTrack + secondTrack;
+                    double mll = mother.M();
                     if(75<mll && mll<105){
-                         std::tuple<int,int,double> temp;
                          if(Muon_cvhCharge[i]==1){
                               temp=make_tuple(i,j,mll);
                          } else {
@@ -116,7 +121,7 @@ def frame():
     frame = frame.Define("MuonisGood", "MuonisGood(Muon_cvhPt, Muon_cvhEta, Muon_isGlobal, Muon_mediumId, Muon_pfRelIso04_all, dxy_significance)")
     
     # Define invariant mass per mu pairs and filter for opposite sign, MuonisGood and invariant mass closest to Z
-    frame = frame.Define("pairs", "pairs(Muon_cvhPt, Muon_cvhCharge, Muon_cvhEta, Muon_cvhPhi, MuonisGood, Muon_dxy, Muon_dz)")
+    frame = frame.Define("pairs", "pairs(Muon_cvhPt, Muon_cvhCharge, Muon_cvhEta, Muon_cvhPhi, MuonisGood, Muon_dxy, Muon_dz, 0.105658)") #muMass = 0.105658 GeV
     
     frame = frame.Filter("pairs.size()>=1")
 
