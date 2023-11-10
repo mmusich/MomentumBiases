@@ -9,39 +9,34 @@ using namespace ROOT::VecOps;
 
 // MuonGenMatchedIndex
 // works as it is because there is only one muon pair selected  per event
-float posMuonGenMatchedIndex(RVecI GenPart_status, RVecI GenPart_pdgId, RVecI GenPart_genPartIdxMother, RVecD GenPart_pt){
-  int index = 999;
-  float posGenPt = 0.0;
+RVecF MuonGenMatchedIndex(RVecI GenPart_status, RVecI GenPart_pdgId, RVecI GenPart_genPartIdxMother, RVecF GenPart_pt){
+  int posindex = 999;
+  int negindex = 999;
+  RVecF genpt;
   for(int i=0;i<GenPart_status.size();i++){
-    if (GenPart_status[i] == 1 && GenPart_pdgId[i] == 13 && GenPart_pdgId[GenPart_genPartIdxMother[i]] == 23){
-      index = i;
+    if (GenPart_status[i] == 1 && GenPart_pdgId[GenPart_genPartIdxMother[i]] == 23){
+      if (GenPart_pdgId[i] == -13){ // mu(-) has PDGID 13
+        posindex = i;
+      } else if(GenPart_pdgId[i] == 13) {
+        negindex = i;
+      }
     }
   }
-  posGenPt = GenPart_pt[index];
-  return posGenPt;
-}
-
-float negMuonGenMatchedIndex(RVecI GenPart_status, RVecI GenPart_pdgId, RVecI GenPart_genPartIdxMother, RVecD GenPart_pt){
-  int index = 999;
-  float negGenPt = 0.0;
-  for(int i=0;i<GenPart_status.size();i++){
-    if (GenPart_status[i] == 1 && GenPart_pdgId[i] == -13 && GenPart_pdgId[GenPart_genPartIdxMother[i]] == 23){
-      index = i;
-    }
-  }
-  negGenPt = GenPart_pt[index];
-  return negGenPt;
+  genpt.push_back(GenPart_pt[posindex]);
+  genpt.push_back(GenPart_pt[negindex]);
+    
+  return genpt;
 }
 
 //dxy_significance
 
-RVecD dxy_significance(RVecD Muon_dxy, RVecD Muon_dxyErr){
+RVecF dxy_significance(RVecF Muon_dxy, RVecF Muon_dxyErr){
   return abs(Muon_dxy)/Muon_dxyErr;
 }
 
 // MuonisGood
 
-RVecB MuonisGood(RVecD Muon_pt, RVecD Muon_eta, RVecB Muon_isGlobal, RVecB Muon_mediumId, RVecD Muon_pfRelIso04_all, RVecD dxy_significance){
+RVecB MuonisGood(RVecF Muon_pt, RVecF Muon_eta, RVecB Muon_isGlobal, RVecB Muon_mediumId, RVecF Muon_pfRelIso04_all, RVecF dxy_significance){
   RVecB muonisgood;
   for(int i=0;i<Muon_pt.size();i++){
        if (Muon_pt[i] > 10 && abs(Muon_eta[i]) < 2.4 && Muon_isGlobal[i] && Muon_mediumId[i] && Muon_pfRelIso04_all[i] < 0.15 && dxy_significance[i] < 4){
@@ -53,23 +48,23 @@ RVecB MuonisGood(RVecD Muon_pt, RVecD Muon_eta, RVecB Muon_isGlobal, RVecB Muon_
 
 //Pairs
 
-RVec<std::tuple<int,int,double>> pairs(RVecD Muon_pt, RVecD Muon_charge, RVecD Muon_eta, RVecD Muon_phi, RVecB MuonisGood, RVecD Muon_dxy, RVecD Muon_dz, double rest_mass){
+RVec<std::tuple<int,int,float>> pairs(RVecF Muon_pt, RVecF Muon_charge, RVecF Muon_eta, RVecF Muon_phi, RVecB MuonisGood, RVecF Muon_dxy, RVecF Muon_dz, float rest_mass){
 
-  RVec<std::tuple<int,int,double>> pairs; // <pos_muon_index, neg_muon_index, pair_inv_mass>
-  std::tuple<int,int,double> temp;
+  RVec<std::tuple<int,int,float>> pairs; // <pos_muon_index, neg_muon_index, pair_inv_mass>
+  std::tuple<int,int,float> temp;
 
   for(int i=1;i<Muon_pt.size();i++){
   for(int j=0;j<i;j++){
             if(MuonisGood[i] && MuonisGood[j] && Muon_charge[i]*Muon_charge[j]==-1 && abs(Muon_dxy[i]-Muon_dxy[j])<0.1 && abs(Muon_dz[i]-Muon_dz[j])<0.6){
                  // Define opening angle
-                 double gamma_angle = 0;
+                 float gamma_angle = 0;
                  gamma_angle = acos(sin(2*atan(exp((-1)*Muon_eta[i])))*sin(2*atan(exp((-1)*Muon_eta[j])))*cos(Muon_phi[i])*cos(Muon_phi[j]) + sin(2*atan(exp((-1)*Muon_eta[i])))*sin(2*atan(exp((-1)*Muon_eta[j])))*sin(Muon_phi[i])*sin(Muon_phi[j]) + cos(2*atan(exp((-1)*Muon_eta[i])))*cos(2*atan(exp((-1)*Muon_eta[j]))));
                  if(gamma_angle > 3.141592653/4){
                       TLorentzVector firstTrack, secondTrack, mother;
                       firstTrack.SetPtEtaPhiM(Muon_pt[i], Muon_eta[i], Muon_phi[i], rest_mass);  
                       secondTrack.SetPtEtaPhiM(Muon_pt[j], Muon_eta[j], Muon_phi[j], rest_mass);
                       mother = firstTrack + secondTrack;
-                      double mll = mother.M();
+                      float mll = mother.M();
                       if(75<mll && mll<105){
                            if(Muon_charge[i]==1){
                                 temp=make_tuple(i,j,mll);
@@ -83,7 +78,7 @@ RVec<std::tuple<int,int,double>> pairs(RVecD Muon_pt, RVecD Muon_charge, RVecD M
        }
   }
   if(pairs.size()>1){
-       double diff=100.0;
+       float diff=100.0;
        int best=0;
        for(int i=0;i<pairs.size();i++){
             if(abs(get<2>(pairs.at(i))-91)<diff){
@@ -91,7 +86,7 @@ RVec<std::tuple<int,int,double>> pairs(RVecD Muon_pt, RVecD Muon_charge, RVecD M
                  best=i;
             }
        }
-       RVec<std::tuple<int,int,double>> pairss;
+       RVec<std::tuple<int,int,float>> pairss;
        pairss.push_back(pairs.at(best));
        return pairss;
   }
@@ -125,17 +120,17 @@ int frame(){
   
   auto d4 = d3.Define("posTrackPt","float posTrackPt; posTrackPt=Muon_pt[get<0>(pairs.at(0))]; return posTrackPt;")
               .Define("negTrackPt","float negTrackPt; negTrackPt=Muon_pt[get<1>(pairs.at(0))]; return negTrackPt;")
+              .Define("recoPt","RVecF recoPt; recoPt.push_back(posTrackPt); recoPt.push_back(negTrackPt); return recoPt;")
+              .Define("genPt", "MuonGenMatchedIndex(GenPart_status, GenPart_pdgId, GenPart_genPartIdxMother, GenPart_pt)")
               .Define("posTrackEta","float posTrackEta; posTrackEta=Muon_eta[get<0>(pairs.at(0))]; return posTrackEta;")
 	      .Define("negTrackEta","float negTrackEta; negTrackEta=Muon_eta[get<1>(pairs.at(0))]; return negTrackEta;")
-              .Define("mll","std::vector<double> temporary; for(int i=0; i<pairs.size(); i++){temporary.push_back(get<2>(pairs.at(i)));} return temporary;");
+              .Define("mll","RVecF temporary; for(int i=0; i<pairs.size(); i++){temporary.push_back(get<2>(pairs.at(i)));} return temporary;");
 
-  auto d5 = d4.Define("posGenPt", "posMuonGenMatchedIndex(GenPart_status, GenPart_pdgId, GenPart_genPartIdxMother, GenPart_pt)")
-              .Define("negGenPt", "negMuonGenMatchedIndex(GenPart_status, GenPart_pdgId, GenPart_genPartIdxMother, GenPart_pt)");
+  auto d5 = d4.Define("ptDiff","RVecF ptDiff; ptDiff.push_back(recoPt[0] - genPt[0]); ptDiff.push_back(recoPt[1] - genPt[1]); return ptDiff;");
 
-  auto d6 = d5.Define("posPtDiff","float posPtDiff  = posTrackPt - posGenPt; return posPtDiff;")
-              .Define("negPtDiff","float negPtDiff  = negTrackPt - negGenPt; return negPtDiff;");
-  
-  d6.Snapshot("Events", outFileName, {"Muon_pt", "Muon_charge", "posTrackPt", "posGenPt", "negTrackPt", "negGenPt", "posPtDiff"});
+  auto multi_hist = d5.HistoND<float, float, float, float, RVecF, float>({"multi_data_frame", "multi_data_frame", 5, {16,20,16,20,20}, {-2.4,10,-2.4,10,-10}, {2.4,90,2.4,90,10}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","ptDiff","genWeight"});
+
+  d5.Snapshot("Events", outFileName, {"Muon_pt", "Muon_charge", "recoPt", "genPt", "ptDiff", "GenPart_pdgId", "GenPart_pt"});
   
   return 0; 
 
