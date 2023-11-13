@@ -93,9 +93,15 @@ RVec<std::tuple<int,int,float>> pairs(RVecF Muon_pt, RVecF Muon_charge, RVecF Mu
   return pairs;
 }
 
+string stringify(int a, int b, int c,int d){
+  string hyp = "_";
+  return to_string(a) + hyp + to_string(b) + hyp + to_string(c) + hyp + to_string(d);
+}
+
 int frame(){
 
-  auto outFileName = "snapshot_output.root";
+  TFile *f1 = new TFile("snapshot_output.root","RECREATE");
+  TFile *f2 = new TFile("reco_gen_histos.root","RECREATE");
   
   TChain chain("Events");
   //chain.Add("/scratchnvme/wmass/NANOV9/staging/NanoV9Run2016FDataPostVFP_TrackFitV718_NanoProdv1/221230_011433/0000/NanoV9DataPostVFP_5.root");
@@ -128,9 +134,62 @@ int frame(){
 
   auto d5 = d4.Define("ptDiff","RVecF ptDiff; ptDiff.push_back(recoPt[0] - genPt[0]); ptDiff.push_back(recoPt[1] - genPt[1]); return ptDiff;");
 
-  auto multi_hist = d5.HistoND<float, float, float, float, RVecF, float>({"multi_data_frame", "multi_data_frame", 5, {16,20,16,20,20}, {-2.4,10,-2.4,10,-10}, {2.4,90,2.4,90,10}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","ptDiff","genWeight"});
+  //d5.Snapshot("Events", "snapshot_output.root", {"Muon_pt", "Muon_charge", "recoPt", "genPt", "ptDiff", "GenPart_pdgId", "GenPart_pt"});
+  
+  //auto multi_hist = d5.HistoND<float, float, float, float, RVecF, float>({"multi_data_frame", "multi_data_frame", 5, {16,20,16,20,12}, {-2.4,10,-2.4,10,-6}, {2.4,90,2.4,90,6}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","ptDiff","genWeight"});
 
-  d5.Snapshot("Events", outFileName, {"Muon_pt", "Muon_charge", "recoPt", "genPt", "ptDiff", "GenPart_pdgId", "GenPart_pt"});
+  //larger bins while debugging
+  auto multi_hist = d5.HistoND<float, float, float, float, RVecF, float>({"multi_data_frame", "multi_data_frame", 5, {2,4,2,4,12}, {-2.4,10,-2.4,10,-6}, {2.4,90,2.4,90,6}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","ptDiff","genWeight"});
+  
+  std::cout << "There are " << multi_hist->Projection(4)->GetEntries() << " entries in the inclusive projection \n";
+  
+  auto multi_hist_proj = multi_hist->Projection(4);
+  multi_hist_proj->SetName("inclusive_proj_pt_diff");
+  multi_hist_proj->SetTitle("reco - gen pT inclusive");
+  multi_hist_proj->Write("reco_gen_histos.root");
+  
+  multi_hist_proj = multi_hist->Projection(0);
+  multi_hist_proj->SetName("inclusive_proj_pos_eta");
+  multi_hist_proj->SetTitle("pos eta inclusive");
+  multi_hist_proj->Write("reco_gen_histos.root");
+
+  multi_hist_proj = multi_hist->Projection(1);
+  multi_hist_proj->SetName("inclusive_proj_pos_pt");
+  multi_hist_proj->SetTitle("pos pt inclusive");
+  multi_hist_proj->Write("reco_gen_histos.root");
+
+  multi_hist_proj = multi_hist->Projection(2);
+  multi_hist_proj->SetName("inclusive_proj_neg_eta");
+  multi_hist_proj->SetTitle("neg eta inclusive");
+  multi_hist_proj->Write("reco_gen_histos.root");
+
+  multi_hist_proj = multi_hist->Projection(3);
+  multi_hist_proj->SetName("inclusive_proj_neg_pt");
+  multi_hist_proj->SetTitle("neg pt inclusive");
+  multi_hist_proj->Write("reco_gen_histos.root");
+
+  string name, title, title_seed = "reco - gen pT "; 
+
+  for (int pos_eta_bin=1; pos_eta_bin<=2; pos_eta_bin++){
+    for (int pos_pt_bin=1; pos_pt_bin<=4; pos_pt_bin++){
+      for (int neg_eta_bin=1; neg_eta_bin<=2; neg_eta_bin++){
+	for (int neg_pt_bin=1; neg_pt_bin<=4; neg_pt_bin++){
+          multi_hist->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+          multi_hist->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+          multi_hist->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+          multi_hist->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+          multi_hist_proj = multi_hist->Projection(4);
+	  
+	  name = stringify(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin);
+          title = title_seed + name;
+
+          multi_hist_proj->SetName(name.c_str());
+          multi_hist_proj->SetTitle(title.c_str());
+          multi_hist_proj->Write("reco_gen_histos.root");
+	}
+      } 
+    }
+  }
   
   return 0; 
 
