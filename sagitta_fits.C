@@ -3,6 +3,7 @@
 #include "TFile.h"
 #include "TTree.h"
 #include "TChain.h"
+#include "TCanvas.h"
 
 using namespace ROOT;
 using namespace ROOT::VecOps;
@@ -93,22 +94,53 @@ RVec<std::tuple<int,int,float>> pairs(RVecF Muon_pt, RVecF Muon_charge, RVecF Mu
   return pairs;
 }
 
-string stringify(int a, int b, int c,int d){
+string stringify_name(int a, int b, int c, int d){
   string hyp = "_";
   return to_string(a) + hyp + to_string(b) + hyp + to_string(c) + hyp + to_string(d);
 }
 
+string stringify_title(int a, int b, int c, int d, vector<float> e, vector<float> p){
+  string title_seed = "reco - gen pT ", comma = ",";
+  string txt1 = "eta+ in [", txt2="] pt+ in [", txt3="] eta- in [", txt4="] pt- in [", txt5 = "]";
+  return title_seed+txt1+to_string(e[a-1]).substr(0,3)+comma+to_string(e[a]).substr(0,3)+txt2+to_string(p[b-1]).substr(0,4)+comma+to_string(p[b]).substr(0,4)+txt3+to_string(e[c-1]).substr(0,3)+comma+to_string(e[c]).substr(0,3)+txt4+to_string(p[d-1]).substr(0,4)+comma+to_string(p[d]).substr(0,4)+txt5;
+}
+
+vector<float> fitHisto(TH1* histogram){
+
+  vector<float> fitresult;
+
+  TF1 *gaussianFunc = new TF1("gaussianFunc", "gaus", -6, 6);
+  histogram->Fit(gaussianFunc, "Q");
+
+  float mean = gaussianFunc->GetParameter(1); 
+  float sigma = gaussianFunc->GetParameter(2); 
+  fitresult.push_back(mean);
+  fitresult.push_back(sigma);
+
+  return fitresult;
+}
+
 int frame(){
+
+  ROOT::EnableImplicitMT(128);
 
   TFile *f1 = new TFile("snapshot_output.root","RECREATE");
   TFile *f2 = new TFile("reco_gen_histos.root","RECREATE");
   
   TChain chain("Events");
-  //chain.Add("/scratchnvme/wmass/NANOV9/staging/NanoV9Run2016FDataPostVFP_TrackFitV718_NanoProdv1/221230_011433/0000/NanoV9DataPostVFP_5.root");
-  //chain.Add("/scratchnvme/wmass/NANOV9/staging/NanoV9Run2016FDataPostVFP_TrackFitV718_NanoProdv1/221230_011433/0000/NanoV9DataPostVFP_6.root");
-  chain.Add("/scratchnvme/wmass/NANOV9/postVFP/DYJetsToMuMu_H2ErratumFix_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MCPostVFP_TrackFitV722_NanoProdv3/231019_193617/0000/NanoV9MCPostVFP_773.root");
-  chain.Add("/scratchnvme/wmass/NANOV9/postVFP/DYJetsToMuMu_H2ErratumFix_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MCPostVFP_TrackFitV722_NanoProdv3/231019_193617/0000/NanoV9MCPostVFP_772.root");
+  //chain.Add("/scratchnvme/wmass/NANOV9/postVFP/DYJetsToMuMu_H2ErratumFix_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MCPostVFP_TrackFitV722_NanoProdv3/231019_193617/0000/NanoV9MCPostVFP_773.root");
+  //chain.Add("/scratchnvme/wmass/NANOV9/postVFP/DYJetsToMuMu_H2ErratumFix_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MCPostVFP_TrackFitV722_NanoProdv3/231019_193617/0000/NanoV9MCPostVFP_772.root");
   
+  string line;
+
+  ifstream file("MCfilenames.txt");
+  if (file.is_open()) {
+    while (getline(file, line)) {
+      chain.Add(line.c_str());
+    }
+    file.close();
+  }  
+
   RDataFrame df(chain);
 
   auto d1 = df.Filter("HLT_IsoMu24 == 1")
@@ -135,19 +167,31 @@ int frame(){
   auto d5 = d4.Define("ptDiff","RVecF ptDiff; ptDiff.push_back(recoPt[0] - genPt[0]); ptDiff.push_back(recoPt[1] - genPt[1]); return ptDiff;");
 
   //d5.Snapshot("Events", "snapshot_output.root", {"Muon_pt", "Muon_charge", "recoPt", "genPt", "ptDiff", "GenPart_pdgId", "GenPart_pt"});
-  
-  //auto multi_hist = d5.HistoND<float, float, float, float, RVecF, float>({"multi_data_frame", "multi_data_frame", 5, {16,20,16,20,12}, {-2.4,10,-2.4,10,-6}, {2.4,90,2.4,90,6}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","ptDiff","genWeight"});
 
+  int nbinseta=24, nbinspt=10;
+  float ptlow=40.0, pthigh=45.0;
   //larger bins while debugging
-  auto multi_hist = d5.HistoND<float, float, float, float, RVecF, float>({"multi_data_frame", "multi_data_frame", 5, {2,4,2,4,12}, {-2.4,10,-2.4,10,-6}, {2.4,90,2.4,90,6}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","ptDiff","genWeight"});
-  
+  //int nbinseta=6, nbinspt=10;
+    
+  auto multi_hist = d5.HistoND<float, float, float, float, RVecF, float>({"multi_data_frame", "multi_data_frame", 5, {nbinseta, nbinspt, nbinseta, nbinspt, 24}, {-2.4,ptlow,-2.4,ptlow,-6}, {2.4,pthigh,2.4,pthigh,6}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","ptDiff","genWeight"});
+
+  TH1F *mean = new TH1F("mean", "gen-reco mean", 3, 0, 3);
+  mean->SetCanExtend(TH1::kAllAxes);
+
+  TH1F *sigma = new TH1F("sigma", "gen-reco sigma", 3, 0, 3);
+  sigma->SetCanExtend(TH1::kAllAxes);
+
   std::cout << "There are " << multi_hist->Projection(4)->GetEntries() << " entries in the inclusive projection \n";
   
   auto multi_hist_proj = multi_hist->Projection(4);
   multi_hist_proj->SetName("inclusive_proj_pt_diff");
   multi_hist_proj->SetTitle("reco - gen pT inclusive");
-  multi_hist_proj->Write("reco_gen_histos.root");
+  //multi_hist_proj->Write("reco_gen_histos.root");
   
+  TF1 *gaussianFunc = new TF1("gaussianFunc", "gaus", -6, 6);
+  multi_hist_proj->Fit(gaussianFunc, "Q");
+  multi_hist_proj->Write("reco_gen_histos.root");
+
   multi_hist_proj = multi_hist->Projection(0);
   multi_hist_proj->SetName("inclusive_proj_pos_eta");
   multi_hist_proj->SetTitle("pos eta inclusive");
@@ -168,29 +212,64 @@ int frame(){
   multi_hist_proj->SetTitle("neg pt inclusive");
   multi_hist_proj->Write("reco_gen_histos.root");
 
-  string name, title, title_seed = "reco - gen pT "; 
+  std::map<string, vector<float>> GenRecoFit;
+  vector<float> fitresult;
 
-  for (int pos_eta_bin=1; pos_eta_bin<=2; pos_eta_bin++){
-    for (int pos_pt_bin=1; pos_pt_bin<=4; pos_pt_bin++){
-      for (int neg_eta_bin=1; neg_eta_bin<=2; neg_eta_bin++){
-	for (int neg_pt_bin=1; neg_pt_bin<=4; neg_pt_bin++){
+  string name, title, title_seed = "reco - gen pT "; 
+  vector<float> etabinranges, ptbinranges;
+  for (int i=0; i<=nbinseta; i++){etabinranges.push_back(-2.4 + i * 4.8/nbinseta);}
+  for (int i=0; i<=nbinspt; i++){ptbinranges.push_back(ptlow + i * (pthigh-ptlow)/nbinspt);}
+
+  TH2F* empty_histos = new TH2F("empty_histos", " fraction empty histos mu+", nbinseta, -2.4, 2.4, nbinspt, ptlow, pthigh);
+  TH2F* total_histos = new TH2F("total_histos", " total histos", nbinseta, -2.4, 2.4, nbinspt, ptlow, pthigh);
+  int entries = 0;
+
+  for (int pos_eta_bin=1; pos_eta_bin<=nbinseta; pos_eta_bin++){
+    for (int pos_pt_bin=1; pos_pt_bin<=nbinspt; pos_pt_bin++){
+      for (int neg_eta_bin=1; neg_eta_bin<=nbinseta; neg_eta_bin++){
+	for (int neg_pt_bin=1; neg_pt_bin<=nbinspt; neg_pt_bin++){
           multi_hist->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
           multi_hist->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
           multi_hist->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
           multi_hist->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
           multi_hist_proj = multi_hist->Projection(4);
+          entries = multi_hist_proj->GetEntries();
+          total_histos->Fill(etabinranges[pos_eta_bin-1]+0.001, ptbinranges[pos_pt_bin-1]+0.001);
+          if (entries < 50){ 
+            empty_histos->Fill(etabinranges[pos_eta_bin-1]+0.001, ptbinranges[pos_pt_bin-1]+0.001);
+            continue;
+          } else {
 	  
-	  name = stringify(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin);
-          title = title_seed + name;
+	    name = stringify_name(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin);
+            title = stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges);
+            multi_hist_proj->SetName(name.c_str());
+            multi_hist_proj->SetTitle(title.c_str());
 
-          multi_hist_proj->SetName(name.c_str());
-          multi_hist_proj->SetTitle(title.c_str());
-          multi_hist_proj->Write("reco_gen_histos.root");
+	    fitresult = fitHisto(multi_hist_proj);
+            GenRecoFit[name] = fitresult;
+            mean->Fill(name.c_str(), fitresult[0]);
+	    sigma->Fill(name.c_str(), fitresult[1]);
+            multi_hist_proj->Write("reco_gen_histos.root");
+	  }
 	}
       } 
     }
   }
+  empty_histos->Divide(total_histos);
+  empty_histos->Write("reco_gen_histos.root");    
+  auto c = new TCanvas("c","c");
+  c->SetRightMargin(0.20);
+  empty_histos->Draw("COLZ");
+  c->SaveAs("empty_histos.pdf");
+
+  mean->SetStats(0);
+  mean->LabelsDeflate();
+  mean->Write("reco_gen_histos.root");
   
+  sigma->SetStats(0);
+  sigma->LabelsDeflate();
+  sigma->Write("reco_gen_histos.root");
+
   return 0; 
 
 }
