@@ -165,16 +165,18 @@ int frame(){
 	      .Define("negTrackEta","float negTrackEta; negTrackEta=Muon_eta[get<1>(pairs.at(0))]; return negTrackEta;")
               .Define("mll","RVecF temporary; for(int i=0; i<pairs.size(); i++){temporary.push_back(get<2>(pairs.at(i)));} return temporary;");
 
-  auto d5 = d4.Define("ptDiff","RVecF ptDiff; ptDiff.push_back(recoPt[0] - genPt[0]); ptDiff.push_back(recoPt[1] - genPt[1]); return ptDiff;");
+  auto d5 = d4.Define("posPtDiff","float posptDiff; posptDiff=recoPt[0] - genPt[0]; return posptDiff;")
+              .Define("negPtDiff","float negptDiff; negptDiff=recoPt[1] - genPt[1]; return negptDiff;");
 
-  //d5.Snapshot("Events", "snapshot_output.root", {"Muon_pt", "Muon_charge", "recoPt", "genPt", "ptDiff", "GenPart_pdgId", "GenPart_pt"});
+  d5.Snapshot("Events", "snapshot_output.root", {"Muon_pt", "Muon_charge", "recoPt", "genPt", "posPtDiff", "negPtDiff", "GenPart_pdgId", "GenPart_pt"});
 
   int nbinseta=1, nbinspt=1;
   float ptlow=25.0, pthigh=55.0;
   //larger bins while debugging
   //int nbinseta=6, nbinspt=2;
 
-  auto multi_hist = d5.HistoND<float, float, float, float, RVecF, float>({"multi_data_frame", "multi_data_frame", 5, {nbinseta, nbinspt, nbinseta, nbinspt, 24}, {-2.4,ptlow,-2.4,ptlow,-6}, {2.4,pthigh,2.4,pthigh,6}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","ptDiff","genWeight"});
+  auto posPt_hist = d5.Histo3D<float, float, float, float>({"posPt_hist", "posPt_hist", nbinseta, -2.4, 2.4, nbinspt, ptlow, pthigh, 24, -6., 6.},"posTrackEta", "posTrackPt", "posPtDiff", "genWeight");
+  auto negPt_hist = d5.Histo3D<float, float, float, float>({"negPt_hist", "negPt_hist", nbinseta, -2.4, 2.4, nbinspt, ptlow, pthigh, 24, -6., 6.},"negTrackEta", "negTrackPt", "negPtDiff", "genWeight");
 
   vector<float> etabinranges, ptbinranges;
   for (int i=0; i<=nbinseta; i++){etabinranges.push_back(-2.4 + i * 4.8/nbinseta);}
@@ -183,15 +185,23 @@ int frame(){
   for (int i=0; i<=nbinspt; i++){ptbinranges.push_back(ptlow + i * (pthigh-ptlow)/nbinspt);}
 
   double initial_entries = 0.0;
-  auto multi_hist_proj = multi_hist->Projection(4);
-  initial_entries = multi_hist_proj->GetEntries();
-  std::cout << "There are " << initial_entries << " entries in the inclusive projection \n";
+  auto posPt_hist_proj = posPt_hist->ProjectionZ();
+  initial_entries = posPt_hist_proj->GetEntries();
+  std::cout << "There are " << initial_entries << " entries in the pos inclusive projection \n";
  
+  auto negPt_hist_proj = negPt_hist->ProjectionZ();
+  std::cout << "There are " << negPt_hist_proj->GetEntries() << " entries in the neg inclusive projection \n";
+
   TFile f("reco_gen_histos.root","recreate");
   
-  multi_hist_proj->SetName("inclusive_proj_pt_diff");
-  multi_hist_proj->SetTitle("reco - gen pT inclusive");
-  multi_hist_proj->Write();
+  posPt_hist_proj->SetName("inclusive_proj_posPtDiff");
+  posPt_hist_proj->SetTitle("pos reco - gen pT inclusive");
+  posPt_hist_proj->Write();
+
+  negPt_hist_proj->SetName("inclusive_proj_negPtDiff");
+  negPt_hist_proj->SetTitle("neg reco - gen pT inclusive");
+  negPt_hist_proj->Write();
+
   /*
   multi_hist_proj = multi_hist->Projection(0);
   multi_hist_proj->SetName("inclusive_proj_pos_eta");
@@ -278,7 +288,7 @@ int frame(){
   multi_hist_proj->SetName("3_1_4_1_u");
   multi_hist_proj->Write();
   */
-
+  /*
   double events_count = 0.0, entries = 0.0;
   //with under/overflow, labels don t make sense, can t use setrangeuser
   for (int pos_eta_bin=0; pos_eta_bin<=nbinseta+1; pos_eta_bin++){
@@ -299,14 +309,14 @@ int frame(){
 
           //entries = multi_hist_proj->GetEntries();
 	  //std::cout<<"in histo "<<name<<" there are with SetRange "<< entries << " entries and with SetRangeUser there are ";          
-	  /*
+	  
 	  delete gROOT->FindObject("multi_data_frame_proj_4");
           multi_hist->GetAxis(0)->SetRangeUser(etabinranges[pos_eta_bin - 1]+0.00001, etabinranges[pos_eta_bin]-0.0001);
 	  multi_hist->GetAxis(1)->SetRangeUser(ptbinranges[pos_pt_bin - 1]+0.00001, ptbinranges[pos_pt_bin]-0.0001);
           multi_hist->GetAxis(2)->SetRangeUser(etabinranges[neg_eta_bin - 1]+0.00001, etabinranges[neg_eta_bin]-0.0001);
           multi_hist->GetAxis(3)->SetRangeUser(ptbinranges[neg_pt_bin - 1]+0.00001, ptbinranges[neg_pt_bin]-0.0001);
           multi_hist_proj = multi_hist->Projection(4);
-	  */
+	  
 	  entries = multi_hist_proj->GetEntries();
 	  std::cout<<"entries: "<<entries;
 	  events_count =  events_count + entries;
@@ -322,7 +332,7 @@ int frame(){
   } 
 
   std::cout<<"Initial no. of events: "<<initial_entries<<"sum of events in individual histos: "<<events_count<<" ev diff: "<<initial_entries-events_count; 
- 
+ */
   f.Close();
 
   return 0; 
