@@ -165,7 +165,8 @@ int frame(){
 	      .Define("negTrackEta","float negTrackEta; negTrackEta=Muon_eta[get<1>(pairs.at(0))]; return negTrackEta;")
               .Define("mll","RVecF temporary; for(int i=0; i<pairs.size(); i++){temporary.push_back(get<2>(pairs.at(i)));} return temporary;");
 
-  auto d5 = d4.Define("posPtDiff","float posptDiff; posptDiff=recoPt[0] - genPt[0]; return posptDiff;")
+  auto d5 = d4.Define("ptDiff","RVecF ptDiff; ptDiff.push_back(recoPt[0] - genPt[0]); ptDiff.push_back(recoPt[1] - genPt[1]); return ptDiff;")
+              .Define("posPtDiff","float posptDiff; posptDiff=recoPt[0] - genPt[0]; return posptDiff;")
               .Define("negPtDiff","float negptDiff; negptDiff=recoPt[1] - genPt[1]; return negptDiff;");
 
   d5.Snapshot("Events", "snapshot_output.root", {"Muon_pt", "Muon_charge", "recoPt", "genPt", "posPtDiff", "negPtDiff", "GenPart_pdgId", "GenPart_pt"});
@@ -174,9 +175,17 @@ int frame(){
   float ptlow=25.0, pthigh=55.0;
   //larger bins while debugging
   //int nbinseta=6, nbinspt=2;
-
+  /*
   auto posPt_hist = d5.Histo3D<float, float, float, float>({"posPt_hist", "posPt_hist", nbinseta, -2.4, 2.4, nbinspt, ptlow, pthigh, 24, -6., 6.},"posTrackEta", "posTrackPt", "posPtDiff", "genWeight");
   auto negPt_hist = d5.Histo3D<float, float, float, float>({"negPt_hist", "negPt_hist", nbinseta, -2.4, 2.4, nbinspt, ptlow, pthigh, 24, -6., 6.},"negTrackEta", "negTrackPt", "negPtDiff", "genWeight");
+
+  auto multi_hist = d5.HistoND<float, float, float, float, RVecF, float>({"multi_data_frame", "multi_data_frame", 5, {nbinseta, nbinspt, nbinseta, nbinspt, 24}, {-2.4,ptlow,-2.4,ptlow,-6}, {2.4,pthigh,2.4,pthigh,6}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","ptDiff","genWeight"});
+  */
+  // don't fill with weights for now
+  auto posPt_hist = d5.Histo3D<float, float, float>({"posPt_hist", "posPt_hist", nbinseta, -2.4, 2.4, nbinspt, ptlow, pthigh, 24, -6., 6.},"posTrackEta", "posTrackPt", "posPtDiff");
+  auto negPt_hist = d5.Histo3D<float, float, float>({"negPt_hist", "negPt_hist", nbinseta, -2.4, 2.4, nbinspt, ptlow, pthigh, 24, -6., 6.},"negTrackEta", "negTrackPt", "negPtDiff");
+
+  auto multi_hist = d5.HistoND<float, float, float, float, RVecF>({"multi_data_frame", "multi_data_frame", 5, {nbinseta, nbinspt, nbinseta, nbinspt, 24}, {-2.4,ptlow,-2.4,ptlow,-6.0}, {2.4,pthigh,2.4,pthigh,6.0}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","ptDiff"});
 
   vector<float> etabinranges, ptbinranges;
   for (int i=0; i<=nbinseta; i++){etabinranges.push_back(-2.4 + i * 4.8/nbinseta);}
@@ -184,13 +193,19 @@ int frame(){
   nbinspt = 1;
   for (int i=0; i<=nbinspt; i++){ptbinranges.push_back(ptlow + i * (pthigh-ptlow)/nbinspt);}
 
-  double initial_entries = 0.0;
+  double initial_entries = 0.0, initial_integral = 0.0;
   auto posPt_hist_proj = posPt_hist->ProjectionZ();
   initial_entries = posPt_hist_proj->GetEntries();
+  initial_integral += posPt_hist_proj->Integral(1,24);
   std::cout << "There are " << initial_entries << " entries in the pos inclusive projection \n";
  
   auto negPt_hist_proj = negPt_hist->ProjectionZ();
+  initial_integral += negPt_hist_proj->Integral(1,24);
   std::cout << "There are " << negPt_hist_proj->GetEntries() << " entries in the neg inclusive projection \n";
+  
+  auto multi_hist_proj = multi_hist->Projection(4);
+  initial_entries = multi_hist_proj->GetEntries();
+  std::cout << "There are " << initial_entries << " entries in the inclusive projection \n";
 
   TFile f("reco_gen_histos.root","recreate");
   
@@ -202,111 +217,55 @@ int frame(){
   negPt_hist_proj->SetTitle("neg reco - gen pT inclusive");
   negPt_hist_proj->Write();
 
-  /*
-  multi_hist_proj = multi_hist->Projection(0);
-  multi_hist_proj->SetName("inclusive_proj_pos_eta");
-  multi_hist_proj->SetTitle("pos eta inclusive");
-  multi_hist_proj->Write();
-  
-  multi_hist->GetAxis(0)->SetRange(3, 3);
-  multi_hist_proj = multi_hist->Projection(0);
-  multi_hist_proj->SetName("0_reduced_bin");
+  multi_hist_proj->SetName("inclusive_proj_pt_diff");
+  multi_hist_proj->SetTitle("reco - gen pT inclusive");
   multi_hist_proj->Write();
 
-  multi_hist->GetAxis(0)->SetRangeUser(etabinranges[2]+0.00001, etabinranges[3]-0.00001);
-  multi_hist_proj = multi_hist->Projection(0);
-  multi_hist_proj->SetName("0_reduced_user");
-  multi_hist_proj->Write();
-
-  multi_hist->GetAxis(1)->SetRange(1, 1);
-  multi_hist_proj = multi_hist->Projection(1);
-  multi_hist_proj->SetName("1_reduced_bin");
-  multi_hist_proj->Write();
-
-  multi_hist->GetAxis(1)->SetRangeUser(ptbinranges[0]+0.00001, ptbinranges[1]-0.00001);
-  multi_hist_proj = multi_hist->Projection(1);
-  multi_hist_proj->SetName("1_reduced_user");
-  multi_hist_proj->Write();
-
-  multi_hist->GetAxis(2)->SetRange(4, 4);
-  multi_hist_proj = multi_hist->Projection(2);
-  multi_hist_proj->SetName("2_reduced_bin");
-  multi_hist_proj->Write();
-
-  multi_hist->GetAxis(2)->SetRangeUser(etabinranges[3]+0.00001, etabinranges[4]-0.00001);
-  multi_hist_proj = multi_hist->Projection(2);
-  multi_hist_proj->SetName("2_reduced_user");
-  multi_hist_proj->Write();
-
-  multi_hist->GetAxis(3)->SetRange(1, 1);
-  multi_hist_proj = multi_hist->Projection(3);
-  multi_hist_proj->SetName("3_reduced_bin");
-  multi_hist_proj->Write();
-
-  multi_hist->GetAxis(3)->SetRangeUser(ptbinranges[0]+0.00001, ptbinranges[1]-0.00001);
-  multi_hist_proj = multi_hist->Projection(3);
-  multi_hist_proj->SetName("3_reduced_user");
-  multi_hist_proj->Write();
-
-  multi_hist_proj = multi_hist->Projection(1);
-  multi_hist_proj->SetName("inclusive_proj_pos_pt");
-  multi_hist_proj->SetTitle("pos pt inclusive");
-  multi_hist_proj->Write();
-
-  multi_hist_proj = multi_hist->Projection(2);
-  multi_hist_proj->SetName("inclusive_proj_neg_eta");
-  multi_hist_proj->SetTitle("neg eta inclusive");
-  multi_hist_proj->Write();
-
-  multi_hist_proj = multi_hist->Projection(3);
-  multi_hist_proj->SetName("inclusive_proj_neg_pt");
-  multi_hist_proj->SetTitle("neg pt inclusive");
-  multi_hist_proj->Write();
-  */
-
-  //optimisation starts
-  
   string name, title, title_seed = "reco - gen pT "; 
-  /*
-  multi_hist->GetAxis(0)->SetRange(3, 3);
-  multi_hist->GetAxis(1)->SetRange(1, 1);
-  multi_hist->GetAxis(2)->SetRange(4, 4);
-  multi_hist->GetAxis(3)->SetRange(1, 1);
-  multi_hist_proj = multi_hist->Projection(4);
-  multi_hist_proj->SetName("3_1_4_1_b");
-  multi_hist_proj->Write();
+
+  TH1F *myhist = new TH1F("pt_diff_4Dbin", "pt diff", 24, -6.0, 6.0);
   
-  multi_hist->GetAxis(0)->SetRangeUser(etabinranges[2]+0.00001, etabinranges[3]-0.00001);
-  std::cout<<"\n etap "<<etabinranges[2]<<" "<<etabinranges[3]<<" ";
-  multi_hist->GetAxis(1)->SetRangeUser(ptbinranges[0]+0.00001, ptbinranges[1]-0.00001);
-  std::cout<<"ptp "<<ptbinranges[0]<<" "<<ptbinranges[1]<<" ";
-  multi_hist->GetAxis(2)->SetRangeUser(etabinranges[3]+0.00001, etabinranges[4]-0.00001);
-  std::cout<<"etam "<<etabinranges[3]<<" "<<etabinranges[4]<<" ";
-  multi_hist->GetAxis(3)->SetRangeUser(ptbinranges[0]+0.00001, ptbinranges[1]-0.00001);
-  std::cout<<"ptm "<<ptbinranges[0]<<" "<<ptbinranges[1]<<" "<<"\n";
-  multi_hist_proj = multi_hist->Projection(4);
-  multi_hist_proj->SetName("3_1_4_1_u");
-  multi_hist_proj->Write();
-  */
-  /*
-  double events_count = 0.0, entries = 0.0;
-  //with under/overflow, labels don t make sense, can t use setrangeuser
+  double events_count = 0.0, entries = 0.0, integral = 0.0;
+  int global_bin;
+  double content;
+  //include under overflow
   for (int pos_eta_bin=0; pos_eta_bin<=nbinseta+1; pos_eta_bin++){
     for (int pos_pt_bin=0; pos_pt_bin<=nbinspt+1; pos_pt_bin++){
       for (int neg_eta_bin=0; neg_eta_bin<=nbinseta+1; neg_eta_bin++){
 	for (int neg_pt_bin=0; neg_pt_bin<=nbinspt+1; neg_pt_bin++){
 
+          name = stringify_name(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin);
+	  title = stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges);
+	  //std::cout<<"\n"<< name;
+
+	  /////////// 2 3D histograms method ///////////////////////
+	 
+	  myhist->SetName(name.c_str());
+	  myhist->SetTitle(title.c_str());
+	  
+	  content = 0.0;
+	  for (int binz=1; binz<=24; binz++){
+	    global_bin = posPt_hist->GetBin(pos_eta_bin,pos_pt_bin,binz);
+	    content += posPt_hist->GetBinContent(global_bin);
+	    
+	    global_bin = negPt_hist->GetBin(neg_eta_bin,neg_pt_bin,binz);
+	    content += negPt_hist->GetBinContent(global_bin);
+	    myhist->SetBinContent(binz, content);
+	  }
+
+	  myhist->Write(name.c_str());
+	  integral += myhist->Integral(1, 24);
+
+	  ///////// 1 5D histogram method /////////////////////////
+          /*
 	  delete gROOT->FindObject("multi_data_frame_proj_4");
 
-          name = stringify_name(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin);
-	  std::cout<<"\n"<< name;
-	  
           multi_hist->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
 	  multi_hist->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
           multi_hist->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
           multi_hist->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
           multi_hist_proj = multi_hist->Projection(4); 
-
+	  
           //entries = multi_hist_proj->GetEntries();
 	  //std::cout<<"in histo "<<name<<" there are with SetRange "<< entries << " entries and with SetRangeUser there are ";          
 	  
@@ -320,19 +279,18 @@ int frame(){
 	  entries = multi_hist_proj->GetEntries();
 	  std::cout<<"entries: "<<entries;
 	  events_count =  events_count + entries;
-	  
-          title = stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges);
+          	  
           multi_hist_proj->SetName(name.c_str());
           multi_hist_proj->SetTitle(title.c_str());
           multi_hist_proj->Write(name.c_str());
-	  
+	  */
 	}
       } 
     }
   } 
 
-  std::cout<<"Initial no. of events: "<<initial_entries<<"sum of events in individual histos: "<<events_count<<" ev diff: "<<initial_entries-events_count; 
- */
+  std::cout<<"Initial no. of events: "<<initial_integral<<"sum of events in individual histos: "<<integral<<" ev diff: "<<initial_integral-integral; 
+ 
   f.Close();
 
   return 0; 
