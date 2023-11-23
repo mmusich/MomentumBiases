@@ -187,25 +187,30 @@ int frame(){
 
   auto multi_hist = d5.HistoND<float, float, float, float, RVecF>({"multi_data_frame", "multi_data_frame", 5, {nbinseta, nbinspt, nbinseta, nbinspt, 24}, {-2.4,ptlow,-2.4,ptlow,-6.0}, {2.4,pthigh,2.4,pthigh,6.0}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","ptDiff"});
 
+  auto posPt_hist2 = d5.Histo2D<float, float>({"posPt_hist2", "posPt_hist2", nbinseta, -2.4, 2.4, nbinspt, ptlow, pthigh},"posTrackEta", "posTrackPt");
+  auto negPt_hist2 = d5.Histo2D<float, float>({"negPt_hist2", "negPt_hist2", nbinseta, -2.4, 2.4, nbinspt, ptlow, pthigh},"negTrackEta", "negTrackPt");
+
   vector<float> etabinranges, ptbinranges;
   for (int i=0; i<=nbinseta; i++){etabinranges.push_back(-2.4 + i * 4.8/nbinseta);}
 
   nbinspt = 1;
   for (int i=0; i<=nbinspt; i++){ptbinranges.push_back(ptlow + i * (pthigh-ptlow)/nbinspt);}
 
+  std::cout.precision(9);
+  std::cout << std::scientific;
+
   double initial_entries = 0.0, initial_integral = 0.0;
   auto posPt_hist_proj = posPt_hist->ProjectionZ();
-  initial_entries = posPt_hist_proj->GetEntries();
   initial_integral += posPt_hist_proj->Integral(1,24);
-  std::cout << "There are " << initial_entries << " entries in the pos inclusive projection \n";
+  std::cout << "There are " << std::setprecision(9) << posPt_hist_proj->Integral(1,24) << " entries in the pos inclusive projection \n";
  
   auto negPt_hist_proj = negPt_hist->ProjectionZ();
   initial_integral += negPt_hist_proj->Integral(1,24);
-  std::cout << "There are " << negPt_hist_proj->GetEntries() << " entries in the neg inclusive projection \n";
+  std::cout << "There are " << std::setprecision(9) << negPt_hist_proj->Integral(1,24) << " entries in the neg inclusive projection, total: "<< std::setprecision(9) << initial_integral <<"\n";
   
   auto multi_hist_proj = multi_hist->Projection(4);
-  initial_entries = multi_hist_proj->GetEntries();
-  std::cout << "There are " << initial_entries << " entries in the inclusive projection \n";
+  initial_entries = multi_hist_proj->Integral(1,24);
+  std::cout << "There are " << std::setprecision(9) << initial_entries << " entries in the inclusive projection \n";
 
   TFile f("reco_gen_histos.root","recreate");
   
@@ -221,11 +226,17 @@ int frame(){
   multi_hist_proj->SetTitle("reco - gen pT inclusive");
   multi_hist_proj->Write();
 
+  posPt_hist->Write();
+  negPt_hist->Write();
+  posPt_hist2->Write();
+  negPt_hist2->Write();
+  
+
   string name, title, title_seed = "reco - gen pT "; 
 
   TH1F *myhist = new TH1F("pt_diff_4Dbin", "pt diff", 24, -6.0, 6.0);
   
-  double events_count = 0.0, entries = 0.0, integral = 0.0;
+  double events_count = 0.0, entries = 0.0, integral = 0.0, supposed_integral = 0.0;
   int global_bin;
   double content;
   //include under overflow
@@ -243,32 +254,55 @@ int frame(){
 	  myhist->SetName(name.c_str());
 	  myhist->SetTitle(title.c_str());
 	  
-	  content = 0.0;
 	  for (int binz=1; binz<=24; binz++){
-	    global_bin = posPt_hist->GetBin(pos_eta_bin,pos_pt_bin,binz);
-	    content += posPt_hist->GetBinContent(global_bin);
-	    
-	    global_bin = negPt_hist->GetBin(neg_eta_bin,neg_pt_bin,binz);
-	    content += negPt_hist->GetBinContent(global_bin);
+	    content = 0.0;
+	    content += posPt_hist->GetBinContent( posPt_hist->GetBin(pos_eta_bin,pos_pt_bin,binz) );
+	    supposed_integral += posPt_hist2->GetBinContent( posPt_hist2->GetBin(pos_eta_bin,pos_pt_bin) );
+
+	    content += negPt_hist->GetBinContent(negPt_hist->GetBin(neg_eta_bin,neg_pt_bin,binz));
 	    myhist->SetBinContent(binz, content);
+	    
+	    supposed_integral += negPt_hist2->GetBinContent( negPt_hist2->GetBin(neg_eta_bin,neg_pt_bin)  );  
 	  }
 
 	  myhist->Write(name.c_str());
 	  integral += myhist->Integral(1, 24);
 
 	  ///////// 1 5D histogram method /////////////////////////
-          /*
+          
 	  delete gROOT->FindObject("multi_data_frame_proj_4");
 
-          multi_hist->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
-	  multi_hist->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
-          multi_hist->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
-          multi_hist->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	  //For historical reasons, SetRange(0,0) resets the range, SetRange(-1, 0) gets underflow only
+	  if(pos_eta_bin != 0){
+	    multi_hist->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+	  } else {
+	    multi_hist->GetAxis(0)->SetRange(-1, 0);
+	  }
+
+	  if(pos_pt_bin != 0){
+            multi_hist->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+          } else {
+            multi_hist->GetAxis(1)->SetRange(-1, 0);
+          }
+
+	  if(neg_eta_bin != 0){
+            multi_hist->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+          } else {
+            multi_hist->GetAxis(2)->SetRange(-1, 0);
+          }
+	  
+	  if(neg_pt_bin != 0){
+            multi_hist->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+          } else {
+            multi_hist->GetAxis(3)->SetRange(-1, 0);
+          }
+
           multi_hist_proj = multi_hist->Projection(4); 
 	  
-          //entries = multi_hist_proj->GetEntries();
+          entries = multi_hist_proj->Integral(1, 24);
+	  events_count =  events_count + entries;
 	  //std::cout<<"in histo "<<name<<" there are with SetRange "<< entries << " entries and with SetRangeUser there are ";          
-	  
+	  /*
 	  delete gROOT->FindObject("multi_data_frame_proj_4");
           multi_hist->GetAxis(0)->SetRangeUser(etabinranges[pos_eta_bin - 1]+0.00001, etabinranges[pos_eta_bin]-0.0001);
 	  multi_hist->GetAxis(1)->SetRangeUser(ptbinranges[pos_pt_bin - 1]+0.00001, ptbinranges[pos_pt_bin]-0.0001);
@@ -279,18 +313,20 @@ int frame(){
 	  entries = multi_hist_proj->GetEntries();
 	  std::cout<<"entries: "<<entries;
 	  events_count =  events_count + entries;
-          	  
+          */	  
           multi_hist_proj->SetName(name.c_str());
           multi_hist_proj->SetTitle(title.c_str());
           multi_hist_proj->Write(name.c_str());
-	  */
+	  
 	}
       } 
     }
   } 
 
-  std::cout<<"Initial no. of events: "<<initial_integral<<"sum of events in individual histos: "<<integral<<" ev diff: "<<initial_integral-integral; 
- 
+  std::cout<<"2 3D histo approach: Initial no. of events: "<<initial_integral<<" sum of events in individual histos: "<<integral<<"; ev diff: "<<initial_integral-integral<<"\n"; 
+  std::cout<<"1 5D histo approach: Initial no. of events: "<<initial_entries<<" sum of events in individual histos: "<<events_count<<"; ev diff: "<<initial_entries - events_count<<"\n";
+  std::cout<<"Supposed integral: "<<supposed_integral;
+  
   f.Close();
 
   return 0; 
