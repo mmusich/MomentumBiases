@@ -41,18 +41,19 @@ std::tuple<int,int,float, float> pairs(RVecF Muon_pt, RVecF Muon_charge, RVecF M
 	  secondTrack.SetPtEtaPhiM(Muon_pt[j], Muon_eta[j], Muon_phi[j], rest_mass);
 	  mother = firstTrack + secondTrack;
 	  float mll = mother.M();
-	  if(75<mll && mll<105){ //Cut in mll
+	  if(75.0<mll && mll<105.0){ //Cut in mll
 	    //Gen match
 	    bool firstGenMatched = false, secondGenMatched = false;
 	    for (int k=0;k<GenPart_eta.size();k++){
 	      if (GenPart_status[k]==1 && abs(GenPart_pdgId[k])==13 && GenPart_pdgId[GenPart_genPartIdxMother[k]]==23){ // mu(-) has PDGID 13
-		if(abs(pow(GenPart_eta[k],2) + pow(GenPart_phi[k],2) - pow(Muon_eta[i],2) - pow(Muon_phi[i],2))<0.15){ 
-		  //CHECK IF deltaR value is large enough, maybe more than a gen muon satisfies the condition
+		if(pow(pow(GenPart_eta[k]-Muon_eta[i],2) + pow(GenPart_phi[k]-Muon_phi[i],2),0.5)<0.3){ 
 		  firstGenTrack.SetPtEtaPhiM(GenPart_pt[k], GenPart_eta[k], GenPart_phi[k], rest_mass);
 		  firstGenMatched = true;
-		} else if(abs(pow(GenPart_eta[k],2) + pow(GenPart_phi[k],2) - pow(Muon_eta[j],2) - pow(Muon_phi[j],2))<0.15){
+		  if(secondGenMatched == true){break;}
+		} else if(pow(pow(GenPart_eta[k]-Muon_eta[j],2) + pow(GenPart_phi[k]-Muon_phi[j],2),0.5)<0.3){
 		  secondGenTrack.SetPtEtaPhiM(GenPart_pt[k], GenPart_eta[k], GenPart_phi[k], rest_mass);
 		  secondGenMatched = true;
+		  if(firstGenMatched == true){break;}
 		}
 	      }
 	    }	  
@@ -122,7 +123,8 @@ int frame(){
     .Define("pairs", "pairs(Muon_pt, Muon_charge, Muon_eta, Muon_phi, MuonisGood, Muon_dxy, Muon_dz, 0.105658, GenPart_status, GenPart_pdgId, GenPart_genPartIdxMother, GenPart_pt, GenPart_eta, GenPart_phi)") 
     // muMass = 0.105658 GeV
     .Define("mll_diff","return get<3>(pairs);")
-    .Define("mll","return get<2>(pairs);");  
+    .Define("mll","return get<2>(pairs);"); 
+ 
   auto d3 = d2.Filter("mll>70"); // this means only events with one mu pair are kept 
 
   // This below works because actually we kept only one pair per event
@@ -133,10 +135,24 @@ int frame(){
     .Define("posTrackEta","float posTrackEta; posTrackEta=Muon_eta[get<0>(pairs)]; return posTrackEta;")
     .Define("negTrackEta","float negTrackEta; negTrackEta=Muon_eta[get<1>(pairs)]; return negTrackEta;");
 
-  TFile *f1 = new TFile("snapshot_output.root","RECREATE");
-  d4.Snapshot("Events", "snapshot_output.root", {"Muon_pt", "GenPart_pdgId", "GenPart_pt", "GenPart_status", "mll", "mll_diff"});
+  //Save tree for debugging
+  //TFile *f1 = new TFile("snapshot_output.root","RECREATE");
+  //d4.Snapshot("Events", "snapshot_output.root", {"GenPart_status", "GenPart_pdgId", "GenPart_pt", "GenPart_eta", "GenPart_phi", "Muon_pt", "Muon_eta", "Muon_phi", "mll", "mll_diff"});
+
+  //Tree to pass to fitting script
+  TFile *f2 = new TFile("tree_output.root","RECREATE");
+  d4.Snapshot("Events", "tree_output.root",{"posTrackPt", "posTrackEta", "negTrackPt", "negTrackEta", "mll_diff", "mll", "genWeight"});
   
   /*
+  //Control histograms
+  auto mll_hist = d4.Histo1D({"mll", "mll inclusive all bins", 45, 75.0, 105.0},"mll");
+  auto mll_diff_hist = d4.Histo1D({"mll_diff", "mll diff inclusive all bins", 24, -6.0, 6.0},"mll_diff");
+  TFile f3("control_histo.root","recreate");
+  mll_hist->Write();
+  mll_diff_hist->Write();
+  f3.Close();
+
+  
   //number of eta pt bins should match or be larger than the one chosen later
   int nbinseta=24, nbinspt=50;
   float ptlow=25.0, pthigh=55.0;
@@ -145,9 +161,9 @@ int frame(){
     
   auto multi_hist = d4.HistoND<float, float, float, float, RVecF, float>({"multi_data_frame", "multi_data_frame", 5, {nbinseta, nbinspt, nbinseta, nbinspt, 24}, {-2.4,ptlow,-2.4,ptlow,-6}, {2.4,pthigh,2.4,pthigh,6}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","ptDiff","genWeight"});
 
-  TFile f2("multiD_histo.root","recreate");
+  TFile f4("multiD_histo.root","recreate");
   multi_hist->Write(); 
-  f2.Close();
+  f4.Close();
   */
   return 0;
 
