@@ -33,8 +33,11 @@ int frame(){
   std::cout<<"\n etabinranges = [";
   for (int i=0; i<=nbinseta; i++){etabinranges.push_back(-2.4 + i * 4.8/nbinseta); std::cout<<etabinranges[i]<<", ";}
   std::cout<<"] \n";
-  //automatise this
-  double myetaboundaries[] = {-2.4, -2.2, -2, -1.8, -1.6, -1.4, -1.2, -1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1, 1.2, 1.4, 1.6, 1.8, 2, 2.2, 2.4};
+
+  double myetaboundaries[etabinranges.size()];
+  for (int i=0; i<etabinranges.size(); i++){
+    myetaboundaries[i] = etabinranges[i];
+  }
 
   for (int i=0; i<=nbinsmll_diff; i++){mll_diffbinranges.push_back(-6.0 + i * 12.0/nbinsmll_diff);}
 
@@ -43,14 +46,29 @@ int frame(){
   string name, title;
 
   //optimisation starts
+  //TODO profile in eta+ and count events in a slice
+
+  //TODO initialise variables for best count, threshold...
+
   //for(nbinspt=6; nbinspt<=15; nbinspt++){
   for(nbinspt=6; nbinspt<=6; nbinspt++){  
+    //TODO work out how many events per pt bin
     ptbinranges.clear();
+    //TODO fix the eta slice to the one used before
+    //TODO start with fixed bin size
+
     //Fixed bin size
     //std::cout<<"ptbinranges = [";
     //for (int i=0; i<=nbinspt; i++){ptbinranges.push_back(ptlow + i * (pthigh-ptlow)/nbinspt); std::cout<<ptbinranges[i]<<", ";}
     //std::cout<<"] \n";
-    
+
+    //TODO TH1 in pt with the fixed pt bin size
+
+    //TODO loop through all pt bins: build a TH1 in pt for the pt range of the first bin, second bin ...
+      // TODO iteratively try a bin until the no of events is within the threshold, if it's the last bin, require no threshold, will set the threshold by eye
+      // TODO update the pt bin vector
+
+    // TODO turn the resulted pt bining from above into array
     //Variable bin size
     std::cout<<"ptbinranges = [";
     double myptboundaries[] = {25.0, 34.0, 38.0, 40.0, 42.0, 46.0, 55.0};
@@ -58,11 +76,13 @@ int frame(){
     for (int i=0; i<=nbinspt; i++){ std::cout<<ptbinranges[i]<<", ";}
     std::cout<<"] \n";
 
+    //TODO new TH1 in pt, per the decided eta slice with variable bin size -> should be pretty uniform
+    //TODO new TH2 with variable bining
     delete gROOT->FindObject("pt_eta_pos");
-    TH2D* pt_eta_pos = new TH2D("pt_eta_pos", "pt eta mu+", nbinseta, myetaboundaries, nbinspt, myptboundaries); //CHECK LOW EDGES
+    TH2D* pt_eta_pos = new TH2D("pt_eta_pos", "pt eta mu+", nbinseta, myetaboundaries, nbinspt, myptboundaries); 
 
     delete gROOT->FindObject("multi_data_frame");
-    auto mDh = df.HistoND<float, float, float, float, float, float>({"multi_data_frame", "multi_data_frame", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff","genWeight"}); //CHECK LOW EDGES
+    auto mDh = df.HistoND<float, float, float, float, float, float>({"multi_data_frame", "multi_data_frame", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff","genWeight"});
 
     delete gROOT->FindObject("multi_data_frame_proj_4");
     auto multi_hist_proj = mDh->Projection(4);
@@ -99,12 +119,13 @@ int frame(){
 	      empty_histos_count++;
 	    } else {
 	      remaining_nevents += nevents;
-	      
+	      /*
 	      name = stringify_name(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin);
 	      title = stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges);
 	      multi_hist_proj->SetName(name.c_str());
 	      multi_hist_proj->SetTitle(title.c_str());
 	      multi_hist_proj->Write();
+	      */
 	    }
 	  }
 	} 
@@ -116,10 +137,15 @@ int frame(){
     std::cout<<stringify_name(nbinseta, nbinspt, nbinseta, nbinspt)<<" histos  empty/all="<< hfrac <<"; events remaining/all "<< efrac <<"\n";
     f1.Close();
 
+    // TODO print the fixed and variable 2d histos
     TFile f2("control_bin_histo.root","recreate");
     pt_eta_pos->Write(); 
     f2.Close();
+    
+    //TODO decide if it s the best number of pt bins
+
   }
+  //TODO print best no of events and binning
 
   return 0; 
 }
