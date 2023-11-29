@@ -39,47 +39,55 @@ int frame(){
     myetaboundaries[i] = etabinranges[i];
   }
 
-  for (int i=0; i<=nbinsmll_diff; i++){mll_diffbinranges.push_back(-6.0 + i * 12.0/nbinsmll_diff);}
+  for (int i=0; i<=nbinsmll_diff; i++) mll_diffbinranges.push_back(-6.0 + i * 12.0/nbinsmll_diff);
 
-  double total_nevents=0.0, nevents = 0.0, pt_eta_nevents = 0.0, all_histos_count = 0.0, remaining_nevents = 0.0, empty_histos_count = 0.0, hfrac = -1.0, efrac = -1.0;
+  //TODO initialise variables for best count, threshold...
+  double total_nevents=0.0, nevents = 0.0, all_histos_count = 0.0, remaining_nevents = 0.0, empty_histos_count = 0.0, hfrac = -1.0, efrac = -1.0;
   int bestnbin = 0, bestemptycount = 10000, threshold = 0;
   string name, title;
 
+  TFile f1("control_bin_histo.root","recreate");
   //optimisation starts
-  //TODO profile in eta+ and count events in a slice
-
-  //TODO initialise variables for best count, threshold...
+  //TH1F* pt_pos_uni = new TH1F("pt_pos_uni", "pt mu+", 90, ptlow, pthigh);
+  //pt_pos_uni->Write();
 
   //for(nbinspt=6; nbinspt<=15; nbinspt++){
-  for(nbinspt=6; nbinspt<=6; nbinspt++){  
-    //TODO work out how many events per pt bin
+  for(nbinspt=6; nbinspt<=6; nbinspt++){
+    auto pt_pos_uni = df.Histo1D({"pt_pos_uni", "pt mu+", nbinspt*3, ptlow, pthigh},"posTrackPt");
+    pt_pos_uni->Write();
+    // Get quartiles
+    double xq[nbinspt+1], myptboundaries[nbinspt+1];
+    for (int i=0;i<=nbinspt;i++) xq[i] = float(i)/nbinspt;
+    pt_pos_uni->GetQuantiles(nbinspt+1,myptboundaries, xq);
+
     ptbinranges.clear();
-    //TODO fix the eta slice to the one used before
-    //TODO start with fixed bin size
-
-    //Fixed bin size
-    //std::cout<<"ptbinranges = [";
-    //for (int i=0; i<=nbinspt; i++){ptbinranges.push_back(ptlow + i * (pthigh-ptlow)/nbinspt); std::cout<<ptbinranges[i]<<", ";}
-    //std::cout<<"] \n";
-
-    //TODO TH1 in pt with the fixed pt bin size
-
-    //TODO loop through all pt bins: build a TH1 in pt for the pt range of the first bin, second bin ...
-      // TODO iteratively try a bin until the no of events is within the threshold, if it's the last bin, require no threshold, will set the threshold by eye
-      // TODO update the pt bin vector
-
-    // TODO turn the resulted pt bining from above into array
-    //Variable bin size
     std::cout<<"ptbinranges = [";
-    double myptboundaries[] = {25.0, 34.0, 38.0, 40.0, 42.0, 46.0, 55.0};
-    ptbinranges.assign (myptboundaries,myptboundaries+nbinspt+1); //CHECK why need myptboundaries+nbinspt+1
-    for (int i=0; i<=nbinspt; i++){ std::cout<<ptbinranges[i]<<", ";}
+    for (int i=0; i<=nbinspt; i++){
+      ptbinranges.push_back(myptboundaries[i]);
+      std::cout<<ptbinranges[i]<<", ";
+    }
+    std::cout<<"] \n";
+    
+    /*  
+    //Fixed bin size
+    std::cout<<"ptbinranges = [";
+    for (int i=0; i<=nbinspt; i++){ptbinranges.push_back(ptlow + i * (pthigh-ptlow)/nbinspt); std::cout<<ptbinranges[i]<<", ";}
     std::cout<<"] \n";
 
-    //TODO new TH1 in pt, per the decided eta slice with variable bin size -> should be pretty uniform
-    //TODO new TH2 with variable bining
+    double myptboundaries[ptbinranges.size()];
+    for (int i=0; i<ptbinranges.size(); i++){
+      myptboundaries[i] = ptbinranges[i];
+    }
+    */
+    
+    //TH1 in pT+ with variable bin size -> should be uniform
+    auto pt_pos = df.Histo1D({"pt_pos", "pt mu+", nbinspt, myptboundaries},"posTrackPt");
+    pt_pos->Write();
+
     delete gROOT->FindObject("pt_eta_pos");
-    TH2D* pt_eta_pos = new TH2D("pt_eta_pos", "pt eta mu+", nbinseta, myetaboundaries, nbinspt, myptboundaries); 
+    auto pt_eta_pos = df.Histo2D({"pt_eta_pos", "pt eta mu+", nbinseta, myetaboundaries, nbinspt, myptboundaries},"posTrackEta", "posTrackPt");
+    pt_eta_pos->Write();
+    f1.Close();
 
     delete gROOT->FindObject("multi_data_frame");
     auto mDh = df.HistoND<float, float, float, float, float, float>({"multi_data_frame", "multi_data_frame", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff","genWeight"});
@@ -95,14 +103,11 @@ int frame(){
     efrac = -1.0;
     remaining_nevents = 0.0;
     
-    TFile f1("reco_gen_histos.root","recreate");
+    TFile f2("reco_gen_histos.root","recreate");
     for (int pos_eta_bin=1; pos_eta_bin<=nbinseta; pos_eta_bin++){
       mDh->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
       for (int pos_pt_bin=1; pos_pt_bin<=nbinspt; pos_pt_bin++){
 	mDh->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
-
-	pt_eta_nevents=0.0;
-
 	for (int neg_eta_bin=1; neg_eta_bin<=nbinseta; neg_eta_bin++){
 	  mDh->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	  for (int neg_pt_bin=1; neg_pt_bin<=nbinspt; neg_pt_bin++){
@@ -113,7 +118,6 @@ int frame(){
 	    multi_hist_proj = mDh->Projection(4);
 	    nevents = multi_hist_proj->Integral(1,24);
 	    //std::cout<<nevents<<"\n";
-	    pt_eta_nevents += nevents;
 
 	    if (nevents < 30.0){ 
 	      empty_histos_count++;
@@ -129,18 +133,12 @@ int frame(){
 	    }
 	  }
 	} 
-	pt_eta_pos->SetBinContent(pos_eta_bin, pos_pt_bin, pt_eta_nevents);
       }
     }
+    f2.Close();
     hfrac = empty_histos_count / all_histos_count;
     efrac = remaining_nevents / total_nevents;
     std::cout<<stringify_name(nbinseta, nbinspt, nbinseta, nbinspt)<<" histos  empty/all="<< hfrac <<"; events remaining/all "<< efrac <<"\n";
-    f1.Close();
-
-    // TODO print the fixed and variable 2d histos
-    TFile f2("control_bin_histo.root","recreate");
-    pt_eta_pos->Write(); 
-    f2.Close();
     
     //TODO decide if it s the best number of pt bins
 
