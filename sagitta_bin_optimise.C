@@ -92,7 +92,7 @@ int frame(){
   auto pt_eta_pos = df.Histo2D({"pt_eta_pos", "pt eta mu+", nbinseta, myetaboundaries, nbinspt, myptboundaries},"posTrackEta", "posTrackPt");
   f1->WriteObject(pt_eta_pos.GetPtr(), "pt_eta_pos");
   
-  auto mDh = df.HistoND<float, float, float, float, float, float>({"multi_data_frame", "multi_data_frame", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff","genWeight"});
+  auto mDh = df.HistoND<float, float, float, float, float, double>({"multi_data_frame", "multi_data_frame", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff","weight"});
   
   auto multi_hist_proj = mDh->Projection(4);
   total_nevents = multi_hist_proj->Integral(1,nbinsmll_diff);
@@ -119,7 +119,7 @@ int frame(){
 	  nevents = multi_hist_proj->Integral(1,nbinsmll_diff);
 	  //std::cout<<nevents<<"\n";
 
-	  if (nevents < 100000.0){ 
+	  if (nevents < 50.0){ 
 	    empty_histos_count++;
 	  } else {
 	    remaining_nevents += nevents;

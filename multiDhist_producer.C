@@ -32,50 +32,45 @@ std::tuple<int,int,float, float> pairs(RVecF Muon_pt, RVecF Muon_charge, RVecF M
   for(int i=1;i<Muon_pt.size();i++){
     for(int j=0;j<i;j++){
       if(MuonisGood[i] && MuonisGood[j] && Muon_charge[i]*Muon_charge[j]==-1 && abs(Muon_dxy[i]-Muon_dxy[j])<0.1 && abs(Muon_dz[i]-Muon_dz[j])<0.6){
-	// Define opening angle
-	float gamma_angle = 0;
-	gamma_angle = acos(sin(2*atan(exp((-1)*Muon_eta[i])))*sin(2*atan(exp((-1)*Muon_eta[j])))*cos(Muon_phi[i])*cos(Muon_phi[j]) + sin(2*atan(exp((-1)*Muon_eta[i])))*sin(2*atan(exp((-1)*Muon_eta[j])))*sin(Muon_phi[i])*sin(Muon_phi[j]) + cos(2*atan(exp((-1)*Muon_eta[i])))*cos(2*atan(exp((-1)*Muon_eta[j]))));
-	if(gamma_angle > 3.141592653/4){
-	  TLorentzVector firstTrack, secondTrack, mother, firstGenTrack, secondGenTrack, motherGen;
-	  firstTrack.SetPtEtaPhiM(Muon_pt[i], Muon_eta[i], Muon_phi[i], rest_mass);  
-	  secondTrack.SetPtEtaPhiM(Muon_pt[j], Muon_eta[j], Muon_phi[j], rest_mass);
-	  mother = firstTrack + secondTrack;
-	  float mll = mother.M();
-	  if(75.0<mll && mll<105.0){ //Cut in mll
-	    //Gen match
-	    bool firstGenMatched = false, secondGenMatched = false;
-	    for (int k=0;k<GenPart_eta.size();k++){
-	      if (GenPart_status[k]==1 && abs(GenPart_pdgId[k])==13 && GenPart_pdgId[GenPart_genPartIdxMother[k]]==23){ // mu(-) has PDGID 13
-		if(pow(pow(GenPart_eta[k]-Muon_eta[i],2) + pow(GenPart_phi[k]-Muon_phi[i],2),0.5)<0.3){ 
-		  firstGenTrack.SetPtEtaPhiM(GenPart_pt[k], GenPart_eta[k], GenPart_phi[k], rest_mass);
-		  firstGenMatched = true;
-		  if(secondGenMatched == true){break;}
-		} else if(pow(pow(GenPart_eta[k]-Muon_eta[j],2) + pow(GenPart_phi[k]-Muon_phi[j],2),0.5)<0.3){
-		  secondGenTrack.SetPtEtaPhiM(GenPart_pt[k], GenPart_eta[k], GenPart_phi[k], rest_mass);
-		  secondGenMatched = true;
-		  if(firstGenMatched == true){break;}
-		}
+	TLorentzVector firstTrack, secondTrack, mother, firstGenTrack, secondGenTrack, motherGen;
+	firstTrack.SetPtEtaPhiM(Muon_pt[i], Muon_eta[i], Muon_phi[i], rest_mass);  
+	secondTrack.SetPtEtaPhiM(Muon_pt[j], Muon_eta[j], Muon_phi[j], rest_mass);
+	mother = firstTrack + secondTrack;
+	float mll = mother.M();
+	if(75.0<mll && mll<105.0){ //Cut in mll
+	  //Gen match
+	  bool firstGenMatched = false, secondGenMatched = false;
+	  for (int k=0;k<GenPart_eta.size();k++){
+	    if (GenPart_status[k]==1 && abs(GenPart_pdgId[k])==13 && GenPart_pdgId[GenPart_genPartIdxMother[k]]==23){ // mu(-) has PDGID 13
+	      if(pow(pow(GenPart_eta[k]-Muon_eta[i],2) + pow(GenPart_phi[k]-Muon_phi[i],2),0.5)<0.3){ 
+		firstGenTrack.SetPtEtaPhiM(GenPart_pt[k], GenPart_eta[k], GenPart_phi[k], rest_mass);
+		firstGenMatched = true;
+		if(secondGenMatched == true){break;}
+	      } else if(pow(pow(GenPart_eta[k]-Muon_eta[j],2) + pow(GenPart_phi[k]-Muon_phi[j],2),0.5)<0.3){
+		secondGenTrack.SetPtEtaPhiM(GenPart_pt[k], GenPart_eta[k], GenPart_phi[k], rest_mass);
+		secondGenMatched = true;
+		if(firstGenMatched == true){break;}
 	      }
-	    }	  
-	    if(firstGenMatched == false || secondGenMatched == false){
-	      continue; 
 	    }
-	    motherGen = firstGenTrack + secondGenTrack;
-	    float mllGen = motherGen.M();
-	    float mll_diff = mll - mllGen;
-	    
-	    if(Muon_charge[i]==1){
-	      temp=make_tuple(i,j,mll,mll_diff);
-	    } else {
-	      temp=make_tuple(j,i,mll,mll_diff);
-	    }
-	    pairs.push_back(temp);
+	  }	  
+	  if(firstGenMatched == false || secondGenMatched == false){
+	    continue; 
 	  }
-	}
+	  motherGen = firstGenTrack + secondGenTrack;
+	  float mllGen = motherGen.M();
+	  float mll_diff = mll - mllGen;
+	  
+	  if(Muon_charge[i]==1){
+	    temp=make_tuple(i,j,mll,mll_diff);
+	  } else {
+	    temp=make_tuple(j,i,mll,mll_diff);
+	  }
+	  pairs.push_back(temp);
+	}	
       }
     }
   }
-
+  
   if(pairs.size()==1){
     pair_to_return=pairs.at(0);
   } else if(pairs.size()>1){
@@ -119,6 +114,7 @@ int frame(){
     .Filter("PV_npvsGood >= 1");
 
   auto d2 = d1.Define("dxy_significance","dxy_significance(Muon_dxy, Muon_dxyErr)")
+    .Define("weight", "std::copysign(1.0, genWeight)")
     .Define("MuonisGood", "MuonisGood(Muon_pt, Muon_eta, Muon_isGlobal, Muon_mediumId, Muon_pfRelIso04_all, dxy_significance)")
     .Define("pairs", "pairs(Muon_pt, Muon_charge, Muon_eta, Muon_phi, MuonisGood, Muon_dxy, Muon_dz, 0.105658, GenPart_status, GenPart_pdgId, GenPart_genPartIdxMother, GenPart_pt, GenPart_eta, GenPart_phi)") 
     // muMass = 0.105658 GeV
@@ -141,7 +137,7 @@ int frame(){
 
   //Tree to pass to fitting script
   TFile *f2 = new TFile("tree_output.root","RECREATE");
-  d4.Snapshot("Events", "tree_output.root",{"posTrackPt", "posTrackEta", "negTrackPt", "negTrackEta", "mll_diff", "mll", "genWeight"});
+  d4.Snapshot("Events", "tree_output.root",{"posTrackPt", "posTrackEta", "negTrackPt", "negTrackEta", "mll_diff", "mll", "weight"});
   
   /*
   //Control histograms
@@ -159,7 +155,7 @@ int frame(){
   //larger bins while debugging
   //int nbinseta=6, nbinspt=2;
     
-  auto multi_hist = d4.HistoND<float, float, float, float, RVecF, float>({"multi_data_frame", "multi_data_frame", 5, {nbinseta, nbinspt, nbinseta, nbinspt, 24}, {-2.4,ptlow,-2.4,ptlow,-6}, {2.4,pthigh,2.4,pthigh,6}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","ptDiff","genWeight"});
+  auto multi_hist = d4.HistoND<float, float, float, float, RVecF, float>({"multi_data_frame", "multi_data_frame", 5, {nbinseta, nbinspt, nbinseta, nbinspt, 24}, {-2.4,ptlow,-2.4,ptlow,-6}, {2.4,pthigh,2.4,pthigh,6}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","ptDiff","weight"});
 
   TFile f4("multiD_histo.root","recreate");
   multi_hist->Write(); 
