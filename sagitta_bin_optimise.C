@@ -17,17 +17,29 @@ string stringify_title(int a, int b, int c, int d, vector<double> e, vector<doub
   return title_seed+txt1+to_string(e[a-1]).substr(0,4)+comma+to_string(e[a]).substr(0,4)+txt2+to_string(p[b-1]).substr(0,4)+comma+to_string(p[b]).substr(0,4)+txt3+to_string(e[c-1]).substr(0,4)+comma+to_string(e[c]).substr(0,4)+txt4+to_string(p[d-1]).substr(0,4)+comma+to_string(p[d]).substr(0,4)+txt5;
 }
 
+vector<float> fitHisto(TH1* histogram){
+
+  vector<float> fitresult;
+
+  TF1 *gaussianFunc = new TF1("gaussianFunc", "gaus", -6, 6);
+  histogram->Fit(gaussianFunc, "Q");
+
+  float mean = gaussianFunc->GetParameter(1); 
+  float sigma = gaussianFunc->GetParameter(2); 
+  fitresult.push_back(mean);
+  fitresult.push_back(sigma);
+
+  return fitresult;
+}
+
 int frame(){
 
   ROOT::EnableImplicitMT(128);
 
-  //  std::unique_ptr<TFile> myFile( TFile::Open("multiD_histo.root") );
-  //  std::unique_ptr<THnD> mDh(myFile->Get<THnD>("multi_data_frame"));
-
   RDataFrame df("Events", "tree_output.root");
 
   double ptlow=25.0, pthigh=55.0;
-  int nbinsmll_diff=18, nbinseta=24, nbinspt;
+  int nbinsmll_diff=18, nbinseta=24, nbinspt=5;
   vector<double> etabinranges, ptbinranges, mll_diffbinranges;
 
   std::cout<<"\n etabinranges = [";
@@ -45,89 +57,102 @@ int frame(){
   double total_nevents=0.0, nevents=0.0, all_histos_count=0.0, remaining_nevents=0.0, empty_histos_count=0.0, hfrac=-1.0, efrac=-1.0;
   string name, title;
 
-  //pT bin optimisation starts
-  for(nbinspt=5; nbinspt<=5; nbinspt++){
-    TFile f1("control_bin_histo.root","recreate");
+  std::map<string, vector<float>> GenRecoFit;
+  vector<float> fitresult;
 
-    delete gROOT->FindObject("pt_pos_uni");
-    auto pt_pos_uni = df.Histo1D({"pt_pos_uni", "pt mu+", nbinspt*3, ptlow, pthigh},"posTrackPt");
-    pt_pos_uni->Write();
-    // Get quartiles
-    double xq[nbinspt+1], myptboundaries[nbinspt+1];
-    for (int i=0;i<=nbinspt;i++) xq[i] = float(i)/nbinspt;
-    pt_pos_uni->GetQuantiles(nbinspt+1,myptboundaries, xq);
+  TH1F *mean = new TH1F("mean", "gen-reco mll mean", 3, 0, 3);
+  mean->SetCanExtend(TH1::kAllAxes);
 
-    ptbinranges.clear();
-    std::cout<<"ptbinranges = [";
-    for (int i=0; i<=nbinspt; i++){
-      ptbinranges.push_back(myptboundaries[i]);
-      std::cout<<ptbinranges[i]<<", ";
-    }
-    std::cout<<"] \n";
-        
-    //TH1 in pT+ with variable bin size -> should be uniform
-    delete gROOT->FindObject("pt_pos");
-    auto pt_pos = df.Histo1D({"pt_pos", "pt mu+", nbinspt, myptboundaries},"posTrackPt");
-    pt_pos->Write();
+  TH1F *sigma = new TH1F("sigma", "gen-reco mll sigma", 3, 0, 3);
+  sigma->SetCanExtend(TH1::kAllAxes);
 
-    delete gROOT->FindObject("pt_eta_pos");
-    auto pt_eta_pos = df.Histo2D({"pt_eta_pos", "pt eta mu+", nbinseta, myetaboundaries, nbinspt, myptboundaries},"posTrackEta", "posTrackPt");
-    pt_eta_pos->Write();
+  std::unique_ptr<TFile> f1( TFile::Open("control_bin_histo.root", "RECREATE") );
+  std::unique_ptr<TFile> f2( TFile::Open("reco_gen_histos.root", "RECREATE") );
 
-    f1.Close();
-
-    delete gROOT->FindObject("multi_data_frame");
-    auto mDh = df.HistoND<float, float, float, float, float, float>({"multi_data_frame", "multi_data_frame", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff","genWeight"});
-
-    delete gROOT->FindObject("multi_data_frame_proj_4");
-    auto multi_hist_proj = mDh->Projection(4);
-    total_nevents = multi_hist_proj->Integral(1,nbinsmll_diff);
-    std::cout <<"For nbinspt="<<nbinspt<<" there are " << total_nevents << " events in the inclusive projection \n";
-
-    all_histos_count = 0.0;
-    empty_histos_count = 0.0;
-    hfrac = -1.0;  
-    efrac = -1.0;
-    remaining_nevents = 0.0;
-    
-    TFile f2("reco_gen_histos.root","recreate");
-    for (int pos_eta_bin=1; pos_eta_bin<=nbinseta; pos_eta_bin++){
-      mDh->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
-      for (int pos_pt_bin=1; pos_pt_bin<=nbinspt; pos_pt_bin++){
-	mDh->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
-	for (int neg_eta_bin=1; neg_eta_bin<=nbinseta; neg_eta_bin++){
-	  mDh->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
-	  for (int neg_pt_bin=1; neg_pt_bin<=nbinspt; neg_pt_bin++){
-	    mDh->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-	    all_histos_count++;
-
-	    delete gROOT->FindObject("multi_data_frame_proj_4");
-	    multi_hist_proj = mDh->Projection(4);
-	    nevents = multi_hist_proj->Integral(1,nbinsmll_diff);
-	    //std::cout<<nevents<<"\n";
-
-	    if (nevents < 1000.0){ 
-	      empty_histos_count++;
-	    } else {
-	      remaining_nevents += nevents;
-	      
-	      name = stringify_name(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin);
-	      title = stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges);
-	      multi_hist_proj->SetName(name.c_str());
-	      multi_hist_proj->SetTitle(title.c_str());
-	      multi_hist_proj->Write();
-	      
-	    }
-	  }
-	} 
-      }
-    }
-    f2.Close();
-    hfrac = empty_histos_count / all_histos_count;
-    efrac = remaining_nevents / total_nevents;
-    std::cout<<stringify_name(nbinseta, nbinspt, nbinseta, nbinspt)<<" histos  empty/all="<< hfrac <<"; events remaining/all "<< efrac <<"\n";
-
+  //pT bin optimisation starts  
+  auto pt_pos_uni = df.Histo1D({"pt_pos_uni", "pt mu+", nbinspt*3, ptlow, pthigh},"posTrackPt");
+  f1->WriteObject(pt_pos_uni.GetPtr(), "pt_pos_uni");
+  // Get quartiles
+  double xq[nbinspt+1], myptboundaries[nbinspt+1];
+  for (int i=0;i<=nbinspt;i++) xq[i] = float(i)/nbinspt;
+  pt_pos_uni->GetQuantiles(nbinspt+1,myptboundaries, xq);
+  
+  ptbinranges.clear();
+  std::cout<<"ptbinranges = [";
+  for (int i=0; i<=nbinspt; i++){
+    ptbinranges.push_back(myptboundaries[i]);
+    std::cout<<ptbinranges[i]<<", ";
   }
+  std::cout<<"] \n";
+  
+  //TH1 in pT+ with variable bin size -> should be uniform
+  auto pt_pos = df.Histo1D({"pt_pos", "pt mu+", nbinspt, myptboundaries},"posTrackPt");
+  f1->WriteObject(pt_pos.GetPtr(), "pt_pos");  
+  
+  auto pt_eta_pos = df.Histo2D({"pt_eta_pos", "pt eta mu+", nbinseta, myetaboundaries, nbinspt, myptboundaries},"posTrackEta", "posTrackPt");
+  f1->WriteObject(pt_eta_pos.GetPtr(), "pt_eta_pos");
+  
+  auto mDh = df.HistoND<float, float, float, float, float, float>({"multi_data_frame", "multi_data_frame", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff","genWeight"});
+  
+  auto multi_hist_proj = mDh->Projection(4);
+  total_nevents = multi_hist_proj->Integral(1,nbinsmll_diff);
+  std::cout <<"For nbinspt="<<nbinspt<<" there are " << total_nevents << " events in the inclusive projection \n";
+  
+  all_histos_count = 0.0;
+  empty_histos_count = 0.0;
+  hfrac = -1.0;  
+  efrac = -1.0;
+  remaining_nevents = 0.0;
+  
+  for (int pos_eta_bin=1; pos_eta_bin<=nbinseta; pos_eta_bin++){
+    mDh->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+    for (int pos_pt_bin=1; pos_pt_bin<=nbinspt; pos_pt_bin++){
+      mDh->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+      for (int neg_eta_bin=1; neg_eta_bin<=nbinseta; neg_eta_bin++){
+	mDh->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+	for (int neg_pt_bin=1; neg_pt_bin<=nbinspt; neg_pt_bin++){
+	  mDh->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	  all_histos_count++;
+	  
+	  delete gROOT->FindObject("multi_data_frame_proj_4");
+	  multi_hist_proj = mDh->Projection(4);
+	  nevents = multi_hist_proj->Integral(1,nbinsmll_diff);
+	  //std::cout<<nevents<<"\n";
+
+	  if (nevents < 100000.0){ 
+	    empty_histos_count++;
+	  } else {
+	    remaining_nevents += nevents;
+	    
+	    name = stringify_name(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin);
+	    title = stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges);
+	    
+	    fitresult = fitHisto(multi_hist_proj);
+	    GenRecoFit[name] = fitresult;
+	    mean->Fill(name.c_str(), fitresult[0]);
+	    sigma->Fill(name.c_str(), fitresult[1]);
+	    
+	    multi_hist_proj->SetName(name.c_str());
+	    multi_hist_proj->SetTitle(title.c_str());
+	    f2->WriteObject(multi_hist_proj, name.c_str());	    
+	  }
+
+	}
+      } 
+    }
+  }
+
+  hfrac = empty_histos_count / all_histos_count;
+  efrac = remaining_nevents / total_nevents;
+  std::cout<<stringify_name(nbinseta, nbinspt, nbinseta, nbinspt)<<" histos  empty/all="<< hfrac <<"; events remaining/all "<< efrac <<"\n";
+
+  mean->SetStats(0);
+  mean->LabelsDeflate();
+  f1->WriteObject(mean, "mean");
+  
+  sigma->SetStats(0);
+  sigma->LabelsDeflate();
+  f1->WriteObject(sigma, "sigma");
 
   return 0; 
 }
