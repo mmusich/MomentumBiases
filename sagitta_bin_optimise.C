@@ -1,4 +1,4 @@
-// Standalone code to fit for sagitta
+// Standalone code to fit for sagitta bias corrections
 
 #include "TFile.h"
 #include "TCanvas.h"
@@ -12,7 +12,7 @@ string stringify_name(int a, int b, int c, int d){
 }
 
 string stringify_title(int a, int b, int c, int d, vector<double> e, vector<double> p){
-  string title_seed = "reco - gen pT ", comma = ",";
+  string title_seed = "reco - gen mll ", comma = ",";
   string txt1 = "eta+ in [", txt2="] pt+ in [", txt3="] eta- in [", txt4="] pt- in [", txt5 = "]";
   return title_seed+txt1+to_string(e[a-1]).substr(0,4)+comma+to_string(e[a]).substr(0,4)+txt2+to_string(p[b-1]).substr(0,4)+comma+to_string(p[b]).substr(0,4)+txt3+to_string(e[c-1]).substr(0,4)+comma+to_string(e[c]).substr(0,4)+txt4+to_string(p[d-1]).substr(0,4)+comma+to_string(p[d]).substr(0,4)+txt5;
 }
@@ -27,7 +27,7 @@ int frame(){
   RDataFrame df("Events", "tree_output.root");
 
   double ptlow=25.0, pthigh=55.0;
-  int nbinsmll_diff=24, nbinseta=24, nbinspt;
+  int nbinsmll_diff=18, nbinseta=24, nbinspt;
   vector<double> etabinranges, ptbinranges, mll_diffbinranges;
 
   std::cout<<"\n etabinranges = [";
@@ -41,18 +41,15 @@ int frame(){
 
   for (int i=0; i<=nbinsmll_diff; i++) mll_diffbinranges.push_back(-6.0 + i * 12.0/nbinsmll_diff);
 
-  //TODO initialise variables for best count, threshold...
-  double total_nevents=0.0, nevents = 0.0, all_histos_count = 0.0, remaining_nevents = 0.0, empty_histos_count = 0.0, hfrac = -1.0, efrac = -1.0;
-  int bestnbin = 0, bestemptycount = 10000, threshold = 0;
+  //Initialise variables
+  double total_nevents=0.0, nevents=0.0, all_histos_count=0.0, remaining_nevents=0.0, empty_histos_count=0.0, hfrac=-1.0, efrac=-1.0;
   string name, title;
 
-  TFile f1("control_bin_histo.root","recreate");
-  //optimisation starts
-  //TH1F* pt_pos_uni = new TH1F("pt_pos_uni", "pt mu+", 90, ptlow, pthigh);
-  //pt_pos_uni->Write();
+  //pT bin optimisation starts
+  for(nbinspt=5; nbinspt<=5; nbinspt++){
+    TFile f1("control_bin_histo.root","recreate");
 
-  //for(nbinspt=6; nbinspt<=15; nbinspt++){
-  for(nbinspt=6; nbinspt<=6; nbinspt++){
+    delete gROOT->FindObject("pt_pos_uni");
     auto pt_pos_uni = df.Histo1D({"pt_pos_uni", "pt mu+", nbinspt*3, ptlow, pthigh},"posTrackPt");
     pt_pos_uni->Write();
     // Get quartiles
@@ -67,26 +64,16 @@ int frame(){
       std::cout<<ptbinranges[i]<<", ";
     }
     std::cout<<"] \n";
-    
-    /*  
-    //Fixed bin size
-    std::cout<<"ptbinranges = [";
-    for (int i=0; i<=nbinspt; i++){ptbinranges.push_back(ptlow + i * (pthigh-ptlow)/nbinspt); std::cout<<ptbinranges[i]<<", ";}
-    std::cout<<"] \n";
-
-    double myptboundaries[ptbinranges.size()];
-    for (int i=0; i<ptbinranges.size(); i++){
-      myptboundaries[i] = ptbinranges[i];
-    }
-    */
-    
+        
     //TH1 in pT+ with variable bin size -> should be uniform
+    delete gROOT->FindObject("pt_pos");
     auto pt_pos = df.Histo1D({"pt_pos", "pt mu+", nbinspt, myptboundaries},"posTrackPt");
     pt_pos->Write();
 
     delete gROOT->FindObject("pt_eta_pos");
     auto pt_eta_pos = df.Histo2D({"pt_eta_pos", "pt eta mu+", nbinseta, myetaboundaries, nbinspt, myptboundaries},"posTrackEta", "posTrackPt");
     pt_eta_pos->Write();
+
     f1.Close();
 
     delete gROOT->FindObject("multi_data_frame");
@@ -94,7 +81,7 @@ int frame(){
 
     delete gROOT->FindObject("multi_data_frame_proj_4");
     auto multi_hist_proj = mDh->Projection(4);
-    total_nevents = multi_hist_proj->Integral(1,24);
+    total_nevents = multi_hist_proj->Integral(1,nbinsmll_diff);
     std::cout <<"For nbinspt="<<nbinspt<<" there are " << total_nevents << " events in the inclusive projection \n";
 
     all_histos_count = 0.0;
@@ -116,20 +103,20 @@ int frame(){
 
 	    delete gROOT->FindObject("multi_data_frame_proj_4");
 	    multi_hist_proj = mDh->Projection(4);
-	    nevents = multi_hist_proj->Integral(1,24);
+	    nevents = multi_hist_proj->Integral(1,nbinsmll_diff);
 	    //std::cout<<nevents<<"\n";
 
-	    if (nevents < 30.0){ 
+	    if (nevents < 1000.0){ 
 	      empty_histos_count++;
 	    } else {
 	      remaining_nevents += nevents;
-	      /*
+	      
 	      name = stringify_name(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin);
 	      title = stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges);
 	      multi_hist_proj->SetName(name.c_str());
 	      multi_hist_proj->SetTitle(title.c_str());
 	      multi_hist_proj->Write();
-	      */
+	      
 	    }
 	  }
 	} 
@@ -139,11 +126,8 @@ int frame(){
     hfrac = empty_histos_count / all_histos_count;
     efrac = remaining_nevents / total_nevents;
     std::cout<<stringify_name(nbinseta, nbinspt, nbinseta, nbinspt)<<" histos  empty/all="<< hfrac <<"; events remaining/all "<< efrac <<"\n";
-    
-    //TODO decide if it s the best number of pt bins
 
   }
-  //TODO print best no of events and binning
 
   return 0; 
 }
