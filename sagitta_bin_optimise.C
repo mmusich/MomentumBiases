@@ -31,7 +31,7 @@ vector<float> fitHisto(TH1* histogram){
 
     // second fit: two sigma of first fit around mean of first fit
     gaussianFunc->SetRange(mean - 2 * sigma, mean + 2 * sigma);
-    if (0 == histogram->Fit(gaussianFunc, "Q")) {
+    if (0 == histogram->Fit(gaussianFunc, "Q0R")) {
       if (histogram->GetFunction(gaussianFunc->GetName())) {  // Take care that it is later on drawn:
         histogram->GetFunction(gaussianFunc->GetName())->ResetBit(TF1::kNotDraw);
       }
@@ -42,6 +42,12 @@ vector<float> fitHisto(TH1* histogram){
   sigma = gaussianFunc->GetParameter(2); 
   fitresult.push_back(mean);
   fitresult.push_back(sigma);
+
+  float mean_err = gaussianFunc->GetParError(1);
+  float sigma_err = gaussianFunc->GetParError(2);
+
+  fitresult.push_back(mean_err);
+  fitresult.push_back(sigma_err);
 
   return fitresult;
 }
@@ -133,7 +139,7 @@ int frame(){
 	  nevents = multi_hist_proj->Integral(1,nbinsmll_diff);
 	  //std::cout<<nevents<<"\n";
 
-	  if (nevents < 50.0){ 
+	  if (nevents < 100.0){ 
 	    empty_histos_count++;
 	  } else {
 	    remaining_nevents += nevents;
@@ -144,7 +150,10 @@ int frame(){
 	    fitresult = fitHisto(multi_hist_proj);
 	    GenRecoFit[name] = fitresult;
 	    mean->Fill(name.c_str(), fitresult[0]);
+	    //TODO find way to get bin number
+	    //mean->SetBinError(name.c_str(), fitresult[2]);
 	    sigma->Fill(name.c_str(), fitresult[1]);
+	    //sigma->SetBinError(name.c_str(), fitresult[3]);
 	    
 	    multi_hist_proj->SetName(name.c_str());
 	    multi_hist_proj->SetTitle(title.c_str());
