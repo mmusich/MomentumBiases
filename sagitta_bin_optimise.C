@@ -149,11 +149,8 @@ int frame(){
 	    
 	    fitresult = fitHisto(multi_hist_proj);
 	    GenRecoFit[name] = fitresult;
-	    mean->Fill(name.c_str(), fitresult[0]);
-	    //TODO find way to get bin number
-	    //mean->SetBinError(name.c_str(), fitresult[2]);
-	    sigma->Fill(name.c_str(), fitresult[1]);
-	    //sigma->SetBinError(name.c_str(), fitresult[3]);
+	    mean->SetBinError(mean->Fill(name.c_str(), fitresult[0]), fitresult[2]);
+	    sigma->SetBinError(sigma->Fill(name.c_str(), fitresult[1]), fitresult[3]);
 	    
 	    multi_hist_proj->SetName(name.c_str());
 	    multi_hist_proj->SetTitle(title.c_str());
