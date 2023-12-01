@@ -13,10 +13,10 @@ RVecF dxy_significance(RVecF Muon_dxy, RVecF Muon_dxyErr){
 }
 
 // MuonisGood
-RVecB MuonisGood(RVecF Muon_pt, RVecF Muon_eta, RVecB Muon_isGlobal, RVecB Muon_mediumId, RVecF Muon_pfRelIso04_all, RVecF dxy_significance){
+RVecB MuonisGood(RVecF Muon_pt, RVecF Muon_eta, RVecB Muon_isGlobal, RVecB Muon_mediumId, RVecF Muon_pfRelIso04_all, RVec<UChar_t> Muon_genPartFlav, RVecF dxy_significance){
   RVecB muonisgood;
   for(int i=0;i<Muon_pt.size();i++){
-    if (Muon_pt[i] > 10 && abs(Muon_eta[i]) < 2.4 && Muon_isGlobal[i] && Muon_mediumId[i] && Muon_pfRelIso04_all[i] < 0.15 && dxy_significance[i] < 4){
+    if (Muon_pt[i] > 10 && abs(Muon_eta[i]) < 2.4 && Muon_isGlobal[i] && Muon_mediumId[i] && Muon_pfRelIso04_all[i] < 0.15 && Muon_genPartFlav[i]==1 && dxy_significance[i] < 4){
       muonisgood.push_back(1);
     }
   }
@@ -114,11 +114,9 @@ int frame(){
     .Filter("PV_npvsGood >= 1");
 
   auto d2 = d1.Define("dxy_significance","dxy_significance(Muon_dxy, Muon_dxyErr)")
-    .Define("weight", "std::copysign(1.0, genWeight)")
-    .Define("MuonisGood", "MuonisGood(Muon_pt, Muon_eta, Muon_isGlobal, Muon_mediumId, Muon_pfRelIso04_all, dxy_significance)")
+    .Define("MuonisGood", "MuonisGood(Muon_pt, Muon_eta, Muon_isGlobal, Muon_mediumId, Muon_pfRelIso04_all, Muon_genPartFlav, dxy_significance)")
     .Define("pairs", "pairs(Muon_pt, Muon_charge, Muon_eta, Muon_phi, MuonisGood, Muon_dxy, Muon_dz, 0.105658, GenPart_status, GenPart_pdgId, GenPart_genPartIdxMother, GenPart_pt, GenPart_eta, GenPart_phi)") 
     // muMass = 0.105658 GeV
-    .Define("mll_diff","return get<3>(pairs);")
     .Define("mll","return get<2>(pairs);"); 
  
   auto d3 = d2.Filter("mll>70"); // this means only events with one mu pair are kept 
@@ -126,7 +124,9 @@ int frame(){
   // This below works because actually we kept only one pair per event
   // Accessing properties through the idices of pairs ensures the muons passed MuonisGood
   
-  auto d4 = d3.Define("posTrackPt","float posTrackPt; posTrackPt=Muon_pt[get<0>(pairs)]; return posTrackPt;")
+  auto d4 = d3.Define("mll_diff","return get<3>(pairs);")
+    .Define("weight", "std::copysign(1.0, genWeight)")
+    .Define("posTrackPt","float posTrackPt; posTrackPt=Muon_pt[get<0>(pairs)]; return posTrackPt;")
     .Define("negTrackPt","float negTrackPt; negTrackPt=Muon_pt[get<1>(pairs)]; return negTrackPt;")
     .Define("posTrackEta","float posTrackEta; posTrackEta=Muon_eta[get<0>(pairs)]; return posTrackEta;")
     .Define("negTrackEta","float negTrackEta; negTrackEta=Muon_eta[get<1>(pairs)]; return negTrackEta;");

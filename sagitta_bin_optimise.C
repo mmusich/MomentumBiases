@@ -21,11 +21,25 @@ vector<float> fitHisto(TH1* histogram){
 
   vector<float> fitresult;
 
-  TF1 *gaussianFunc = new TF1("gaussianFunc", "gaus", -6, 6);
-  histogram->Fit(gaussianFunc, "Q");
+  float mean = histogram->GetMean();
+  float sigma = histogram->GetRMS();
 
-  float mean = gaussianFunc->GetParameter(1); 
-  float sigma = gaussianFunc->GetParameter(2); 
+  TF1 *gaussianFunc = new TF1("gaussianFunc", "gaus", mean - 1.5 * sigma, mean + 1.5 * sigma); 
+  if(0 == histogram->Fit(gaussianFunc, "QNR")){
+    mean = gaussianFunc->GetParameter(1);
+    sigma = gaussianFunc->GetParameter(2);
+
+    // second fit: two sigma of first fit around mean of first fit
+    gaussianFunc->SetRange(mean - 2 * sigma, mean + 2 * sigma);
+    if (0 == histogram->Fit(gaussianFunc, "Q")) {
+      if (histogram->GetFunction(gaussianFunc->GetName())) {  // Take care that it is later on drawn:
+        histogram->GetFunction(gaussianFunc->GetName())->ResetBit(TF1::kNotDraw);
+      }
+    }
+  }
+
+  mean = gaussianFunc->GetParameter(1); 
+  sigma = gaussianFunc->GetParameter(2); 
   fitresult.push_back(mean);
   fitresult.push_back(sigma);
 
