@@ -17,12 +17,13 @@ string stringify_title(int a, int b, int c, int d, vector<double> e, vector<doub
   return txt1+to_string(e[a-1]).substr(0,4)+comma+to_string(e[a]).substr(0,4)+txt2+to_string(p[b-1]).substr(0,4)+comma+to_string(p[b]).substr(0,4)+txt3+to_string(e[c-1]).substr(0,4)+comma+to_string(e[c]).substr(0,4)+txt4+to_string(p[d-1]).substr(0,4)+comma+to_string(p[d]).substr(0,4)+txt5;
 }
 
-vector<float> fitHisto(TH1* histogram, int color){
+vector<double> fitHisto(TH1* histogram, int color){
 
-  vector<float> fitresult;
+  vector<double> fitresult;
 
-  float mean = histogram->GetMean();
-  float sigma = histogram->GetRMS();
+  double mean = histogram->GetMean();
+  double sigma = histogram->GetRMS();
+  double mean_err, sigma_err, integral;
 
   TF1 *gaussianFunc = new TF1("gaussianFunc", "gaus", mean - 1.5 * sigma, mean + 1.5 * sigma); 
   if(0 == histogram->Fit(gaussianFunc, "QNR")){
@@ -36,19 +37,38 @@ vector<float> fitHisto(TH1* histogram, int color){
 	histogram->GetFunction(gaussianFunc->GetName())->SetLineColor(color);
         histogram->GetFunction(gaussianFunc->GetName())->ResetBit(TF1::kNotDraw);
       }
-    }
+      mean = gaussianFunc->GetParameter(1);
+      sigma = gaussianFunc->GetParameter(2);
+      mean_err = gaussianFunc->GetParError(1);
+      sigma_err = gaussianFunc->GetParError(2);
+
+      TF1 *gaussianNewFunc = new TF1("gaussianNewFunc", "gaus", mean - 5 * sigma, mean + 5 * sigma);
+      gaussianNewFunc->SetParameter(0, 1.0/(sigma*pow(2*M_PI,0.5)));
+      gaussianNewFunc->SetParameter(1, mean);
+      gaussianNewFunc->SetParameter(2, sigma);
+
+      integral = gaussianNewFunc->Integral(75.0, 105.0);
+
+    } else {
+      mean = -90.0;
+      sigma = -5.0;
+      mean_err = 90.0;
+      sigma_err = 5.0;
+      integral = -100.0;
+    } 
+  } else {
+    mean = -90.0;
+    sigma = -5.0;
+    mean_err = 90.0;
+    sigma_err = 5.0;
+    integral = -100.0;
   }
 
-  mean = gaussianFunc->GetParameter(1); 
-  sigma = gaussianFunc->GetParameter(2); 
   fitresult.push_back(mean);
   fitresult.push_back(sigma);
-
-  float mean_err = gaussianFunc->GetParError(1);
-  float sigma_err = gaussianFunc->GetParError(2);
-
   fitresult.push_back(mean_err);
   fitresult.push_back(sigma_err);
+  fitresult.push_back(integral);
 
   return fitresult;
 }
@@ -57,10 +77,14 @@ int frame(){
 
   ROOT::EnableImplicitMT(128);
 
-  std::unique_ptr<TFile> myFile( TFile::Open("multiD_histo.root") );
+  std::unique_ptr<TFile> myFile( TFile::Open("multiD_reco_histo.root") );
   std::unique_ptr<THnD> mDh_reco(myFile->Get<THnD>("multi_data_histo_reco"));
   std::unique_ptr<THnD> mDh_gen(myFile->Get<THnD>("multi_data_histo_gen"));
-  std::unique_ptr<THnD> mDh_diff(myFile->Get<THnD>("multi_data_histo_diff"));
+  //std::unique_ptr<THnD> mDh_diff(myFile->Get<THnD>("multi_data_histo_diff"));
+
+  std::unique_ptr<TFile> myFile2( TFile::Open("multiD_histo.root") );
+  std::unique_ptr<THnD> mDh_rand(myFile2->Get<THnD>("multi_data_histo_rand"));
+  std::unique_ptr<THnD> mDh_diff(myFile2->Get<THnD>("multi_data_histo_diff")); //it's smeared - gen
 
   //these must match how the 5D histo was produced
   double ptlow=25.0, pthigh=55.0;
@@ -75,14 +99,20 @@ int frame(){
   double total_nevents=0.0, nevents=0.0, all_histos_count=0.0, remaining_nevents=0.0, empty_histos_count=0.0, hfrac=-1.0, efrac=-1.0;
   string name;
 
-  std::map<string, vector<float>> GenRecoFit;
-  vector<float> fitresult;
+  std::map<string, vector<double>> GenRecoFit;
+  vector<double> fitresult;
 
-  TH1F *mean = new TH1F("mean", "gen-reco mll mean", 3, 0, 3);
+  TH1D *mean = new TH1D("mean", "gen-reco mll mean", 3, 0, 3);
   mean->SetCanExtend(TH1::kAllAxes);
 
-  TH1F *sigma = new TH1F("sigma", "gen-reco mll sigma", 3, 0, 3);
+  TH1D *sigma = new TH1D("sigma", "gen-reco mll sigma", 3, 0, 3);
   sigma->SetCanExtend(TH1::kAllAxes);
+
+  TH1D *gaus_integral = new TH1D("gaus_integral", "reco mll integral 75.5-105.0", 3, 0, 3);
+  gaus_integral->SetCanExtend(TH1::kAllAxes);
+
+  TH1D *occupancy = new TH1D("bin_occupancy", "bin occupancy", 3, 0, 3);
+  gaus_integral->SetCanExtend(TH1::kAllAxes);
 
   std::unique_ptr<TFile> f1( TFile::Open("control_bin_histo.root", "RECREATE") );
   std::unique_ptr<TFile> f2( TFile::Open("reco_gen_histos.root", "RECREATE") );
@@ -90,6 +120,7 @@ int frame(){
   auto multi_hist_proj_diff = mDh_diff->Projection(4);
   auto multi_hist_proj_reco = mDh_reco->Projection(4);
   auto multi_hist_proj_gen = mDh_gen->Projection(4);
+  auto multi_hist_proj_rand = mDh_rand->Projection(4);
 
   total_nevents = multi_hist_proj_diff->Integral(1,nbinsmll_diff);
   std::cout <<"For nbinspt="<<nbinspt<<" there are " << total_nevents << " events in the inclusive projection \n";
@@ -107,18 +138,22 @@ int frame(){
     mDh_diff->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_reco->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_gen->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+    mDh_rand->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     for (int pos_pt_bin=1; pos_pt_bin<=nbinspt; pos_pt_bin++){   
       mDh_diff->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_reco->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_gen->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+      mDh_rand->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       for (int neg_eta_bin=1; neg_eta_bin<=nbinseta; neg_eta_bin++){
 	mDh_diff->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	mDh_reco->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
         mDh_gen->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+        mDh_rand->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	for (int neg_pt_bin=1; neg_pt_bin<=nbinspt; neg_pt_bin++){
 	  mDh_diff->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
           mDh_reco->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
           mDh_gen->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+          mDh_rand->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	  all_histos_count++;
 	  
 	  delete gROOT->FindObject("multi_data_histo_diff_proj_4");
@@ -130,14 +165,16 @@ int frame(){
 	    empty_histos_count++;
 	  } else {
 	    remaining_nevents += nevents;
-	    
+
+	    occupancy->SetBinError(occupancy->Fill(name.c_str(), nevents), 100);
+
 	    name = stringify_name(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin);
 	    
 	    fitresult = fitHisto(multi_hist_proj_diff, 2);
 	    GenRecoFit[name] = fitresult;
-	    mean->SetBinError(mean->Fill(name.c_str(), fitresult[0]), fitresult[2]);
-	    sigma->SetBinError(sigma->Fill(name.c_str(), fitresult[1]), fitresult[3]);
-	    
+	    if (fitresult[0] > -90.0){ mean->SetBinError(mean->Fill(name.c_str(), fitresult[0]), fitresult[2]); }
+	    if (fitresult[1] > -5.0){ sigma->SetBinError(sigma->Fill(name.c_str(), fitresult[1]), fitresult[3]); }
+
 	    multi_hist_proj_diff->SetName(name.c_str());
 	    multi_hist_proj_diff->SetTitle(("reco - gen mll " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
 	    //delete gROOT->FindObject("c1");
@@ -152,11 +189,17 @@ int frame(){
 	    fitresult = fitHisto(multi_hist_proj_reco, 4);
             multi_hist_proj_reco->SetTitle(("reco and gen mll "+ stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
 	    multi_hist_proj_reco->Draw();
+	    if (fitresult[4] > -100.0){ gaus_integral->SetBinError(gaus_integral->Fill(name.c_str(), fitresult[4]), 0.01); }
 	    delete gROOT->FindObject("multi_data_histo_gen_proj_4");
 	    multi_hist_proj_gen = mDh_gen->Projection(4);
 	    fitresult = fitHisto(multi_hist_proj_gen, 2);
 	    multi_hist_proj_gen->SetLineColor(kRed);
             multi_hist_proj_gen->Draw("SAME");
+            delete gROOT->FindObject("multi_data_histo_rand_proj_4");
+            multi_hist_proj_rand = mDh_rand->Projection(4);
+            fitresult = fitHisto(multi_hist_proj_rand, 8);
+            multi_hist_proj_rand->SetLineColor(kGreen);
+            multi_hist_proj_rand->Draw("SAME");
 
 	    auto leg = new TLegend(0.10, 0.68, 0.70, 0.90);
 	    leg->SetFillStyle(0);
@@ -168,6 +211,7 @@ int frame(){
 
 	    leg->AddEntry(multi_hist_proj_reco, "reco", "l");
 	    leg->AddEntry(multi_hist_proj_gen, "gen", "l");
+	    leg->AddEntry(multi_hist_proj_rand, "smeared gen", "l");
 	    leg->Draw("");
 
 	    c1->cd();
@@ -192,6 +236,14 @@ int frame(){
   sigma->SetStats(0);
   sigma->LabelsDeflate();
   f1->WriteObject(sigma, "sigma_diff");
+
+  gaus_integral->SetStats(0);
+  gaus_integral->LabelsDeflate();
+  f1->WriteObject(gaus_integral, "gaus_integral");
+
+  occupancy->SetStats(0);
+  occupancy->LabelsDeflate();
+  f1->WriteObject(occupancy, "bin_occupancy");
 
   return 0; 
 }
