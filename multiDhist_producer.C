@@ -24,12 +24,13 @@ RVecB MuonisGood(RVecF Muon_pt, RVecF Muon_eta, RVecB Muon_isGlobal, RVecB Muon_
 }
 
 //Rand_pt
-RVecF Rand_pt(RVecF GenPart_pt){
+RVecF Rand_pt(RVecF GenPart_pt, RVecF GenPart_eta){
   RVecF rand_pt;
-  float x;
+  float x, width;
   TRandom *r = new TRandom();
   for(int i=0;i<GenPart_pt.size();i++){
-    x = r->Gaus(GenPart_pt[i], 0.01);
+    width = (0.0083*abs(GenPart_eta[i])+0.01)*GenPart_pt[i];
+    x = r->Gaus(GenPart_pt[i], width);
     rand_pt.push_back(x);
   }
   return rand_pt;
@@ -133,7 +134,7 @@ int frame(){
     .Filter("PV_npvsGood >= 1");
 
   auto d2 = d1.Define("dxy_significance","dxy_significance(Muon_dxy, Muon_dxyErr)")
-    .Define("Rand_pt","Rand_pt(GenPart_pt)")
+    .Define("Rand_pt","Rand_pt(GenPart_pt, GenPart_eta)")
     .Define("MuonisGood", "MuonisGood(Muon_pt, Muon_eta, Muon_isGlobal, Muon_mediumId, Muon_pfRelIso04_all, Muon_genPartFlav, dxy_significance)")
     .Define("pairs", "pairs(Muon_pt, Muon_charge, Muon_eta, Muon_phi, MuonisGood, Muon_dxy, Muon_dz, 0.105658, GenPart_status, GenPart_pdgId, GenPart_genPartIdxMother, GenPart_pt, GenPart_eta, GenPart_phi, Rand_pt, 1)") //ATTENTION to last argument, the option for rand
     // muMass = 0.105658 GeV
@@ -169,7 +170,7 @@ int frame(){
   mll_diff_hist->Write();
   f3.Close();
   */
-  /*
+  
   double ptlow=25.0, pthigh=55.0;
   int nbinsmll_diff=18, nbinsmll=18, nbinseta=24, nbinspt=5;
   vector<double> etabinranges, ptbinranges, mll_diffbinranges, mllbinranges;
@@ -227,7 +228,7 @@ int frame(){
 
   mDh = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff", "multi_data_histo_diff", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff","weight"});
   f5->WriteObject(mDh.GetPtr(), "multi_data_histo_diff"); 
-  */
+  
   return 0;
 
 }

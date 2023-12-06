@@ -80,11 +80,11 @@ int frame(){
   std::unique_ptr<TFile> myFile( TFile::Open("multiD_reco_histo.root") );
   std::unique_ptr<THnD> mDh_reco(myFile->Get<THnD>("multi_data_histo_reco"));
   std::unique_ptr<THnD> mDh_gen(myFile->Get<THnD>("multi_data_histo_gen"));
-  //std::unique_ptr<THnD> mDh_diff(myFile->Get<THnD>("multi_data_histo_diff"));
+  std::unique_ptr<THnD> mDh_diff(myFile->Get<THnD>("multi_data_histo_diff")); // it's reco - gen
 
   std::unique_ptr<TFile> myFile2( TFile::Open("multiD_histo.root") );
   std::unique_ptr<THnD> mDh_rand(myFile2->Get<THnD>("multi_data_histo_rand"));
-  std::unique_ptr<THnD> mDh_diff(myFile2->Get<THnD>("multi_data_histo_diff")); //it's smeared - gen
+  std::unique_ptr<THnD> mDh_rand_diff(myFile2->Get<THnD>("multi_data_histo_diff")); //it's smeared - gen
 
   //these must match how the 5D histo was produced
   double ptlow=25.0, pthigh=55.0;
@@ -97,6 +97,8 @@ int frame(){
 
   //Initialise variables
   double total_nevents=0.0, nevents=0.0, all_histos_count=0.0, remaining_nevents=0.0, empty_histos_count=0.0, hfrac=-1.0, efrac=-1.0;
+  double max_hist_mll_diff, max_hist_mll;
+  int middle_flag;
   string name;
 
   std::map<string, vector<double>> GenRecoFit;
@@ -121,6 +123,7 @@ int frame(){
   auto multi_hist_proj_reco = mDh_reco->Projection(4);
   auto multi_hist_proj_gen = mDh_gen->Projection(4);
   auto multi_hist_proj_rand = mDh_rand->Projection(4);
+  auto multi_hist_proj_rand_diff = mDh_rand_diff->Projection(4);
 
   total_nevents = multi_hist_proj_diff->Integral(1,nbinsmll_diff);
   std::cout <<"For nbinspt="<<nbinspt<<" there are " << total_nevents << " events in the inclusive projection \n";
@@ -134,26 +137,47 @@ int frame(){
   TCanvas *c1 = new TCanvas("c1","c1",800,600);  
   c1->Divide(2,1);
 
+  auto leg1 = new TLegend(0.58, 0.68, 0.90, 0.90);
+  auto leg2 = new TLegend(0.58, 0.68, 0.90, 0.90);
+
+  leg1->SetFillStyle(0);
+  leg1->SetBorderSize(0);
+  leg1->SetTextSize(0.035);
+  leg1->SetFillColor(10);
+  leg1->SetNColumns(1);
+  leg1->SetHeader("");
+
+  leg2->SetFillStyle(0);
+  leg2->SetBorderSize(0);
+  leg2->SetTextSize(0.035);
+  leg2->SetFillColor(10);
+  leg2->SetNColumns(1);
+  leg2->SetHeader("");
+
   for (int pos_eta_bin=1; pos_eta_bin<=nbinseta; pos_eta_bin++){
     mDh_diff->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_reco->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_gen->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_rand->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+    mDh_rand_diff->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     for (int pos_pt_bin=1; pos_pt_bin<=nbinspt; pos_pt_bin++){   
       mDh_diff->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_reco->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_gen->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_rand->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+      mDh_rand_diff->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       for (int neg_eta_bin=1; neg_eta_bin<=nbinseta; neg_eta_bin++){
 	mDh_diff->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	mDh_reco->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
         mDh_gen->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
         mDh_rand->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+	mDh_rand_diff->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	for (int neg_pt_bin=1; neg_pt_bin<=nbinspt; neg_pt_bin++){
 	  mDh_diff->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
           mDh_reco->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
           mDh_gen->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
           mDh_rand->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	  mDh_rand_diff->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	  all_histos_count++;
 	  
 	  delete gROOT->FindObject("multi_data_histo_diff_proj_4");
@@ -170,49 +194,86 @@ int frame(){
 
 	    name = stringify_name(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin);
 	    
-	    fitresult = fitHisto(multi_hist_proj_diff, 2);
+	    fitresult = fitHisto(multi_hist_proj_diff, 4);
 	    GenRecoFit[name] = fitresult;
 	    if (fitresult[0] > -90.0){ mean->SetBinError(mean->Fill(name.c_str(), fitresult[0]), fitresult[2]); }
 	    if (fitresult[1] > -5.0){ sigma->SetBinError(sigma->Fill(name.c_str(), fitresult[1]), fitresult[3]); }
 
 	    multi_hist_proj_diff->SetName(name.c_str());
-	    multi_hist_proj_diff->SetTitle(("reco - gen mll " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
+	    multi_hist_proj_diff->SetTitle(("mll diff " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
 	    //delete gROOT->FindObject("c1");
 	    c1->cd(1);
-	    multi_hist_proj_diff->Draw();
+	    max_hist_mll_diff = -1.0;
+	    multi_hist_proj_diff->SetLineColor(kBlue);
+	    //multi_hist_proj_diff->Draw();
+	    max_hist_mll_diff = multi_hist_proj_diff->GetBinContent(multi_hist_proj_diff->GetMaximumBin());
+
+	    delete gROOT->FindObject("multi_data_histo_rand_diff_proj_4");
+	    multi_hist_proj_rand_diff = mDh_rand_diff->Projection(4);
+	    fitresult = fitHisto(multi_hist_proj_rand_diff, 8);
+	    multi_hist_proj_rand_diff->SetLineColor(kGreen);
+	    if(max_hist_mll_diff < multi_hist_proj_rand_diff->GetBinContent(multi_hist_proj_rand_diff->GetMaximumBin())){
+	      multi_hist_proj_rand_diff->SetTitle(("mll diff " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
+	      multi_hist_proj_rand_diff->Draw();
+	      multi_hist_proj_diff->Draw("SAME");
+	    } else {
+	      multi_hist_proj_diff->Draw();
+	      multi_hist_proj_rand_diff->Draw("SAME");
+	    }
+
+	    leg1->Clear();
+	    leg1->AddEntry(multi_hist_proj_diff, "reco-gen", "l");
+            leg1->AddEntry(multi_hist_proj_rand_diff, "smeared-gen", "l");
+            leg1->Draw("");
+
 	    //f2->WriteObject(multi_hist_proj_diff, name.c_str());	    
 
 	    c1->cd(2);
+	    max_hist_mll = -1.0;
+	    middle_flag = 0;
 	    delete gROOT->FindObject("multi_data_histo_reco_proj_4");
 	    multi_hist_proj_reco = mDh_reco->Projection(4);
 	    multi_hist_proj_reco->SetLineColor(kBlue);
 	    fitresult = fitHisto(multi_hist_proj_reco, 4);
-            multi_hist_proj_reco->SetTitle(("reco and gen mll "+ stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
-	    multi_hist_proj_reco->Draw();
+	    multi_hist_proj_reco->SetTitle(("mll "+ stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
+	    max_hist_mll = multi_hist_proj_reco->GetBinContent(multi_hist_proj_reco->GetMaximumBin());
+	    //multi_hist_proj_reco->Draw();
 	    if (fitresult[4] > -100.0){ gaus_integral->SetBinError(gaus_integral->Fill(name.c_str(), fitresult[4]), 0.01); }
 	    delete gROOT->FindObject("multi_data_histo_gen_proj_4");
 	    multi_hist_proj_gen = mDh_gen->Projection(4);
 	    fitresult = fitHisto(multi_hist_proj_gen, 2);
 	    multi_hist_proj_gen->SetLineColor(kRed);
-            multi_hist_proj_gen->Draw("SAME");
+            //multi_hist_proj_gen->Draw("SAME");
+	    if(max_hist_mll < multi_hist_proj_gen->GetBinContent(multi_hist_proj_gen->GetMaximumBin())){
+	      max_hist_mll = multi_hist_proj_gen->GetBinContent(multi_hist_proj_gen->GetMaximumBin());
+	      middle_flag = 1;
+	    }
             delete gROOT->FindObject("multi_data_histo_rand_proj_4");
             multi_hist_proj_rand = mDh_rand->Projection(4);
             fitresult = fitHisto(multi_hist_proj_rand, 8);
             multi_hist_proj_rand->SetLineColor(kGreen);
-            multi_hist_proj_rand->Draw("SAME");
+            //multi_hist_proj_rand->Draw("SAME");
+	    if(max_hist_mll < multi_hist_proj_rand->GetBinContent(multi_hist_proj_rand->GetMaximumBin())){
+	      multi_hist_proj_rand->SetTitle(("mll "+ stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
+	      multi_hist_proj_rand->Draw();
+	      multi_hist_proj_gen->Draw("SAME");
+	      multi_hist_proj_reco->Draw("SAME");
+	    } else if(middle_flag==1){
+	      multi_hist_proj_gen->SetTitle(("mll "+ stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
+	      multi_hist_proj_gen->Draw();
+	      multi_hist_proj_rand->Draw("SAME");
+	      multi_hist_proj_reco->Draw("SAME");
+	    } else {
+	      multi_hist_proj_reco->Draw();
+	      multi_hist_proj_gen->Draw("SAME");
+	      multi_hist_proj_rand->Draw("SAME");
+	    }
 
-	    auto leg = new TLegend(0.10, 0.68, 0.70, 0.90);
-	    leg->SetFillStyle(0);
-	    leg->SetBorderSize(0);
-	    leg->SetTextSize(0.035);
-	    leg->SetFillColor(10);
-	    leg->SetNColumns(1);
-	    leg->SetHeader("");
-
-	    leg->AddEntry(multi_hist_proj_reco, "reco", "l");
-	    leg->AddEntry(multi_hist_proj_gen, "gen", "l");
-	    leg->AddEntry(multi_hist_proj_rand, "smeared gen", "l");
-	    leg->Draw("");
+	    leg2->Clear();
+	    leg2->AddEntry(multi_hist_proj_reco, "reco", "l");
+	    leg2->AddEntry(multi_hist_proj_gen, "gen", "l");
+	    leg2->AddEntry(multi_hist_proj_rand, "smeared gen", "l");
+	    leg2->Draw("");
 
 	    c1->cd();
 
