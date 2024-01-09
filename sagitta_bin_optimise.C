@@ -85,10 +85,11 @@ int frame(){
   std::unique_ptr<TFile> myFile2( TFile::Open("multiD_histo_smear.root") );
   std::unique_ptr<THnD> mDh_smear(myFile2->Get<THnD>("multi_data_histo_smear"));
   std::unique_ptr<THnD> mDh_diff_smear(myFile2->Get<THnD>("multi_data_histo_diff_smear")); //it's smeared - gen
+  std::unique_ptr<THnD> mDh_diff_squared_smear(myFile2->Get<THnD>("multi_data_histo_diff_squared_smear")); // it's smeared - gen  
 
   //these must match how the 5D histo was produced
   double ptlow=25.0, pthigh=55.0;
-  int nbinsmll_diff=6, nbinseta=24, nbinspt=5;
+  int nbinsmll_diff=6, nbinsmll=8, nbinseta=24, nbinspt=5;
   vector<double> etabinranges, ptbinranges{25.0, 33.3584, 38.4562, 42.2942, 45.9469, 55.0};
 
   std::cout<<"\n etabinranges = [";
@@ -97,7 +98,7 @@ int frame(){
 
   //Initialise variables
   double total_nevents=0.0, nevents=0.0, all_histos_count=0.0, remaining_nevents=0.0, empty_histos_count=0.0, hfrac=-1.0, efrac=-1.0;
-  double max_hist_mll_diff, max_hist_mll;
+  double max_hist_mll_diff, max_hist_mll, value, sigma_mc=0.0;
   int middle_flag;
   string name;
 
@@ -125,6 +126,8 @@ int frame(){
   occupancy->SetCanExtend(TH1::kAllAxes);
   occupancy->SetMarkerStyle(kPlus);
 
+  TH1F *jac = new TH1F("jacobian", "jacobian", nbinsmll, 75.0, 105.0);
+
   std::unique_ptr<TFile> f1( TFile::Open("control_bin_histo.root", "RECREATE") );
   std::unique_ptr<TFile> f2( TFile::Open("reco_gen_histos.root", "RECREATE") );
   ofstream f3("passed_regions.txt");
@@ -134,6 +137,7 @@ int frame(){
   auto multi_hist_proj_gen = mDh_gen->Projection(4);
   auto multi_hist_proj_smear = mDh_smear->Projection(4);
   auto multi_hist_proj_diff_smear = mDh_diff_smear->Projection(4);
+  auto multi_hist_proj_diff_squared_smear = mDh_diff_squared_smear->Projection(4); 
 
   total_nevents = multi_hist_proj_diff_reco->Integral(1,nbinsmll_diff);
   std::cout <<"For nbinspt="<<nbinspt<<" there are " << total_nevents << " events in the inclusive projection \n";
@@ -170,24 +174,29 @@ int frame(){
     mDh_gen->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_smear->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_diff_smear->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+    mDh_diff_squared_smear->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     for (int pos_pt_bin=1; pos_pt_bin<=nbinspt; pos_pt_bin++){   
       mDh_diff_reco->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_reco->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_gen->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_smear->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_diff_smear->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+      mDh_diff_squared_smear->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       for (int neg_eta_bin=1; neg_eta_bin<=nbinseta; neg_eta_bin++){
 	mDh_diff_reco->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	mDh_reco->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
         mDh_gen->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
         mDh_smear->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	mDh_diff_smear->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+	mDh_diff_squared_smear->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	for (int neg_pt_bin=1; neg_pt_bin<=nbinspt; neg_pt_bin++){
 	  mDh_diff_reco->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
           mDh_reco->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
           mDh_gen->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
           mDh_smear->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	  mDh_diff_smear->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	  mDh_diff_squared_smear->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+
 	  all_histos_count++;
 	  
 	  delete gROOT->FindObject("multi_data_histo_diff_reco_proj_4");
@@ -227,6 +236,7 @@ int frame(){
 	    multi_hist_proj_diff_smear = mDh_diff_smear->Projection(4);
 	    fitresult = fitHisto(multi_hist_proj_diff_smear, 8);
             if (fitresult[0] > -90.0){ mean_smear->SetBinError(mean_smear->Fill(name.c_str(), fitresult[0]), fitresult[2]); }
+	    sigma_mc = fitresult[1];
             if (fitresult[1] > -5.0){ sigma_smear->SetBinError(sigma_smear->Fill(name.c_str(), fitresult[1]), fitresult[3]); }
 	    multi_hist_proj_diff_smear->SetLineColor(kGreen);
 	    if(max_hist_mll_diff < multi_hist_proj_diff_smear->GetBinContent(multi_hist_proj_diff_smear->GetMaximumBin())){
@@ -296,8 +306,22 @@ int frame(){
 
 	    f2->WriteObject(c1, name.c_str());
 
+	    //jacobian
+            delete gROOT->FindObject("multi_data_histo_diff_squared_smear_proj_4");
+            multi_hist_proj_diff_squared_smear = mDh_diff_squared_smear->Projection(4);
+            delete gROOT->FindObject("jacobian");
+            TH1D *jac = new TH1D("jacobian", "jacobian", nbinsmll, 75.0, 105.0);
+	    //fill jacobian bin by bin
+            for(int i=1; i<=nbinsmll; i++){
+              //value =  multi_hist_proj_diff_squared_smear->GetBinContent(i) /  (multi_hist_proj_smear->GetBinContent(i) * sigma_mc * sigma_mc) - 1;
+	      std::cout<<multi_hist_proj_diff_squared_smear->GetBinContent(i);
+	      value = multi_hist_proj_diff_squared_smear->GetBinContent(i);
+	      jac->SetBinContent(i, value);
+	    }	
+	    //write jacobian
+	    f2->WriteObject(jac, ("jac" + name).c_str());
 	  }
-
+	  
 	}
       } 
     }
