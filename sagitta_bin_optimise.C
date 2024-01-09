@@ -77,18 +77,18 @@ int frame(){
 
   ROOT::EnableImplicitMT(128);
 
-  std::unique_ptr<TFile> myFile( TFile::Open("multiD_reco_histo.root") );
+  std::unique_ptr<TFile> myFile( TFile::Open("multiD_histo_reco.root") );
   std::unique_ptr<THnD> mDh_reco(myFile->Get<THnD>("multi_data_histo_reco"));
   std::unique_ptr<THnD> mDh_gen(myFile->Get<THnD>("multi_data_histo_gen"));
-  std::unique_ptr<THnD> mDh_diff(myFile->Get<THnD>("multi_data_histo_diff")); // it's reco - gen
+  std::unique_ptr<THnD> mDh_diff_reco(myFile->Get<THnD>("multi_data_histo_diff_reco")); // it's reco - gen
 
-  std::unique_ptr<TFile> myFile2( TFile::Open("multiD_histo.root") );
-  std::unique_ptr<THnD> mDh_rand(myFile2->Get<THnD>("multi_data_histo_rand"));
-  std::unique_ptr<THnD> mDh_rand_diff(myFile2->Get<THnD>("multi_data_histo_diff")); //it's smeared - gen
+  std::unique_ptr<TFile> myFile2( TFile::Open("multiD_histo_smear.root") );
+  std::unique_ptr<THnD> mDh_smear(myFile2->Get<THnD>("multi_data_histo_smear"));
+  std::unique_ptr<THnD> mDh_diff_smear(myFile2->Get<THnD>("multi_data_histo_diff_smear")); //it's smeared - gen
 
   //these must match how the 5D histo was produced
   double ptlow=25.0, pthigh=55.0;
-  int nbinsmll_diff=18, nbinsmll=18, nbinseta=24, nbinspt=5;
+  int nbinsmll_diff=6, nbinseta=24, nbinspt=5;
   vector<double> etabinranges, ptbinranges{25.0, 33.3584, 38.4562, 42.2942, 45.9469, 55.0};
 
   std::cout<<"\n etabinranges = [";
@@ -104,28 +104,38 @@ int frame(){
   std::map<string, vector<double>> GenRecoFit;
   vector<double> fitresult;
 
-  TH1D *mean = new TH1D("mean", "gen-reco mll mean", 3, 0, 3);
-  mean->SetCanExtend(TH1::kAllAxes);
+  TH1D *mean_reco = new TH1D("mean", "reco-gen mll mean", 3, 0, 3);
+  mean_reco->SetCanExtend(TH1::kAllAxes);
 
-  TH1D *sigma = new TH1D("sigma", "gen-reco mll sigma", 3, 0, 3);
-  sigma->SetCanExtend(TH1::kAllAxes);
+  TH1D *sigma_reco = new TH1D("sigma_reco", "reco-gen mll sigma", 3, 0, 3);
+  sigma_reco->SetCanExtend(TH1::kAllAxes);
+
+  TH1D *mean_smear = new TH1D("mean_smear", "smear-gen mll mean", 3, 0, 3);
+  mean_smear->SetCanExtend(TH1::kAllAxes);
+  mean_smear->SetMarkerStyle(kPlus);
+
+  TH1D *sigma_smear = new TH1D("sigma_smear", "smear-gen mll sigma", 3, 0, 3);
+  sigma_smear->SetCanExtend(TH1::kAllAxes);
 
   TH1D *gaus_integral = new TH1D("gaus_integral", "reco mll integral 75.5-105.0", 3, 0, 3);
   gaus_integral->SetCanExtend(TH1::kAllAxes);
+  gaus_integral->SetMarkerStyle(kPlus);
 
   TH1D *occupancy = new TH1D("bin_occupancy", "bin occupancy", 3, 0, 3);
-  gaus_integral->SetCanExtend(TH1::kAllAxes);
+  occupancy->SetCanExtend(TH1::kAllAxes);
+  occupancy->SetMarkerStyle(kPlus);
 
   std::unique_ptr<TFile> f1( TFile::Open("control_bin_histo.root", "RECREATE") );
   std::unique_ptr<TFile> f2( TFile::Open("reco_gen_histos.root", "RECREATE") );
+  ofstream f3("passed_regions.txt");
 
-  auto multi_hist_proj_diff = mDh_diff->Projection(4);
+  auto multi_hist_proj_diff_reco = mDh_diff_reco->Projection(4);
   auto multi_hist_proj_reco = mDh_reco->Projection(4);
   auto multi_hist_proj_gen = mDh_gen->Projection(4);
-  auto multi_hist_proj_rand = mDh_rand->Projection(4);
-  auto multi_hist_proj_rand_diff = mDh_rand_diff->Projection(4);
+  auto multi_hist_proj_smear = mDh_smear->Projection(4);
+  auto multi_hist_proj_diff_smear = mDh_diff_smear->Projection(4);
 
-  total_nevents = multi_hist_proj_diff->Integral(1,nbinsmll_diff);
+  total_nevents = multi_hist_proj_diff_reco->Integral(1,nbinsmll_diff);
   std::cout <<"For nbinspt="<<nbinspt<<" there are " << total_nevents << " events in the inclusive projection \n";
   
   all_histos_count = 0.0;
@@ -155,84 +165,91 @@ int frame(){
   leg2->SetHeader("");
 
   for (int pos_eta_bin=1; pos_eta_bin<=nbinseta; pos_eta_bin++){
-    mDh_diff->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+    mDh_diff_reco->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_reco->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_gen->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
-    mDh_rand->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
-    mDh_rand_diff->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+    mDh_smear->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+    mDh_diff_smear->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     for (int pos_pt_bin=1; pos_pt_bin<=nbinspt; pos_pt_bin++){   
-      mDh_diff->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+      mDh_diff_reco->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_reco->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_gen->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
-      mDh_rand->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
-      mDh_rand_diff->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+      mDh_smear->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+      mDh_diff_smear->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       for (int neg_eta_bin=1; neg_eta_bin<=nbinseta; neg_eta_bin++){
-	mDh_diff->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+	mDh_diff_reco->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	mDh_reco->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
         mDh_gen->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
-        mDh_rand->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
-	mDh_rand_diff->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+        mDh_smear->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+	mDh_diff_smear->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	for (int neg_pt_bin=1; neg_pt_bin<=nbinspt; neg_pt_bin++){
-	  mDh_diff->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	  mDh_diff_reco->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
           mDh_reco->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
           mDh_gen->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-          mDh_rand->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-	  mDh_rand_diff->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+          mDh_smear->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	  mDh_diff_smear->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	  all_histos_count++;
 	  
-	  delete gROOT->FindObject("multi_data_histo_diff_proj_4");
-	  multi_hist_proj_diff = mDh_diff->Projection(4);
-	  nevents = multi_hist_proj_diff->Integral(1,nbinsmll_diff);
+	  delete gROOT->FindObject("multi_data_histo_diff_reco_proj_4");
+	  multi_hist_proj_diff_reco = mDh_diff_reco->Projection(4);
+	  nevents = multi_hist_proj_diff_reco->Integral(1,nbinsmll_diff);
 	  //std::cout<<nevents<<"\n";
-
-	  if (nevents < 100.0){ 
+	  delete gROOT->FindObject("multi_data_histo_reco_proj_4");
+	  multi_hist_proj_reco = mDh_reco->Projection(4);
+	  fitresult = fitHisto(multi_hist_proj_reco, 4);
+	  
+	  if (nevents < 100.0 || fitresult[4] < 0.75){ // reject low stats and small gaus integral 
 	    empty_histos_count++;
 	  } else {
 	    remaining_nevents += nevents;
-
+	    
 	    occupancy->SetBinError(occupancy->Fill(name.c_str(), nevents), 100);
 
 	    name = stringify_name(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin);
-	    
-	    fitresult = fitHisto(multi_hist_proj_diff, 4);
-	    GenRecoFit[name] = fitresult;
-	    if (fitresult[0] > -90.0){ mean->SetBinError(mean->Fill(name.c_str(), fitresult[0]), fitresult[2]); }
-	    if (fitresult[1] > -5.0){ sigma->SetBinError(sigma->Fill(name.c_str(), fitresult[1]), fitresult[3]); }
+	    f3 << name << "\n";
 
-	    multi_hist_proj_diff->SetName(name.c_str());
-	    multi_hist_proj_diff->SetTitle(("mll diff " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
+	    fitresult = fitHisto(multi_hist_proj_diff_reco, 4);
+	    
+	    GenRecoFit[name] = fitresult;
+	    if (fitresult[0] > -90.0){ mean_reco->SetBinError(mean_reco->Fill(name.c_str(), fitresult[0]), fitresult[2]); }
+	    if (fitresult[1] > -5.0){ sigma_reco->SetBinError(sigma_reco->Fill(name.c_str(), fitresult[1]), fitresult[3]); }
+	    
+	    multi_hist_proj_diff_reco->SetName(name.c_str());
+	    multi_hist_proj_diff_reco->SetTitle(("mll diff " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
 	    //delete gROOT->FindObject("c1");
 	    c1->cd(1);
 	    max_hist_mll_diff = -1.0;
-	    multi_hist_proj_diff->SetLineColor(kBlue);
-	    //multi_hist_proj_diff->Draw();
-	    max_hist_mll_diff = multi_hist_proj_diff->GetBinContent(multi_hist_proj_diff->GetMaximumBin());
+	    multi_hist_proj_diff_reco->SetLineColor(kBlue);
+	    //multi_hist_proj_diff_reco->Draw();
+	    max_hist_mll_diff = multi_hist_proj_diff_reco->GetBinContent(multi_hist_proj_diff_reco->GetMaximumBin());
 
-	    delete gROOT->FindObject("multi_data_histo_rand_diff_proj_4");
-	    multi_hist_proj_rand_diff = mDh_rand_diff->Projection(4);
-	    fitresult = fitHisto(multi_hist_proj_rand_diff, 8);
-	    multi_hist_proj_rand_diff->SetLineColor(kGreen);
-	    if(max_hist_mll_diff < multi_hist_proj_rand_diff->GetBinContent(multi_hist_proj_rand_diff->GetMaximumBin())){
-	      multi_hist_proj_rand_diff->SetTitle(("mll diff " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
-	      multi_hist_proj_rand_diff->Draw();
-	      multi_hist_proj_diff->Draw("SAME");
+	    delete gROOT->FindObject("multi_data_histo_diff_smear_proj_4");
+	    multi_hist_proj_diff_smear = mDh_diff_smear->Projection(4);
+	    fitresult = fitHisto(multi_hist_proj_diff_smear, 8);
+            if (fitresult[0] > -90.0){ mean_smear->SetBinError(mean_smear->Fill(name.c_str(), fitresult[0]), fitresult[2]); }
+            if (fitresult[1] > -5.0){ sigma_smear->SetBinError(sigma_smear->Fill(name.c_str(), fitresult[1]), fitresult[3]); }
+	    multi_hist_proj_diff_smear->SetLineColor(kGreen);
+	    if(max_hist_mll_diff < multi_hist_proj_diff_smear->GetBinContent(multi_hist_proj_diff_smear->GetMaximumBin())){
+	      multi_hist_proj_diff_smear->SetTitle(("mll diff " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
+	      multi_hist_proj_diff_smear->Draw();
+	      multi_hist_proj_diff_reco->Draw("SAME");
 	    } else {
-	      multi_hist_proj_diff->Draw();
-	      multi_hist_proj_rand_diff->Draw("SAME");
+	      multi_hist_proj_diff_reco->Draw();
+	      multi_hist_proj_diff_smear->Draw("SAME");
 	    }
 
 	    leg1->Clear();
-	    leg1->AddEntry(multi_hist_proj_diff, "reco-gen", "l");
-            leg1->AddEntry(multi_hist_proj_rand_diff, "smeared-gen", "l");
+	    leg1->AddEntry(multi_hist_proj_diff_reco, "reco-gen", "l");
+            leg1->AddEntry(multi_hist_proj_diff_smear, "smeared-gen", "l");
             leg1->Draw("");
 
-	    //f2->WriteObject(multi_hist_proj_diff, name.c_str());	    
+	    //f2->WriteObject(multi_hist_proj_diff_reco, name.c_str());	    
 
 	    c1->cd(2);
 	    max_hist_mll = -1.0;
 	    middle_flag = 0;
-	    delete gROOT->FindObject("multi_data_histo_reco_proj_4");
-	    multi_hist_proj_reco = mDh_reco->Projection(4);
+	    //delete gROOT->FindObject("multi_data_histo_reco_proj_4");
+	    //multi_hist_proj_reco = mDh_reco->Projection(4);
 	    multi_hist_proj_reco->SetLineColor(kBlue);
 	    fitresult = fitHisto(multi_hist_proj_reco, 4);
 	    multi_hist_proj_reco->SetTitle(("mll "+ stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
@@ -248,31 +265,31 @@ int frame(){
 	      max_hist_mll = multi_hist_proj_gen->GetBinContent(multi_hist_proj_gen->GetMaximumBin());
 	      middle_flag = 1;
 	    }
-            delete gROOT->FindObject("multi_data_histo_rand_proj_4");
-            multi_hist_proj_rand = mDh_rand->Projection(4);
-            fitresult = fitHisto(multi_hist_proj_rand, 8);
-            multi_hist_proj_rand->SetLineColor(kGreen);
-            //multi_hist_proj_rand->Draw("SAME");
-	    if(max_hist_mll < multi_hist_proj_rand->GetBinContent(multi_hist_proj_rand->GetMaximumBin())){
-	      multi_hist_proj_rand->SetTitle(("mll "+ stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
-	      multi_hist_proj_rand->Draw();
+            delete gROOT->FindObject("multi_data_histo_smear_proj_4");
+            multi_hist_proj_smear = mDh_smear->Projection(4);
+            fitresult = fitHisto(multi_hist_proj_smear, 8);
+            multi_hist_proj_smear->SetLineColor(kGreen);
+            //multi_hist_proj_smear->Draw("SAME");
+	    if(max_hist_mll < multi_hist_proj_smear->GetBinContent(multi_hist_proj_smear->GetMaximumBin())){
+	      multi_hist_proj_smear->SetTitle(("mll "+ stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
+	      multi_hist_proj_smear->Draw();
 	      multi_hist_proj_gen->Draw("SAME");
 	      multi_hist_proj_reco->Draw("SAME");
 	    } else if(middle_flag==1){
 	      multi_hist_proj_gen->SetTitle(("mll "+ stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
 	      multi_hist_proj_gen->Draw();
-	      multi_hist_proj_rand->Draw("SAME");
+	      multi_hist_proj_smear->Draw("SAME");
 	      multi_hist_proj_reco->Draw("SAME");
 	    } else {
 	      multi_hist_proj_reco->Draw();
 	      multi_hist_proj_gen->Draw("SAME");
-	      multi_hist_proj_rand->Draw("SAME");
+	      multi_hist_proj_smear->Draw("SAME");
 	    }
 
 	    leg2->Clear();
 	    leg2->AddEntry(multi_hist_proj_reco, "reco", "l");
 	    leg2->AddEntry(multi_hist_proj_gen, "gen", "l");
-	    leg2->AddEntry(multi_hist_proj_rand, "smeared gen", "l");
+	    leg2->AddEntry(multi_hist_proj_smear, "smeared gen", "l");
 	    leg2->Draw("");
 
 	    c1->cd();
@@ -285,18 +302,48 @@ int frame(){
       } 
     }
   }
+  f3.close();
 
   hfrac = empty_histos_count / all_histos_count;
   efrac = remaining_nevents / total_nevents;
   std::cout<<stringify_name(nbinseta, nbinspt, nbinseta, nbinspt)<<" histos  empty/all="<< hfrac <<"; events remaining/all "<< efrac <<"\n";
 
-  mean->SetStats(0);
-  mean->LabelsDeflate();
-  f1->WriteObject(mean, "mean_diff");
+  mean_reco->SetStats(0);
+  mean_reco->LabelsDeflate();
+  f1->WriteObject(mean_reco, "mean_diff_reco");
   
-  sigma->SetStats(0);
-  sigma->LabelsDeflate();
-  f1->WriteObject(sigma, "sigma_diff");
+  sigma_reco->SetStats(0);
+  sigma_reco->LabelsDeflate();
+  f1->WriteObject(sigma_reco, "sigma_diff_reco");
+
+  mean_smear->SetStats(0);
+  mean_smear->LabelsDeflate();
+  f1->WriteObject(mean_smear, "mean_diff_smear");
+
+  sigma_smear->SetStats(0);
+  sigma_smear->LabelsDeflate();
+  f1->WriteObject(sigma_smear, "sigma_diff_smear");
+
+  TCanvas *c2 = new TCanvas("c2","c2",800,600);
+
+  auto leg3 = new TLegend(0.58, 0.68, 0.90, 0.90);
+
+  leg3->SetFillStyle(0);
+  leg3->SetBorderSize(0);
+  leg3->SetTextSize(0.035);
+  leg3->SetFillColor(10);
+  leg3->SetNColumns(1);
+  leg3->SetHeader("");
+
+  mean_reco->Draw();
+  mean_smear->SetMarkerColor(kRed);
+  mean_smear->Draw("SAME");
+
+  leg3->AddEntry(mean_reco, "reco", "l");
+  leg3->AddEntry(mean_smear, "smear", "l");
+  leg3->Draw("");
+
+  f1->WriteObject(c2, "mean_superimposed");
 
   gaus_integral->SetStats(0);
   gaus_integral->LabelsDeflate();
