@@ -2,6 +2,14 @@
 
 #include "TFile.h"
 #include "TCanvas.h"
+#include "TVector.h"
+#include "TVectorT.h"
+#include <TMatrixD.h>
+#include <Eigen/Core>
+#include <Eigen/Dense>
+
+using Eigen::MatrixXd;
+using Eigen::VectorXd;
 
 using namespace ROOT;
 using namespace ROOT::VecOps;
@@ -127,9 +135,13 @@ int frame(){
   occupancy->SetMarkerStyle(kPlus);
 
   TH1D *jac = new TH1D("jacobian", "jacobian", nbinsmll, 75.0, 105.0);
+  TH1D *alpha = new TH1D("alpha", "alpha", nbinsmll, 75.0, 105.0);
   TH1D *dif_sq = new TH1D("diff_squared", "diff_squared", nbinsmll, 75.0, 105.0);
   TH1D *ev_b = new TH1D("evts_in_bin", "evts_in_bin", nbinsmll, 75.0, 105.0);
 
+  VectorXd h_smear_minus_gen_vector(n_bins_mll), jac_vector(n_bins_mll);
+  Eigen::MatrixXd V_inv_sqrt(n_bins_mll, n_bins_mll);
+  
   std::unique_ptr<TFile> f1( TFile::Open("control_bin_histo.root", "RECREATE") );
   std::unique_ptr<TFile> f2( TFile::Open("reco_gen_histos.root", "RECREATE") );
   ofstream f3("passed_regions.txt");
@@ -139,7 +151,7 @@ int frame(){
   auto multi_hist_proj_gen = mDh_gen->Projection(4);
   auto multi_hist_proj_smear = mDh_smear->Projection(4);
   auto multi_hist_proj_diff_smear = mDh_diff_smear->Projection(4);
-  auto multi_hist_proj_diff_squared_smear = mDh_diff_squared_smear->Projection(5);
+  auto multi_hist_proj_diff_squared_smear = mDh_diff_squared_smear->Projection(4);
   f1->WriteObject(multi_hist_proj_diff_smear, "multi_hist_proj_diff_smear"); 
   f1->WriteObject(multi_hist_proj_diff_squared_smear, "multi_hist_proj_diff_squared_smear");
 
@@ -231,11 +243,11 @@ int frame(){
 	      
 	      multi_hist_proj_diff_reco->SetName(name.c_str());
 	      multi_hist_proj_diff_reco->SetTitle(("mll diff " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
-	      //delete gROOT->FindObject("c1");
+	      
 	      c1->cd(1);
 	      max_hist_mll_diff = -1.0;
 	      multi_hist_proj_diff_reco->SetLineColor(kBlue);
-	      //multi_hist_proj_diff_reco->Draw();
+	      
 	      max_hist_mll_diff = multi_hist_proj_diff_reco->GetBinContent(multi_hist_proj_diff_reco->GetMaximumBin());
 	      
 	      delete gROOT->FindObject("multi_data_histo_diff_smear_proj_4");
@@ -259,36 +271,33 @@ int frame(){
 	      leg1->AddEntry(multi_hist_proj_diff_smear, "smeared-gen", "l");
 	      leg1->Draw("");
 	      
-	      //f2->WriteObject(multi_hist_proj_diff_reco, name.c_str());	    
-	      
 	      c1->cd(2);
 	      max_hist_mll = -1.0;
 	      middle_flag = 0;
-	      //delete gROOT->FindObject("multi_data_histo_reco_proj_4");
-	      //multi_hist_proj_reco = mDh_reco->Projection(4);
+	      
 	      multi_hist_proj_reco->SetLineColor(kBlue);
 	      fitresult = fitHisto(multi_hist_proj_reco, 4);
 	      multi_hist_proj_reco->SetTitle(("mll "+ stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
 	      max_hist_mll = multi_hist_proj_reco->GetBinContent(multi_hist_proj_reco->GetMaximumBin());
-	      //multi_hist_proj_reco->Draw();
 	      if (fitresult[4] > -100.0){ gaus_integral->SetBinError(gaus_integral->Fill(name.c_str(), fitresult[4]), 0.01); }
 	      delete gROOT->FindObject("multi_data_histo_gen_proj_4");
 	      multi_hist_proj_gen = mDh_gen->Projection(4);
-	      //fill vector with its values//////////////////////////////
 	      fitresult = fitHisto(multi_hist_proj_gen, 2);
 	      multi_hist_proj_gen->SetLineColor(kRed);
-	      //multi_hist_proj_gen->Draw("SAME");
 	      if(max_hist_mll < multi_hist_proj_gen->GetBinContent(multi_hist_proj_gen->GetMaximumBin())){
 		max_hist_mll = multi_hist_proj_gen->GetBinContent(multi_hist_proj_gen->GetMaximumBin());
 		middle_flag = 1;
 	      }
 	      delete gROOT->FindObject("multi_data_histo_smear_proj_4");
 	      multi_hist_proj_smear = mDh_smear->Projection(4);
-	      //fill vector with its values//////////////////////////////
-	      //fill matrix with 1/errors^2? check //////////////////////
+	      //fill vectors and variance for minimisation
+	      V_inv_sqrt=MatrixXd::Zero(n_bins_mll, n_bins_mll);	      
+	      for(int i=1; i<=nbinsmll; i++){
+		h_smear_minus_gen_vector(i-1)=multi_hist_proj_smear->GetBinContent(i) - multi_hist_proj_gen->GetBinContent(i);
+		V_inv_sqrt(i-1,i-1)=1/(multi_hist_proj_smear->GetBinErrorLow(i));
+	      }
 	      fitresult = fitHisto(multi_hist_proj_smear, 8);
 	      multi_hist_proj_smear->SetLineColor(kGreen);
-	      //multi_hist_proj_smear->Draw("SAME");
 	      if(max_hist_mll < multi_hist_proj_smear->GetBinContent(multi_hist_proj_smear->GetMaximumBin())){
 		multi_hist_proj_smear->SetTitle(("mll "+ stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
 		multi_hist_proj_smear->Draw();
@@ -323,11 +332,10 @@ int frame(){
 	      TH1D *dif_sq = new TH1D("diff_squared", "diff_squared", nbinsmll, 75.0, 105.0);
 	      TH1D *ev_b = new TH1D("evts_in_bin", "evts_in_bin", nbinsmll, 75.0, 105.0);
 	      //fill jacobian bin by bin
+	      delete gROOT->FindObject("multi_data_histo_diff_squared_smear_proj_4");
+	      multi_hist_proj_diff_squared_smear = mDh_diff_squared_smear->Projection(4);
 	      for(int i=1; i<=nbinsmll; i++){
-		mDh_diff_squared_smear->GetAxis(4)->SetRange(i, i);
-		delete gROOT->FindObject("multi_data_histo_diff_squared_smear_proj_5");
-		multi_hist_proj_diff_squared_smear = mDh_diff_squared_smear->Projection(5);
-		diff_squared = multi_hist_proj_diff_squared_smear->GetBinContent(1);
+		diff_squared = multi_hist_proj_diff_squared_smear->GetBinContent(i);
 		dif_sq->SetBinContent(i, diff_squared);
 		evts_in_bin = multi_hist_proj_smear->GetBinContent(i);
 		ev_b->SetBinContent(i, evts_in_bin);
@@ -335,16 +343,22 @@ int frame(){
 		  value =  diff_squared /  (evts_in_bin * sigma_mc * sigma_mc) - 1;
 		  std::cout<< diff_squared <<" / "<< evts_in_bin<<" = "<<diff_squared / evts_in_bin<<"\n";
 		} else {
-		  value = 0; // what value should it be??? 
+		  value = 0; 
 		}
 		jac->SetBinContent(i, value);
+		jac_vector(i-1)=value;
 	      }	
 	      //write jacobian
 	      f2->WriteObject(jac, ("jac" + name).c_str());
 	      f2->WriteObject(dif_sq, ("dif_sq" + name).c_str());
 	      f2->WriteObject(ev_b, ("ev_b" + name).c_str());
-	    
-	      //perform minimisation//////////////////////
+	      f2->WriteObject(multi_hist_proj_diff_squared_smear, ("dif_sq_proj" + name).c_str());
+	      //solve for alpha
+	      Eigen::MatrixXd A = V_inv_sqrt*jac_vector;
+	      Eigen::MatrixXd b = V_inv_sqrt*h_smear_minus_gen_vector;
+	      Eigen::VectorXd alpha_vector = A.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
+	      //write alpha
+	      f2->WriteObject(alpha, ("alpha" + name).c_str());
 	    }
 	    
 	  }
