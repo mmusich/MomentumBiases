@@ -57,7 +57,7 @@ int frame(){
   }
 
   //Pairs
-  int option = 1; //ATTENTION, 1 gives pT smear
+  int option = 0; //ATTENTION, 1 gives pT smear
 
   auto pairs = [&](unsigned int nslot, RVecF Muon_pt, RVecI Muon_charge, RVecF Muon_eta, RVecF Muon_phi, RVecB MuonisGood, RVecF Muon_dxy, RVecF Muon_dz, RVecI GenPart_status, RVecI GenPart_pdgId, RVecI GenPart_genPartIdxMother, RVecF GenPart_pt, RVecF GenPart_eta, RVecF GenPart_phi)->std::tuple<int,int,float,float,float,float,float,float,float,float>{
 
@@ -176,8 +176,8 @@ int frame(){
     .Define("negTrackEta","float negTrackEta; negTrackEta=Muon_eta[get<1>(pairs)]; return negTrackEta;");
 
   //Save tree for debugging
-  TFile *f1 = new TFile("snapshot_output.root","RECREATE");
-  d4.Snapshot("Events", "snapshot_output.root", {"GenPart_status", "GenPart_pdgId", "GenPart_pt", "Muon_pt" ,"mll_reco", "mll_gen", "mll_diff","jac_weight"});
+  //TFile *f1 = new TFile("snapshot_output.root","RECREATE");
+  //d4.Snapshot("Events", "snapshot_output.root", {"GenPart_status", "GenPart_pdgId", "GenPart_pt", "Muon_pt" ,"mll_reco", "mll_gen", "mll_diff","jac_weight"});
 
   //Tree to pass to fitting script
   //TFile *f2 = new TFile("tree_output.root","RECREATE");
@@ -194,7 +194,7 @@ int frame(){
   */
   
   double ptlow=25.0, pthigh=55.0;
-  int nbinsmll_diff=6, nbinsmll=5, nbinseta=24, nbinspt=5;
+  int nbinsmll_diff=20, nbinsmll=15, nbinseta=24, nbinspt=5;
   vector<double> etabinranges, ptbinranges, mllbinranges;
   vector<double> mll_diffbinranges;
 
@@ -245,7 +245,11 @@ int frame(){
     //ATTENTION do not change variable name jac_weight, it's used for both reco and smear depending on option
     auto mDh_diff_squared_smear = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_squared_smear", "multi_data_histo_diff_squared_smear", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_reco","jac_weight"});
     f6->WriteObject(mDh_diff_squared_smear.GetPtr(), "multi_data_histo_diff_squared_smear");
-    
+
+    //ATTENTION do not change variable name jac_weight, it's used for both reco and smear depending on option
+    auto mDh_diff_squared_smear_control = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_squared_smear_control", "multi_data_histo_diff_squared_smear_control", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff","jac_weight"});
+    f6->WriteObject(mDh_diff_squared_smear_control.GetPtr(), "multi_data_histo_diff_squared_smear_control");
+
     //ATTENTION do not change variable name mll_diff, it's used for both reco and smear depending on option
     auto mDh_diff_smear = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_smear", "multi_data_histo_diff_smear", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff","weight"});
     f6->WriteObject(mDh_diff_smear.GetPtr(), "multi_data_histo_diff_smear"); 

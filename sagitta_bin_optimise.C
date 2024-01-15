@@ -25,6 +25,7 @@ string stringify_title(int a, int b, int c, int d, vector<double> e, vector<doub
   return txt1+to_string(e[a-1]).substr(0,4)+comma+to_string(e[a]).substr(0,4)+txt2+to_string(p[b-1]).substr(0,4)+comma+to_string(p[b]).substr(0,4)+txt3+to_string(e[c-1]).substr(0,4)+comma+to_string(e[c]).substr(0,4)+txt4+to_string(p[d-1]).substr(0,4)+comma+to_string(p[d]).substr(0,4)+txt5;
 }
 
+/////////////// Function for Gaussian fit and integral ////////////////////////////////////////
 vector<double> fitHisto(TH1* histogram, int color){
 
   vector<double> fitresult;
@@ -85,6 +86,8 @@ int frame(){
 
   ROOT::EnableImplicitMT(128);
 
+  /////////////// Input files /////////////////////////////////////////////////////////
+
   std::unique_ptr<TFile> myFile( TFile::Open("multiD_histo_reco.root") );
   std::unique_ptr<THnD> mDh_reco(myFile->Get<THnD>("multi_data_histo_reco"));
   std::unique_ptr<THnD> mDh_gen(myFile->Get<THnD>("multi_data_histo_gen"));
@@ -94,20 +97,21 @@ int frame(){
   std::unique_ptr<THnD> mDh_smear(myFile2->Get<THnD>("multi_data_histo_smear"));
   std::unique_ptr<THnD> mDh_diff_smear(myFile2->Get<THnD>("multi_data_histo_diff_smear")); //it's smeared - gen
   std::unique_ptr<THnD> mDh_diff_squared_smear(myFile2->Get<THnD>("multi_data_histo_diff_squared_smear")); // it's smeared - gen  
+  std::unique_ptr<THnD> mDh_diff_squared_smear_control(myFile2->Get<THnD>("multi_data_histo_diff_squared_smear_control")); // it's smeared - gen
 
   //these must match how the 5D histo was produced
   double ptlow=25.0, pthigh=55.0;
-  int nbinsmll_diff=6, nbinsmll=5, nbinseta=24, nbinspt=5;
+  int nbinsmll_diff=20, nbinsmll=15, nbinseta=24, nbinspt=5;
   vector<double> etabinranges, ptbinranges{25.0, 33.3584, 38.4562, 42.2942, 45.9469, 55.0};
 
   std::cout<<"\n etabinranges = [";
   for (int i=0; i<=nbinseta; i++){etabinranges.push_back(-2.4 + i * 4.8/nbinseta); std::cout<<etabinranges[i]<<", ";}
   std::cout<<"] \n";
 
-  //Initialise variables
+  /////////////// Prepare variables, histograms //////////////////////////////////////////////////
   double total_nevents=0.0, nevents=0.0, all_histos_count=0.0, remaining_nevents=0.0, empty_histos_count=0.0, hfrac=-1.0, efrac=-1.0;
   double max_hist_mll_diff, max_hist_mll, value, error, diff_squared, evts_in_bin, sigma_mc=0.0, error_sigma_mc, error_diff_squared; 
-  int middle_flag;
+  int middle_flag, filled_bins_mll, position_to_fill;
   string name;
 
   std::map<string, vector<double>> GenRecoFit;
@@ -115,31 +119,36 @@ int frame(){
 
   TH1D *mean_reco = new TH1D("mean", "reco-gen mll mean", 3, 0, 3);
   mean_reco->SetCanExtend(TH1::kAllAxes);
+  mean_reco->GetXaxis()->SetTitle("Bin number");
+  mean_reco->GetYaxis()->SetTitle("reco-gen mll mean [GeV]");
 
   TH1D *sigma_reco = new TH1D("sigma_reco", "reco-gen mll sigma", 3, 0, 3);
   sigma_reco->SetCanExtend(TH1::kAllAxes);
+  sigma_reco->GetXaxis()->SetTitle("Bin number");
+  sigma_reco->GetYaxis()->SetTitle("reco-gen mll sigma [GeV]");
 
   TH1D *mean_smear = new TH1D("mean_smear", "smear-gen mll mean", 3, 0, 3);
   mean_smear->SetCanExtend(TH1::kAllAxes);
   mean_smear->SetMarkerStyle(kPlus);
+  mean_smear->GetXaxis()->SetTitle("Bin number");
+  mean_smear->GetYaxis()->SetTitle("smear-gen mll mean [GeV]");
 
   TH1D *sigma_smear = new TH1D("sigma_smear", "smear-gen mll sigma", 3, 0, 3);
   sigma_smear->SetCanExtend(TH1::kAllAxes);
+  sigma_smear->GetXaxis()->SetTitle("Bin number");
+  sigma_smear->GetYaxis()->SetTitle("smear-gen mll sigma [GeV]");
 
   TH1D *gaus_integral = new TH1D("gaus_integral", "reco mll integral 75.5-105.0", 3, 0, 3);
   gaus_integral->SetCanExtend(TH1::kAllAxes);
   gaus_integral->SetMarkerStyle(kPlus);
+  gaus_integral->GetXaxis()->SetTitle("Bin number");
+  gaus_integral->GetYaxis()->SetTitle("integral [-]");
 
   TH1D *occupancy = new TH1D("bin_occupancy", "bin occupancy", 3, 0, 3);
   occupancy->SetCanExtend(TH1::kAllAxes);
   occupancy->SetMarkerStyle(kPlus);
-
-  VectorXd h_smear_minus_gen_vector(nbinsmll);
-  Eigen::MatrixXd J(nbinsmll, nbinsmll), V_inv_sqrt(nbinsmll, nbinsmll);
-  
-  std::unique_ptr<TFile> f1( TFile::Open("control_bin_histo.root", "RECREATE") );
-  std::unique_ptr<TFile> f2( TFile::Open("reco_gen_histos.root", "RECREATE") );
-  ofstream f3("passed_regions.txt");
+  occupancy->GetXaxis()->SetTitle("Bin number");
+  occupancy->GetYaxis()->SetTitle("Events");
 
   auto multi_hist_proj_diff_reco = mDh_diff_reco->Projection(4);
   auto multi_hist_proj_reco = mDh_reco->Projection(4);
@@ -147,19 +156,18 @@ int frame(){
   auto multi_hist_proj_smear = mDh_smear->Projection(4);
   auto multi_hist_proj_diff_smear = mDh_diff_smear->Projection(4);
   auto multi_hist_proj_diff_squared_smear = mDh_diff_squared_smear->Projection(4);
+  auto multi_hist_proj_diff_squared_smear_control = mDh_diff_squared_smear_control->Projection(4);
+
+  // Files to write results
+  std::unique_ptr<TFile> f1( TFile::Open("control_bin_histo.root", "RECREATE") );
+  std::unique_ptr<TFile> f2( TFile::Open("reco_gen_histos.root", "RECREATE") );
+  ofstream f3("passed_regions.txt");
+
   f1->WriteObject(multi_hist_proj_diff_smear, "multi_hist_proj_diff_smear"); 
   f1->WriteObject(multi_hist_proj_diff_squared_smear, "multi_hist_proj_diff_squared_smear");
 
-  total_nevents = multi_hist_proj_diff_reco->Integral(1,nbinsmll_diff);
-  std::cout <<"For nbinspt="<<nbinspt<<" there are " << total_nevents << " events in the inclusive projection \n";
-  
-  all_histos_count = 0.0;
-  empty_histos_count = 0.0;
-  hfrac = -1.0;  
-  efrac = -1.0;
-  remaining_nevents = 0.0;
-
-  TCanvas *c1 = new TCanvas("c1","c1",800,600);  
+  // Canvas
+  TCanvas *c1 = new TCanvas("c1","c1",800,600);
   c1->Divide(2,1);
 
   auto leg1 = new TLegend(0.58, 0.68, 0.90, 0.90);
@@ -179,6 +187,17 @@ int frame(){
   leg2->SetNColumns(1);
   leg2->SetHeader("");
 
+  // Prepare counting events
+  total_nevents = multi_hist_proj_diff_reco->Integral(1,nbinsmll_diff);
+  std::cout <<"For nbinspt="<<nbinspt<<" there are " << total_nevents << " events in the inclusive projection \n";
+  
+  all_histos_count = 0.0;
+  empty_histos_count = 0.0;
+  hfrac = -1.0;  
+  efrac = -1.0;
+  remaining_nevents = 0.0;
+
+  /////////////// Loop over eta+,pt+,eta-,pt- //////////////////////////////////////////////////
   for (int pos_eta_bin=1; pos_eta_bin<=nbinseta; pos_eta_bin++){
     mDh_diff_reco->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_reco->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
@@ -186,6 +205,7 @@ int frame(){
     mDh_smear->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_diff_smear->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_diff_squared_smear->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+    mDh_diff_squared_smear_control->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     for (int pos_pt_bin=1; pos_pt_bin<=nbinspt; pos_pt_bin++){   
       mDh_diff_reco->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_reco->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
@@ -193,6 +213,7 @@ int frame(){
       mDh_smear->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_diff_smear->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_diff_squared_smear->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+      mDh_diff_squared_smear_control->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       for (int neg_eta_bin=1; neg_eta_bin<=nbinseta; neg_eta_bin++){
 	mDh_diff_reco->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	mDh_reco->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
@@ -200,6 +221,7 @@ int frame(){
         mDh_smear->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	mDh_diff_smear->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	mDh_diff_squared_smear->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+        mDh_diff_squared_smear_control->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	for (int neg_pt_bin=1; neg_pt_bin<=nbinspt; neg_pt_bin++){
 	  mDh_diff_reco->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
           mDh_reco->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
@@ -207,18 +229,23 @@ int frame(){
           mDh_smear->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	  mDh_diff_smear->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	  mDh_diff_squared_smear->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+          mDh_diff_squared_smear_control->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 
 	  all_histos_count++;
 	  
 	  delete gROOT->FindObject("multi_data_histo_diff_reco_proj_4");
 	  multi_hist_proj_diff_reco = mDh_diff_reco->Projection(4);
-	  nevents = multi_hist_proj_diff_reco->Integral(1,nbinsmll_diff);
+	  multi_hist_proj_diff_reco->GetXaxis()->SetTitle("mll_diff [GeV]");
+	  multi_hist_proj_diff_reco->GetYaxis()->SetTitle("Events");
+	  nevents = multi_hist_proj_diff_reco->Integral(1,nbinsmll_diff); // get stats for sigma_MC fit
 	  if (nevents < 100.0){ // reject low stats
 	    empty_histos_count++;
 	  } else {
 	    delete gROOT->FindObject("multi_data_histo_reco_proj_4");
 	    multi_hist_proj_reco = mDh_reco->Projection(4);
-	    fitresult = fitHisto(multi_hist_proj_reco, 4);
+	    multi_hist_proj_reco->GetXaxis()->SetTitle("mll [GeV]");
+	    multi_hist_proj_reco->GetYaxis()->SetTitle("Events");
+	    fitresult = fitHisto(multi_hist_proj_reco, 4); // get integral of m_reco Gaussian
 	    
 	    if (fitresult[4] < 0.75){ // reject small gaus integral 
 	      empty_histos_count++;
@@ -229,7 +256,8 @@ int frame(){
 	      
 	      name = stringify_name(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin);
 	      f3 << name << "\n";
-	      
+
+	      /////////////// Reco sigma_MC fit //////////////////////////////////////////////////
 	      fitresult = fitHisto(multi_hist_proj_diff_reco, 4);
 	      
 	      GenRecoFit[name] = fitresult;
@@ -239,20 +267,24 @@ int frame(){
 	      multi_hist_proj_diff_reco->SetName(name.c_str());
 	      multi_hist_proj_diff_reco->SetTitle(("mll diff " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
 	      
-	      c1->cd(1);
+	      c1->cd(1); //prepare to draw mll_diff
 	      max_hist_mll_diff = -1.0;
 	      multi_hist_proj_diff_reco->SetLineColor(kBlue);
 	      
 	      max_hist_mll_diff = multi_hist_proj_diff_reco->GetBinContent(multi_hist_proj_diff_reco->GetMaximumBin());
 	      
+	      /////////////// Smear sigma_MC fit //////////////////////////////////////////////////
 	      delete gROOT->FindObject("multi_data_histo_diff_smear_proj_4");
 	      multi_hist_proj_diff_smear = mDh_diff_smear->Projection(4);
+	      multi_hist_proj_diff_smear->GetXaxis()->SetTitle("mll_diff [GeV]");
+	      multi_hist_proj_diff_smear->GetYaxis()->SetTitle("Events");
 	      fitresult = fitHisto(multi_hist_proj_diff_smear, 8);
 	      if (fitresult[0] > -90.0){ mean_smear->SetBinError(mean_smear->Fill(name.c_str(), fitresult[0]), fitresult[2]); }
-	      sigma_mc = fitresult[1];
-	      error_sigma_mc = fitresult[3];
+	      sigma_mc = fitresult[1]; //for alpha fit
+	      error_sigma_mc = fitresult[3]; //for alpha fit
 	      if (fitresult[1] > -5.0){ sigma_smear->SetBinError(sigma_smear->Fill(name.c_str(), fitresult[1]), fitresult[3]); }
 	      multi_hist_proj_diff_smear->SetLineColor(kGreen);
+	      /////////////// Draw mll_diff ///////////////////////////////////////////////////////
 	      if(max_hist_mll_diff < multi_hist_proj_diff_smear->GetBinContent(multi_hist_proj_diff_smear->GetMaximumBin())){
 		multi_hist_proj_diff_smear->SetTitle(("mll diff " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
 		multi_hist_proj_diff_smear->Draw();
@@ -267,7 +299,7 @@ int frame(){
 	      leg1->AddEntry(multi_hist_proj_diff_smear, "smeared-gen", "l");
 	      leg1->Draw("");
 	      
-	      c1->cd(2);
+	      c1->cd(2); //prepare to draw mll
 	      max_hist_mll = -1.0;
 	      middle_flag = 0;
 	      
@@ -278,6 +310,8 @@ int frame(){
 	      if (fitresult[4] > -100.0){ gaus_integral->SetBinError(gaus_integral->Fill(name.c_str(), fitresult[4]), 0.01); }
 	      delete gROOT->FindObject("multi_data_histo_gen_proj_4");
 	      multi_hist_proj_gen = mDh_gen->Projection(4);
+	      multi_hist_proj_gen->GetXaxis()->SetTitle("mll [GeV]");
+              multi_hist_proj_gen->GetYaxis()->SetTitle("Events");
 	      fitresult = fitHisto(multi_hist_proj_gen, 2);
 	      multi_hist_proj_gen->SetLineColor(kRed);
 	      if(max_hist_mll < multi_hist_proj_gen->GetBinContent(multi_hist_proj_gen->GetMaximumBin())){
@@ -286,12 +320,10 @@ int frame(){
 	      }
 	      delete gROOT->FindObject("multi_data_histo_smear_proj_4");
 	      multi_hist_proj_smear = mDh_smear->Projection(4);
-	      //fill vectors and variance for minimisation
-	      V_inv_sqrt=MatrixXd::Zero(nbinsmll, nbinsmll);	      
-	      for(int i=1; i<=nbinsmll; i++){
-		h_smear_minus_gen_vector(i-1)=multi_hist_proj_smear->GetBinContent(i) - multi_hist_proj_gen->GetBinContent(i);
-		V_inv_sqrt(i-1,i-1)=1/(multi_hist_proj_smear->GetBinErrorLow(i));
-	      }
+	      multi_hist_proj_smear->GetXaxis()->SetTitle("mll [GeV]");
+              multi_hist_proj_smear->GetYaxis()->SetTitle("Events");
+
+	      /////////////// Draw mll ///////////////////////////////////////////////////////
 	      fitresult = fitHisto(multi_hist_proj_smear, 8);
 	      multi_hist_proj_smear->SetLineColor(kGreen);
 	      if(max_hist_mll < multi_hist_proj_smear->GetBinContent(multi_hist_proj_smear->GetMaximumBin())){
@@ -320,46 +352,97 @@ int frame(){
 	      
 	      f2->WriteObject(c1, name.c_str());
 	      
-	      //jacobian
+	      /////////////// Fill vectors and variance for minimisation //////////////////////////////////////////
+	      filled_bins_mll=0;
+	      for(int i=1; i<=nbinsmll; i++){
+		if (multi_hist_proj_smear->GetBinContent(i) > 0){
+		  filled_bins_mll++;
+		}
+	      }
+
+	      VectorXd h_smear_minus_gen_vector(filled_bins_mll);
+	      Eigen::MatrixXd J(filled_bins_mll, filled_bins_mll), V_inv_sqrt(filled_bins_mll, filled_bins_mll);
+
+              V_inv_sqrt=MatrixXd::Zero(filled_bins_mll, filled_bins_mll);
+	      position_to_fill=0;
+              for(int i=1; i<=nbinsmll; i++){
+		if (multi_hist_proj_smear->GetBinContent(i) > 0){
+		  h_smear_minus_gen_vector(position_to_fill)=multi_hist_proj_smear->GetBinContent(i) - multi_hist_proj_gen->GetBinContent(i); 
+		  V_inv_sqrt(position_to_fill,position_to_fill)=1/(multi_hist_proj_smear->GetBinErrorLow(i));
+		  position_to_fill++;
+		}
+	      }
+	      if (position_to_fill != filled_bins_mll){ std::cout<<"problem counting vector size \n"; }
+              
+	      /////////////// Jacobian ///////////////////////////////////////////////////////
 	      delete gROOT->FindObject("jacobian");
-	      delete gROOT->FindObject("diff_squared");
-	      delete gROOT->FindObject("evts_in_bin");
+	      delete gROOT->FindObject("jacobian_control");
+	      //delete gROOT->FindObject("diff_squared");
+	      //delete gROOT->FindObject("evts_in_bin");
 	      TH1D *jac = new TH1D("jacobian", "jacobian", nbinsmll, 75.0, 105.0);
-	      TH1D *dif_sq = new TH1D("diff_squared", "diff_squared", nbinsmll, 75.0, 105.0);
-	      TH1D *ev_b = new TH1D("evts_in_bin", "evts_in_bin", nbinsmll, 75.0, 105.0);
+	      jac->GetXaxis()->SetTitle("mll_smear [GeV]");
+	      jac->GetYaxis()->SetTitle("GeV");
+              TH1D *jac_control = new TH1D("jacobian_control", "jacobian", nbinsmll_diff, -5.0, 5.0);
+              jac_control->GetXaxis()->SetTitle("mll_smear - mll_gen [GeV]");
+              jac_control->GetYaxis()->SetTitle("GeV");
+	      //TH1D *dif_sq = new TH1D("diff_squared", "diff_squared", nbinsmll, 75.0, 105.0);
+	      //TH1D *ev_b = new TH1D("evts_in_bin", "evts_in_bin", nbinsmll, 75.0, 105.0);
 	      //fill jacobian bin by bin
 	      delete gROOT->FindObject("multi_data_histo_diff_squared_smear_proj_4");
 	      multi_hist_proj_diff_squared_smear = mDh_diff_squared_smear->Projection(4);
-	      J=MatrixXd::Zero(nbinsmll, nbinsmll);
+	      J=MatrixXd::Zero(filled_bins_mll, filled_bins_mll);
+	      position_to_fill=0;
 	      for(int i=1; i<=nbinsmll; i++){
 		diff_squared = multi_hist_proj_diff_squared_smear->GetBinContent(i);
 		error_diff_squared = multi_hist_proj_diff_squared_smear->GetBinErrorLow(i);
-		dif_sq->SetBinContent(i, diff_squared);
+		//dif_sq->SetBinContent(i, diff_squared);
 		evts_in_bin = multi_hist_proj_smear->GetBinContent(i);
-		ev_b->SetBinContent(i, evts_in_bin);
+		//ev_b->SetBinContent(i, evts_in_bin);
 		if (evts_in_bin > 0){
 		  value =  diff_squared /  (evts_in_bin * sigma_mc * sigma_mc) - 1;
 		  error = 1 / (evts_in_bin * sigma_mc*sigma_mc) * pow((4 * diff_squared*diff_squared * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_diff_squared*error_diff_squared) , 0.5);
 		  //std::cout<< diff_squared <<" / "<< evts_in_bin<<" = "<<diff_squared / evts_in_bin<<"\n";
+		  J(position_to_fill,position_to_fill)=value;
+		  position_to_fill++;
 		} else {
 		  value = 0.0; ///// Attention, value must be changed 
 		  error = 20;
 		}
 		jac->SetBinContent(i, value);
 		jac->SetBinError(i, error);
-		J(i-1,i-1)=value;
 	      }	
+	      if (position_to_fill != filled_bins_mll){ std::cout<<"problem counting jac size \n"; }
+
+              delete gROOT->FindObject("multi_data_histo_diff_squared_smear_control_proj_4");
+              multi_hist_proj_diff_squared_smear_control = mDh_diff_squared_smear_control->Projection(4);
+	      for(int i=1; i<=nbinsmll_diff; i++){
+		diff_squared = multi_hist_proj_diff_squared_smear_control->GetBinContent(i);
+		error_diff_squared = multi_hist_proj_diff_squared_smear_control->GetBinErrorLow(i);
+		evts_in_bin = multi_hist_proj_diff_smear->GetBinContent(i);
+		if (evts_in_bin > 0){
+		  value =  diff_squared /  (evts_in_bin * sigma_mc * sigma_mc) - 1;
+		  error = 1 / (evts_in_bin * sigma_mc*sigma_mc) * pow((4 * diff_squared*diff_squared * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_diff_squared*error_diff_squared) , 0.5);
+		} else {
+		  value = 0.0; ///// Attention, value must be changed
+		  error = 20;
+		}
+		jac_control->SetBinContent(i, value);
+		jac_control->SetBinError(i, error);
+	      }
 	      //write jacobian
 	      f2->WriteObject(jac, ("jac" + name).c_str());
-	      f2->WriteObject(dif_sq, ("dif_sq" + name).c_str());
-	      f2->WriteObject(ev_b, ("ev_b" + name).c_str());
-	      f2->WriteObject(multi_hist_proj_diff_squared_smear, ("dif_sq_proj" + name).c_str());
-	      //solve for alpha
-	      //Eigen::MatrixXd A = V_inv_sqrt*J;
-	      //Eigen::MatrixXd b = V_inv_sqrt*h_smear_minus_gen_vector;
+	      f2->WriteObject(jac_control, ("jac_control" + name).c_str());
+	      //f2->WriteObject(dif_sq, ("dif_sq" + name).c_str());
+	      //f2->WriteObject(ev_b, ("ev_b" + name).c_str());
+	      //f2->WriteObject(multi_hist_proj_diff_squared_smear, ("dif_sq_proj" + name).c_str());
+	      
+	      ////////////////// solve for alpha //////////////////
+
+	      Eigen::MatrixXd A = V_inv_sqrt*J;
+	      Eigen::MatrixXd b = V_inv_sqrt*h_smear_minus_gen_vector;
 	      //Attention this is alpha, not alpha -1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	      //Eigen::VectorXd alpha_vector = A.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
-	      //std::cout<<name.c_str()<<": A= "<<A<<", b= "<<b<<", alpha = "<< alpha_vector <<"\n";
+	      Eigen::VectorXd alpha_vector = A.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
+	      std::cout<<name.c_str()<<": A= "<<A<<", b= "<<b<<", alpha = "<< alpha_vector <<"\n";
 	      //write alpha
 	      //delete gROOT->FindObject("alpha");
 	      //TH1D *alpha = new TH1D("alpha", "alpha", nbinsmll, 75.0, 105.0);
