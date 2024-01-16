@@ -96,8 +96,10 @@ int frame(){
   std::unique_ptr<TFile> myFile2( TFile::Open("multiD_histo_smear.root") );
   std::unique_ptr<THnD> mDh_smear(myFile2->Get<THnD>("multi_data_histo_smear"));
   std::unique_ptr<THnD> mDh_diff_smear(myFile2->Get<THnD>("multi_data_histo_diff_smear")); //it's smeared - gen
+
   std::unique_ptr<THnD> mDh_diff_squared_smear(myFile2->Get<THnD>("multi_data_histo_diff_squared_smear")); // it's smeared - gen  
   std::unique_ptr<THnD> mDh_diff_squared_smear_control(myFile2->Get<THnD>("multi_data_histo_diff_squared_smear_control")); // it's smeared - gen
+  std::unique_ptr<THnD> mDh_jac_beta_smear(myFile2->Get<THnD>("multi_data_histo_jac_beta_smear")); 
 
   //these must match how the 5D histo was produced
   double ptlow=25.0, pthigh=55.0;
@@ -114,7 +116,7 @@ int frame(){
 
   /////////////// Prepare variables, histograms //////////////////////////////////////////////////
   double total_nevents=0.0, nevents=0.0, all_histos_count=0.0, remaining_nevents=0.0, empty_histos_count=0.0, hfrac=-1.0, efrac=-1.0;
-  double max_hist_mll_diff, max_hist_mll, value, error, diff_squared, evts_in_bin, sigma_mc=0.0, error_sigma_mc, error_diff_squared; 
+  double max_hist_mll_diff, max_hist_mll, value, error, value_beta, error_beta, diff_squared, jac_b_weight, evts_in_bin, sigma_mc=0.0, error_sigma_mc, error_diff_squared, error_jac_b_weight; 
   int middle_flag, filled_bins_mll, position_to_fill;
   string name;
 
@@ -154,14 +156,25 @@ int frame(){
   occupancy->GetXaxis()->SetTitle("Bin number");
   occupancy->GetYaxis()->SetTitle("Events");
 
-  TH1D *jac_inclusive = new TH1D("jacobian_inclusive", "jacobian inclusive in eta, pt", nbinsmll, 75.0, 105.0);
+  TH1D *jac_inclusive = new TH1D("jacobian_inclusive", "jacobian alpha inclusive in eta, pt", nbinsmll, 75.0, 105.0);
   jac_inclusive->GetXaxis()->SetTitle("mll smear");
-  jac_inclusive->GetYaxis()->SetTitle("jacobian");
+  jac_inclusive->GetYaxis()->SetTitle("jacobian alpha");
+
+  TH1D *jac_beta_inclusive = new TH1D("jacobian_beta_inclusive", "jacobian beta inclusive in eta, pt", nbinsmll, 75.0, 105.0);
+  jac_beta_inclusive->GetXaxis()->SetTitle("mll smear");
+  jac_beta_inclusive->GetYaxis()->SetTitle("jacobian beta");
 
   TH1D *alpha = new TH1D("alpha", "alpha", 3, 0, 3);
   alpha->SetCanExtend(TH1::kAllAxes);
+  alpha->SetMarkerStyle(kPlus);
   alpha->GetXaxis()->SetTitle("Bin number");
   alpha->GetYaxis()->SetTitle("alpha");
+
+  TH1D *beta = new TH1D("beta", "beta", 3, 0, 3);
+  beta->SetCanExtend(TH1::kAllAxes);
+  beta->SetMarkerStyle(kPlus);
+  beta->GetXaxis()->SetTitle("Bin number");
+  beta->GetYaxis()->SetTitle("beta");
 
   auto multi_hist_proj_diff_reco = mDh_diff_reco->Projection(4);
   auto multi_hist_proj_reco = mDh_reco->Projection(4);
@@ -170,6 +183,7 @@ int frame(){
   auto multi_hist_proj_diff_smear = mDh_diff_smear->Projection(4);
   auto multi_hist_proj_diff_squared_smear = mDh_diff_squared_smear->Projection(4);
   auto multi_hist_proj_diff_squared_smear_control = mDh_diff_squared_smear_control->Projection(4);
+  auto multi_hist_proj_jac_beta_smear = mDh_jac_beta_smear->Projection(4);
 
   // Files to write results
   std::unique_ptr<TFile> f1( TFile::Open("control_bin_histo.root", "RECREATE") );
@@ -219,6 +233,7 @@ int frame(){
     mDh_diff_smear->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_diff_squared_smear->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_diff_squared_smear_control->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+    mDh_jac_beta_smear->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     for (int pos_pt_bin=1; pos_pt_bin<=nbinspt; pos_pt_bin++){   
       mDh_diff_reco->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_reco->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
@@ -227,6 +242,7 @@ int frame(){
       mDh_diff_smear->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_diff_squared_smear->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_diff_squared_smear_control->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+      mDh_jac_beta_smear->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       for (int neg_eta_bin=1; neg_eta_bin<=nbinseta; neg_eta_bin++){
 	mDh_diff_reco->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	mDh_reco->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
@@ -235,6 +251,7 @@ int frame(){
 	mDh_diff_smear->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	mDh_diff_squared_smear->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
         mDh_diff_squared_smear_control->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+	mDh_jac_beta_smear->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	for (int neg_pt_bin=1; neg_pt_bin<=nbinspt; neg_pt_bin++){
 	  mDh_diff_reco->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
           mDh_reco->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
@@ -243,6 +260,7 @@ int frame(){
 	  mDh_diff_smear->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	  mDh_diff_squared_smear->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
           mDh_diff_squared_smear_control->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	  mDh_jac_beta_smear->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 
 	  all_histos_count++;
 	  
@@ -373,7 +391,7 @@ int frame(){
 		}
 	      }
 
-	      VectorXd h_smear_minus_gen_vector(filled_bins_mll), J(filled_bins_mll);
+	      VectorXd h_smear_minus_gen_vector(filled_bins_mll), J(filled_bins_mll), J_beta(filled_bins_mll);
 	      Eigen::MatrixXd V_inv_sqrt(filled_bins_mll, filled_bins_mll);
 
               V_inv_sqrt=MatrixXd::Zero(filled_bins_mll, filled_bins_mll);
@@ -390,42 +408,61 @@ int frame(){
 	      /////////////// Jacobian ///////////////////////////////////////////////////////
 	      delete gROOT->FindObject("jacobian");
 	      delete gROOT->FindObject("jacobian_control");
-	      //delete gROOT->FindObject("diff_squared");
-	      //delete gROOT->FindObject("evts_in_bin");
 	      TH1D *jac = new TH1D("jacobian", "jacobian", nbinsmll, 75.0, 105.0);
 	      jac->GetXaxis()->SetTitle("mll_smear [GeV]");
 	      jac->GetYaxis()->SetTitle("GeV");
               TH1D *jac_control = new TH1D("jacobian_control", "jacobian", nbinsmll_diff, -5.0, 5.0);
               jac_control->GetXaxis()->SetTitle("mll_smear - mll_gen [GeV]");
               jac_control->GetYaxis()->SetTitle("GeV");
-	      //TH1D *dif_sq = new TH1D("diff_squared", "diff_squared", nbinsmll, 75.0, 105.0);
-	      //TH1D *ev_b = new TH1D("evts_in_bin", "evts_in_bin", nbinsmll, 75.0, 105.0);
+
+	      delete gROOT->FindObject("jacobian_beta");
+	      TH1D *jac_beta = new TH1D("jacobian_beta", "jacobian beta", nbinsmll, 75.0, 105.0);
+              jac_beta->GetXaxis()->SetTitle("mll_smear [GeV]");
+              jac_beta->GetYaxis()->SetTitle("GeV");
+	      
 	      //fill jacobian bin by bin
 	      delete gROOT->FindObject("multi_data_histo_diff_squared_smear_proj_4");
 	      multi_hist_proj_diff_squared_smear = mDh_diff_squared_smear->Projection(4);
+	      delete gROOT->FindObject("multi_data_histo_jac_beta_smear_proj_4");
+              multi_hist_proj_jac_beta_smear = mDh_jac_beta_smear->Projection(4);
+
 	      position_to_fill=0;
 	      for(int i=1; i<=nbinsmll; i++){
 		diff_squared = multi_hist_proj_diff_squared_smear->GetBinContent(i);
 		error_diff_squared = multi_hist_proj_diff_squared_smear->GetBinErrorLow(i);
-		//dif_sq->SetBinContent(i, diff_squared);
+
+		jac_b_weight = multi_hist_proj_jac_beta_smear->GetBinContent(i);
+                error_jac_b_weight = multi_hist_proj_jac_beta_smear->GetBinErrorLow(i);
+	
 		evts_in_bin = multi_hist_proj_smear->GetBinContent(i);
-		//ev_b->SetBinContent(i, evts_in_bin);
+	
 		if (evts_in_bin > 0 && multi_hist_proj_gen->GetBinContent(i) > 0){
 		  value =  diff_squared /  (evts_in_bin * sigma_mc * sigma_mc) - 1;
 		  error = 1 / (evts_in_bin * sigma_mc*sigma_mc) * pow((4 * diff_squared*diff_squared * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_diff_squared*error_diff_squared) , 0.5);
-		  //std::cout<< diff_squared <<" / "<< evts_in_bin<<" = "<<diff_squared / evts_in_bin<<"\n";
-		  J(position_to_fill)=value;
+		  J(position_to_fill) = value;
+
+		  value_beta = jac_b_weight / (evts_in_bin * sigma_mc * sigma_mc);
+		  error_beta = 1 / (evts_in_bin * sigma_mc*sigma_mc) * pow((4 * jac_b_weight*jac_b_weight * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_jac_b_weight*error_jac_b_weight) , 0.5);
+		  J_beta(position_to_fill) = value_beta;
+		  
 		  position_to_fill++;
 		} else {
 		  value = 0.0; ///// Attention, value must be changed 
 		  error = 20;
+		  value_beta = 0.0; ///// Attention, value must be changed
+		  error_beta = 20;
 		}
 		jac->SetBinContent(i, value);
 		jac->SetBinError(i, error);
 		jac_inclusive->Fill(mllbinranges[i-1], value);
+		
+		jac_beta->SetBinContent(i, value_beta);
+                jac_beta->SetBinError(i, error_beta);
+		jac_beta_inclusive->Fill(mllbinranges[i-1], value_beta);
 	      }	
 	      if (position_to_fill != filled_bins_mll){ std::cout<<"problem counting jac size \n"; }
 
+	      ////////// Jacobian alpha vs m_diff /////////////////////////////////////////
               delete gROOT->FindObject("multi_data_histo_diff_squared_smear_control_proj_4");
               multi_hist_proj_diff_squared_smear_control = mDh_diff_squared_smear_control->Projection(4);
 	      for(int i=1; i<=nbinsmll_diff; i++){
@@ -442,13 +479,11 @@ int frame(){
 		jac_control->SetBinContent(i, value);
 		jac_control->SetBinError(i, error);
 	      }
-	      //write jacobian
+	      //write jacobians
 	      f2->WriteObject(jac, ("jac" + name).c_str());
 	      f2->WriteObject(jac_control, ("jac_control" + name).c_str());
-	      //f2->WriteObject(dif_sq, ("dif_sq" + name).c_str());
-	      //f2->WriteObject(ev_b, ("ev_b" + name).c_str());
-	      //f2->WriteObject(multi_hist_proj_diff_squared_smear, ("dif_sq_proj" + name).c_str());
-	      
+	      f2->WriteObject(jac_beta, ("jac_beta" + name).c_str());
+		      
 	      ////////////////// solve for alpha //////////////////
 
 	      Eigen::MatrixXd A = V_inv_sqrt*J;
@@ -459,8 +494,17 @@ int frame(){
 
 	      //std::cout<<name.c_str()<<": A= "<<A<<", b= "<<b<<", alpha = "<< alpha_vector <<"\n";
 	      //write alpha
-	      alpha->SetBinError(alpha->Fill(name.c_str(), alpha_vector[0]+1), 0.1);
+	      alpha->SetBinError(alpha->Fill(name.c_str(), alpha_vector[0]+1), 0.01);
 	      
+	      ////////////////// solve for beta //////////////////
+
+	      Eigen::MatrixXd A_beta = V_inv_sqrt*J_beta;
+
+              //Attention this is beta-1, not beta !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	      Eigen::VectorXd beta_vector = A_beta.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
+              //std::cout<<name.c_str()<<": A_beta= "<<A_beta<<", b= "<<b<<", beta = "<< beta_vector <<"\n";
+              //write beta
+              beta->SetBinError(beta->Fill(name.c_str(), beta_vector[0]+1), 0.01);
 	    }
 	  }
 	  
@@ -494,6 +538,9 @@ int frame(){
 
   f1->WriteObject(alpha, "alpha");
   f1->WriteObject(jac_inclusive, "jacobian_inclusive");
+
+  f1->WriteObject(beta, "beta");
+  f1->WriteObject(jac_beta_inclusive, "jacobian_beta_inclusive");
 
   // Superimposed histograms
 
