@@ -64,7 +64,7 @@ int frame(){
     RVec<std::tuple<int,int,float,float,float,float,float,float,float,float,float>> pairs; // <pos_muon_index, neg_muon_index, mll_reco (or gen smeared if option==1), mll_gen, mll_diff, posPt_reco(or smeared), negPt_reco(or smeared), posPt_gen, negPt_gen, mll_jac_alpha_weight, mll_jac_beta_weight>
     std::tuple<int,int,float,float,float,float,float,float,float,float,float> temp, pair_to_return;
     float rest_mass = 0.105658; // muMass = 0.105658 GeV
-    float smear_pt, mean, width, firstPt_reco, secondPt_reco, mll_reco=0.0, firstPt_gen, secondPt_gen;
+    float smear_pt, mean, width, beta, firstPt_reco, secondPt_reco, mll_reco=0.0, firstPt_gen, secondPt_gen;
     
     for(int i=1;i<Muon_pt.size();i++){
       if(MuonisGood[i]){
@@ -88,12 +88,13 @@ int frame(){
 		    firstGenTrack.SetPtEtaPhiM(GenPart_pt[k], GenPart_eta[k], GenPart_phi[k], rest_mass);
 		    firstPt_gen = GenPart_pt[k];
 		    if(option==1){
-		      //width = (0.0084*abs(GenPart_eta[k])+0.01)*GenPart_pt[k];
-		      mean = GenPart_pt[k]*0.95;
+		      beta = 0.95;
+		      mean = GenPart_pt[k]*beta; 
 		      width = (0.004*pow(GenPart_eta[k],2)+0.01)*GenPart_pt[k];
 		      smear_pt = rans[nslot]->Gaus(mean, width);
 		      firstTrack.SetPtEtaPhiM(smear_pt, GenPart_eta[k], GenPart_phi[k], rest_mass);
-		      //firstPt_reco = smear_pt;
+		      //Overwriting reco pt as well, for bining purposes
+		      firstPt_reco = smear_pt;
 		    }
 		    firstGenMatched = true;
 		    if(secondGenMatched == true){break;}
@@ -105,7 +106,8 @@ int frame(){
 		      width = (0.004*pow(GenPart_eta[k],2)+0.01)*GenPart_pt[k];
 		      smear_pt = rans[nslot]->Gaus(GenPart_pt[k], width);
 		      secondTrack.SetPtEtaPhiM(smear_pt, GenPart_eta[k], GenPart_phi[k], rest_mass);
-		      //secondPt_reco = smear_pt;
+		      //Overwriting reco pt as well, for bining purposes
+		      secondPt_reco = smear_pt;
 		    }
 		    secondGenMatched = true;
 		    if(firstGenMatched == true){break;}
@@ -197,7 +199,7 @@ int frame(){
   */
   
   double ptlow=25.0, pthigh=55.0;
-  int nbinsmll_diff=20, nbinsmll=15, nbinseta=24, nbinspt=5;
+  int nbinsmll_diff=10, nbinsmll=10, nbinseta=24, nbinspt=5;
   vector<double> etabinranges, ptbinranges, mllbinranges;
   vector<double> mll_diffbinranges;
 

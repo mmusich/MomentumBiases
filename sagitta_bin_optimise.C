@@ -101,9 +101,12 @@ int frame(){
   std::unique_ptr<THnD> mDh_diff_squared_smear_control(myFile2->Get<THnD>("multi_data_histo_diff_squared_smear_control")); // it's smeared - gen
   std::unique_ptr<THnD> mDh_jac_beta_smear(myFile2->Get<THnD>("multi_data_histo_jac_beta_smear")); 
 
+  std::unique_ptr<TFile> myFile3( TFile::Open("multiD_histo_smear_beta_95.root") );
+  std::unique_ptr<THnD> mDh_smear_beta_val(myFile3->Get<THnD>("multi_data_histo_smear_beta_val"));
+
   //these must match how the 5D histo was produced
   double ptlow=25.0, pthigh=55.0;
-  int nbinsmll_diff=20, nbinsmll=15, nbinseta=24, nbinspt=5;
+  int nbinsmll_diff=10, nbinsmll=10, nbinseta=24, nbinspt=5;
   vector<double> etabinranges, mllbinranges, ptbinranges{25.0, 33.3584, 38.4562, 42.2942, 45.9469, 55.0};
 
   std::cout<<"\n etabinranges = [";
@@ -147,12 +150,16 @@ int frame(){
   TH1D *gaus_integral = new TH1D("gaus_integral", "reco mll integral 75.5-105.0", 3, 0, 3);
   gaus_integral->SetCanExtend(TH1::kAllAxes);
   gaus_integral->SetMarkerStyle(kPlus);
+  gaus_integral->SetMarkerColor(kBlue);
+  gaus_integral->SetLineColor(kBlue);
   gaus_integral->GetXaxis()->SetTitle("Bin number");
   gaus_integral->GetYaxis()->SetTitle("integral [-]");
 
   TH1D *occupancy = new TH1D("bin_occupancy", "bin occupancy", 3, 0, 3);
   occupancy->SetCanExtend(TH1::kAllAxes);
   occupancy->SetMarkerStyle(kPlus);
+  occupancy->SetMarkerColor(kBlue);
+  occupancy->SetLineColor(kBlue);
   occupancy->GetXaxis()->SetTitle("Bin number");
   occupancy->GetYaxis()->SetTitle("Events");
 
@@ -167,12 +174,14 @@ int frame(){
   TH1D *alpha = new TH1D("alpha", "alpha", 3, 0, 3);
   alpha->SetCanExtend(TH1::kAllAxes);
   alpha->SetMarkerStyle(kPlus);
+  alpha->SetMarkerColor(kBlue);
   alpha->GetXaxis()->SetTitle("Bin number");
   alpha->GetYaxis()->SetTitle("alpha");
 
   TH1D *beta = new TH1D("beta", "beta", 3, 0, 3);
   beta->SetCanExtend(TH1::kAllAxes);
   beta->SetMarkerStyle(kPlus);
+  beta->SetMarkerColor(kBlue);
   beta->GetXaxis()->SetTitle("Bin number");
   beta->GetYaxis()->SetTitle("beta");
 
@@ -184,6 +193,7 @@ int frame(){
   auto multi_hist_proj_diff_squared_smear = mDh_diff_squared_smear->Projection(4);
   auto multi_hist_proj_diff_squared_smear_control = mDh_diff_squared_smear_control->Projection(4);
   auto multi_hist_proj_jac_beta_smear = mDh_jac_beta_smear->Projection(4);
+  auto multi_hist_proj_smear_beta_val = mDh_smear_beta_val->Projection(4);
 
   // Files to write results
   std::unique_ptr<TFile> f1( TFile::Open("control_bin_histo.root", "RECREATE") );
@@ -202,14 +212,14 @@ int frame(){
 
   leg1->SetFillStyle(0);
   leg1->SetBorderSize(0);
-  leg1->SetTextSize(0.035);
+  leg1->SetTextSize(0.02);
   leg1->SetFillColor(10);
   leg1->SetNColumns(1);
   leg1->SetHeader("");
 
   leg2->SetFillStyle(0);
   leg2->SetBorderSize(0);
-  leg2->SetTextSize(0.035);
+  leg2->SetTextSize(0.02);
   leg2->SetFillColor(10);
   leg2->SetNColumns(1);
   leg2->SetHeader("");
@@ -234,6 +244,7 @@ int frame(){
     mDh_diff_squared_smear->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_diff_squared_smear_control->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_jac_beta_smear->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+    mDh_smear_beta_val->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     for (int pos_pt_bin=1; pos_pt_bin<=nbinspt; pos_pt_bin++){   
       mDh_diff_reco->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_reco->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
@@ -243,6 +254,7 @@ int frame(){
       mDh_diff_squared_smear->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_diff_squared_smear_control->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_jac_beta_smear->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+      mDh_smear_beta_val->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       for (int neg_eta_bin=1; neg_eta_bin<=nbinseta; neg_eta_bin++){
 	mDh_diff_reco->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	mDh_reco->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
@@ -252,6 +264,7 @@ int frame(){
 	mDh_diff_squared_smear->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
         mDh_diff_squared_smear_control->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	mDh_jac_beta_smear->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+	mDh_smear_beta_val->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	for (int neg_pt_bin=1; neg_pt_bin<=nbinspt; neg_pt_bin++){
 	  mDh_diff_reco->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
           mDh_reco->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
@@ -261,6 +274,7 @@ int frame(){
 	  mDh_diff_squared_smear->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
           mDh_diff_squared_smear_control->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	  mDh_jac_beta_smear->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	  mDh_smear_beta_val->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 
 	  all_histos_count++;
 	  
@@ -354,29 +368,40 @@ int frame(){
 	      multi_hist_proj_smear->GetXaxis()->SetTitle("mll [GeV]");
               multi_hist_proj_smear->GetYaxis()->SetTitle("Events");
 
+	      delete gROOT->FindObject("multi_data_histo_smear_beta_val_proj_4");
+              multi_hist_proj_smear_beta_val = mDh_smear_beta_val->Projection(4);
+              multi_hist_proj_smear_beta_val->GetXaxis()->SetTitle("mll [GeV]");
+              multi_hist_proj_smear_beta_val->GetYaxis()->SetTitle("Events");
+
 	      /////////////// Draw mll ///////////////////////////////////////////////////////
 	      fitresult = fitHisto(multi_hist_proj_smear, 8);
 	      multi_hist_proj_smear->SetLineColor(kGreen);
+	      fitresult = fitHisto(multi_hist_proj_smear_beta_val, 5);
+	      multi_hist_proj_smear_beta_val->SetLineColor(kYellow);
 	      if(max_hist_mll < multi_hist_proj_smear->GetBinContent(multi_hist_proj_smear->GetMaximumBin())){
 		multi_hist_proj_smear->SetTitle(("mll "+ stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
 		multi_hist_proj_smear->Draw();
+		multi_hist_proj_smear_beta_val->Draw("SAME");
 		multi_hist_proj_gen->Draw("SAME");
 		multi_hist_proj_reco->Draw("SAME");
 	      } else if(middle_flag==1){
 		multi_hist_proj_gen->SetTitle(("mll "+ stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
 		multi_hist_proj_gen->Draw();
 		multi_hist_proj_smear->Draw("SAME");
+		multi_hist_proj_smear_beta_val->Draw("SAME");
 		multi_hist_proj_reco->Draw("SAME");
 	      } else {
 		multi_hist_proj_reco->Draw();
 		multi_hist_proj_gen->Draw("SAME");
 		multi_hist_proj_smear->Draw("SAME");
+		multi_hist_proj_smear_beta_val->Draw("SAME");
 	      }
 	      
 	      leg2->Clear();
 	      leg2->AddEntry(multi_hist_proj_reco, "reco", "l");
 	      leg2->AddEntry(multi_hist_proj_gen, "gen", "l");
-	      leg2->AddEntry(multi_hist_proj_smear, "smeared gen", "l");
+	      leg2->AddEntry(multi_hist_proj_smear, "smeared gen beta 1", "l");
+	      leg2->AddEntry(multi_hist_proj_smear_beta_val, "smeared gen beta 0.95", "l"); //value of beta goes here !!!!!!
 	      leg2->Draw("");
 	      
 	      c1->cd();
@@ -557,6 +582,7 @@ int frame(){
 
   mean_reco->Draw();
   mean_smear->SetMarkerColor(kRed);
+  mean_smear->SetLineColor(kRed);
   mean_smear->Draw("SAME");
 
   leg3->AddEntry(mean_reco, "reco", "l");
