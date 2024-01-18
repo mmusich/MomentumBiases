@@ -100,9 +100,7 @@ int frame(){
   std::unique_ptr<THnD> mDh_diff_squared_smear(myFile2->Get<THnD>("multi_data_histo_diff_squared_smear")); // it's smeared - gen  
   std::unique_ptr<THnD> mDh_diff_squared_smear_control(myFile2->Get<THnD>("multi_data_histo_diff_squared_smear_control")); // it's smeared - gen
   std::unique_ptr<THnD> mDh_jac_beta_smear(myFile2->Get<THnD>("multi_data_histo_jac_beta_smear")); 
-
-  std::unique_ptr<TFile> myFile3( TFile::Open("multiD_histo_smear_beta_95.root") );
-  std::unique_ptr<THnD> mDh_smear_beta_val(myFile3->Get<THnD>("multi_data_histo_smear_beta_val"));
+  std::unique_ptr<THnD> mDh_smear_beta_val(myFile2->Get<THnD>("multi_data_histo_smear_beta_val"));
 
   //these must match how the 5D histo was produced
   double ptlow=25.0, pthigh=55.0;
