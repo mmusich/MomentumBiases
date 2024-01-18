@@ -299,6 +299,7 @@ int frame(){
 	      
 	      name = stringify_name(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin);
 	      f3 << name << "\n";
+	      std::cout<< name <<"\n";
 
 	      /////////////// Reco sigma_MC fit //////////////////////////////////////////////////
 	      fitresult = fitHisto(multi_hist_proj_diff_reco, 4);
@@ -401,6 +402,7 @@ int frame(){
 		  filled_bins_mll++;
 		}
 	      }
+	      if (filled_bins_mll == 0 ){continue;} //This needs refined 
 
 	      VectorXd h_smear_minus_smear_vector(filled_bins_mll), J(filled_bins_mll), J_beta(filled_bins_mll);
 	      Eigen::MatrixXd V_inv_sqrt(filled_bins_mll, filled_bins_mll);

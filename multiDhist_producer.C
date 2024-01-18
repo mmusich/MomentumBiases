@@ -3,6 +3,7 @@
 #include "TFile.h"
 #include "TTree.h"
 #include "TChain.h"
+#include "TMath.h"
 
 using namespace ROOT;
 using namespace ROOT::VecOps;
@@ -92,7 +93,7 @@ int frame(){
 		      width = (0.004*pow(GenPart_eta[k],2)+0.01)*GenPart_pt[k];
 		      smear_pt = rans[nslot]->Gaus(mean, width);
 		      //Define pt+ (not +, but it doesn't matter, I mean the 1st side) side of the smear_beta_weight 
-		      smear_beta_weight_first_term = (rans[nslot]->Gaus(mean*beta, width)) / (rans[nslot]->Gaus(mean, width)) ;
+		      smear_beta_weight_first_term = TMath::Gaus(smear_pt, mean*beta, width) / TMath::Gaus(smear_pt, mean, width);
 		      //Overwriting reco track
 		      firstTrack.SetPtEtaPhiM(smear_pt, GenPart_eta[k], GenPart_phi[k], rest_mass);
 		      firstPt_reco = smear_pt; //overwriting reco pt as well, for bining purposes
@@ -108,7 +109,7 @@ int frame(){
 		      width = (0.004*pow(GenPart_eta[k],2)+0.01)*GenPart_pt[k];
 		      smear_pt = rans[nslot]->Gaus(mean, width); //???????????????????? is it a problem that this is the same nslot?
 		      //Define pt- (not -, but it doesn't matter, I mean the 2nd side) side of the smear_beta_weight
-		      smear_beta_weight_second_term = (rans[nslot]->Gaus(mean*beta, width)) / (rans[nslot]->Gaus(mean, width)) ;
+		      smear_beta_weight_second_term = TMath::Gaus(smear_pt, mean*beta, width) / TMath::Gaus(smear_pt, mean, width);
 		      //Overwriting reco track
 		      secondTrack.SetPtEtaPhiM(smear_pt, GenPart_eta[k], GenPart_phi[k], rest_mass);
 		      secondPt_reco = smear_pt; //Overwriting reco pt as well, for bining purposes
