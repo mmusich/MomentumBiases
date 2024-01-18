@@ -4,7 +4,7 @@
 #include "TCanvas.h"
 #include "TVector.h"
 #include "TVectorT.h"
-//#include <TMatrixD.h>
+#include <string.h>
 #include <eigen3/Eigen/Core>
 #include <eigen3/Eigen/Dense>
 
@@ -120,8 +120,8 @@ int frame(){
   /////////////// Prepare variables, histograms //////////////////////////////////////////////////
   double total_nevents=0.0, nevents=0.0, all_histos_count=0.0, remaining_nevents=0.0, empty_histos_count=0.0, hfrac=-1.0, efrac=-1.0;
   double max_hist_mll_diff, max_hist_mll, value, error, value_beta, error_beta, diff_squared, jac_b_weight, evts_in_bin, sigma_mc=0.0, error_sigma_mc, error_diff_squared, error_jac_b_weight; 
-  int middle_flag, filled_bins_mll, position_to_fill;
-  string name;
+  int filled_bins_mll, position_to_fill;
+  string name, leg_entry;
 
   std::map<string, vector<double>> GenRecoFit;
   vector<double> fitresult;
@@ -346,8 +346,7 @@ int frame(){
 	      
 	      c1->cd(2); //prepare to draw mll
 	      max_hist_mll = -1.0;
-	      middle_flag = 0;
-	      
+	      	      
 	      multi_hist_proj_reco->SetLineColor(kBlue);
 	      fitresult = fitHisto(multi_hist_proj_reco, 4);
 	      multi_hist_proj_reco->SetTitle(("mll "+ stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
@@ -361,70 +360,59 @@ int frame(){
 	      multi_hist_proj_gen->SetLineColor(kRed);
 	      if(max_hist_mll < multi_hist_proj_gen->GetBinContent(multi_hist_proj_gen->GetMaximumBin())){
 		max_hist_mll = multi_hist_proj_gen->GetBinContent(multi_hist_proj_gen->GetMaximumBin());
-		middle_flag = 1;
 	      }
 	      delete gROOT->FindObject("multi_data_histo_smear_proj_4");
 	      multi_hist_proj_smear = mDh_smear->Projection(4);
 	      multi_hist_proj_smear->GetXaxis()->SetTitle("mll [GeV]");
               multi_hist_proj_smear->GetYaxis()->SetTitle("Events");
+	      if(max_hist_mll < multi_hist_proj_smear->GetBinContent(multi_hist_proj_smear->GetMaximumBin())){
+                max_hist_mll = multi_hist_proj_smear->GetBinContent(multi_hist_proj_smear->GetMaximumBin());
+	      }
 
 	      delete gROOT->FindObject("multi_data_histo_smear_beta_val_proj_4");
               multi_hist_proj_smear_beta_val = mDh_smear_beta_val->Projection(4);
               multi_hist_proj_smear_beta_val->GetXaxis()->SetTitle("mll [GeV]");
               multi_hist_proj_smear_beta_val->GetYaxis()->SetTitle("Events");
+              if(max_hist_mll < multi_hist_proj_smear_beta_val->GetBinContent(multi_hist_proj_smear_beta_val->GetMaximumBin())){
+                max_hist_mll = multi_hist_proj_smear_beta_val->GetBinContent(multi_hist_proj_smear_beta_val->GetMaximumBin());
+	      }
 
-	      /////////////// Draw mll ///////////////////////////////////////////////////////
+	      /////////////// Start drawing mll ///////////////////////////////////////////////////////
 	      fitresult = fitHisto(multi_hist_proj_smear, 8);
 	      multi_hist_proj_smear->SetLineColor(kGreen);
 	      fitresult = fitHisto(multi_hist_proj_smear_beta_val, 5);
 	      multi_hist_proj_smear_beta_val->SetLineColor(kYellow);
-	      if(max_hist_mll < multi_hist_proj_smear->GetBinContent(multi_hist_proj_smear->GetMaximumBin())){
-		multi_hist_proj_smear->SetTitle(("mll "+ stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
-		multi_hist_proj_smear->Draw();
-		multi_hist_proj_smear_beta_val->Draw("SAME");
-		multi_hist_proj_gen->Draw("SAME");
-		multi_hist_proj_reco->Draw("SAME");
-	      } else if(middle_flag==1){
-		multi_hist_proj_gen->SetTitle(("mll "+ stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
-		multi_hist_proj_gen->Draw();
-		multi_hist_proj_smear->Draw("SAME");
-		multi_hist_proj_smear_beta_val->Draw("SAME");
-		multi_hist_proj_reco->Draw("SAME");
-	      } else {
-		multi_hist_proj_reco->Draw();
-		multi_hist_proj_gen->Draw("SAME");
-		multi_hist_proj_smear->Draw("SAME");
-		multi_hist_proj_smear_beta_val->Draw("SAME");
-	      }
 	      
+	      max_hist_mll = max_hist_mll * 1.3;
+	      multi_hist_proj_reco->SetMaximum(max_hist_mll);
+	      multi_hist_proj_reco->Draw();
+	      multi_hist_proj_gen->Draw("SAME");
+	      multi_hist_proj_smear->Draw("SAME");
+	      multi_hist_proj_smear_beta_val->Draw("SAME");
+	      	      
 	      leg2->Clear();
 	      leg2->AddEntry(multi_hist_proj_reco, "reco", "l");
 	      leg2->AddEntry(multi_hist_proj_gen, "gen", "l");
 	      leg2->AddEntry(multi_hist_proj_smear, "smeared gen beta 1", "l");
 	      leg2->AddEntry(multi_hist_proj_smear_beta_val, "smeared gen beta 0.95", "l"); //value of beta goes here !!!!!!
-	      leg2->Draw("");
-	      
-	      c1->cd();
-	      
-	      f2->WriteObject(c1, name.c_str());
-	      
+	      	      
 	      /////////////// Fill vectors and variance for minimisation //////////////////////////////////////////
 	      filled_bins_mll=0;
 	      for(int i=1; i<=nbinsmll; i++){
-		if (multi_hist_proj_smear->GetBinContent(i) > 0 && multi_hist_proj_gen->GetBinContent(i) > 0){
+		if (multi_hist_proj_smear_beta_val->GetBinContent(i) > 0 && multi_hist_proj_smear->GetBinContent(i) > 0 && multi_hist_proj_gen->GetBinContent(i) > 0){
 		  filled_bins_mll++;
 		}
 	      }
 
-	      VectorXd h_smear_minus_gen_vector(filled_bins_mll), J(filled_bins_mll), J_beta(filled_bins_mll);
+	      VectorXd h_smear_minus_smear_vector(filled_bins_mll), J(filled_bins_mll), J_beta(filled_bins_mll);
 	      Eigen::MatrixXd V_inv_sqrt(filled_bins_mll, filled_bins_mll);
 
               V_inv_sqrt=MatrixXd::Zero(filled_bins_mll, filled_bins_mll);
 	      position_to_fill=0;
               for(int i=1; i<=nbinsmll; i++){
-		if (multi_hist_proj_smear->GetBinContent(i) > 0 && multi_hist_proj_gen->GetBinContent(i) > 0){
-		  h_smear_minus_gen_vector(position_to_fill)=multi_hist_proj_smear->GetBinContent(i) - multi_hist_proj_gen->GetBinContent(i); 
-		  V_inv_sqrt(position_to_fill,position_to_fill)=1/(multi_hist_proj_smear->GetBinErrorLow(i));
+		if (multi_hist_proj_smear_beta_val->GetBinContent(i) > 0 && multi_hist_proj_smear->GetBinContent(i) > 0 && multi_hist_proj_gen->GetBinContent(i) > 0){
+		  h_smear_minus_smear_vector(position_to_fill) = multi_hist_proj_smear_beta_val->GetBinContent(i) - multi_hist_proj_smear->GetBinContent(i); 
+		  V_inv_sqrt(position_to_fill,position_to_fill) = 1/(multi_hist_proj_smear_beta_val->GetBinErrorLow(i));
 		  position_to_fill++;
 		}
 	      }
@@ -445,7 +433,7 @@ int frame(){
               jac_beta->GetXaxis()->SetTitle("mll_smear [GeV]");
               jac_beta->GetYaxis()->SetTitle("GeV");
 	      
-	      //fill jacobian bin by bin
+	      //Fill jacobian bin by bin
 	      delete gROOT->FindObject("multi_data_histo_diff_squared_smear_proj_4");
 	      multi_hist_proj_diff_squared_smear = mDh_diff_squared_smear->Projection(4);
 	      delete gROOT->FindObject("multi_data_histo_jac_beta_smear_proj_4");
@@ -461,7 +449,7 @@ int frame(){
 	
 		evts_in_bin = multi_hist_proj_smear->GetBinContent(i);
 	
-		if (evts_in_bin > 0 && multi_hist_proj_gen->GetBinContent(i) > 0){
+		if (multi_hist_proj_smear_beta_val->GetBinContent(i) > 0 && evts_in_bin > 0 && multi_hist_proj_gen->GetBinContent(i) > 0){
 		  value =  diff_squared /  (evts_in_bin * sigma_mc * sigma_mc) - 1;
 		  error = 1 / (evts_in_bin * sigma_mc*sigma_mc) * pow((4 * diff_squared*diff_squared * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_diff_squared*error_diff_squared) , 0.5);
 		  J(position_to_fill) = value;
@@ -494,7 +482,7 @@ int frame(){
 		diff_squared = multi_hist_proj_diff_squared_smear_control->GetBinContent(i);
 		error_diff_squared = multi_hist_proj_diff_squared_smear_control->GetBinErrorLow(i);
 		evts_in_bin = multi_hist_proj_diff_smear->GetBinContent(i);
-		if (evts_in_bin > 0 && multi_hist_proj_gen->GetBinContent(i) > 0){
+		if (multi_hist_proj_smear_beta_val->GetBinContent(i) > 0 && evts_in_bin > 0 && multi_hist_proj_gen->GetBinContent(i) > 0){
 		  value =  diff_squared /  (evts_in_bin * sigma_mc * sigma_mc) - 1;
 		  error = 1 / (evts_in_bin * sigma_mc*sigma_mc) * pow((4 * diff_squared*diff_squared * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_diff_squared*error_diff_squared) , 0.5);
 		} else {
@@ -510,26 +498,26 @@ int frame(){
 	      f2->WriteObject(jac_beta, ("jac_beta" + name).c_str());
 		      
 	      ////////////////// solve for alpha //////////////////
-
 	      Eigen::MatrixXd A = V_inv_sqrt*J;
-	      Eigen::MatrixXd b = V_inv_sqrt*h_smear_minus_gen_vector;
-
-	      //Attention this is alpha-1, not alpha !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	      Eigen::MatrixXd b = V_inv_sqrt*h_smear_minus_smear_vector;
+ //!!!!!!!!!!! Attention alpha_vector contains alpha-1, not alpha !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	      Eigen::VectorXd alpha_vector = A.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
-
-	      //std::cout<<name.c_str()<<": A= "<<A<<", b= "<<b<<", alpha = "<< alpha_vector <<"\n";
-	      //write alpha
-	      alpha->SetBinError(alpha->Fill(name.c_str(), alpha_vector[0]+1), 0.01);
+	      alpha->SetBinError(alpha->Fill(name.c_str(), alpha_vector[0]+1), 0.01); //write alpha
 	      
 	      ////////////////// solve for beta //////////////////
-
 	      Eigen::MatrixXd A_beta = V_inv_sqrt*J_beta;
-
-              //Attention this is beta-1, not beta !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ //!!!!!!!!!!! Attention beta_vector contains beta-1, not beta !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	      Eigen::VectorXd beta_vector = A_beta.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
-              //std::cout<<name.c_str()<<": A_beta= "<<A_beta<<", b= "<<b<<", beta = "<< beta_vector <<"\n";
-              //write beta
-              beta->SetBinError(beta->Fill(name.c_str(), beta_vector[0]+1), 0.01);
+	      beta->SetBinError(beta->Fill(name.c_str(), beta_vector[0]+1), 0.01); //write beta
+
+	      //////////////// Finish drawing mll ////////////////////////////////
+	      leg_entry = "Fitted beta = " + to_string(beta_vector[0]);
+	      leg2->AddEntry((TObject*)0, leg_entry.c_str(), "");
+	      leg2->Draw("");
+
+              c1->cd();
+
+              f2->WriteObject(c1, name.c_str());
 	    }
 	  }
 	  
