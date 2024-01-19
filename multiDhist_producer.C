@@ -52,9 +52,10 @@ int frame(){
     .Define("MuonisGood", "MuonisGood(Muon_pt, Muon_eta, Muon_isGlobal, Muon_mediumId, Muon_pfRelIso04_all, Muon_genPartFlav, dxy_significance)");
 
   unsigned int nslots = d1.GetNSlots();
-  std::vector<TRandom3*> rans = {};
+  std::vector<TRandom3*> rans = {}, rans_2 = {};
   for(unsigned int i = 0; i < nslots; i++){
     rans.emplace_back( new TRandom3(4357 + i*10) );
+    rans_2.emplace_back( new TRandom3(3951 + i*10) );
   }
 
   //Pairs
@@ -65,7 +66,7 @@ int frame(){
     RVec<std::tuple<int,int,float,float,float,float,float,float,float,float,float,float>> pairs; // <pos_muon_index, neg_muon_index, mll_reco (or gen smeared if option==1), mll_gen, mll_diff, posPt_reco(or smeared), negPt_reco(or smeared), posPt_gen, negPt_gen, mll_jac_alpha_weight, mll_jac_beta_weight, smear_beta_weight>
     std::tuple<int,int,float,float,float,float,float,float,float,float,float,float> temp, pair_to_return;
     float rest_mass = 0.105658; // muMass = 0.105658 GeV
-    float smear_pt, mean, width, beta=0.95, firstPt_reco, secondPt_reco, mll_reco=0.0, firstPt_gen, secondPt_gen, smear_beta_weight=0.0, smear_beta_weight_first_term, smear_beta_weight_second_term;
+    float smear_pt, mean, width, beta=0.995, firstPt_reco, secondPt_reco, mll_reco=0.0, firstPt_gen, secondPt_gen, smear_beta_weight=0.0, smear_beta_weight_first_term, smear_beta_weight_second_term;
     
     for(int i=1;i<Muon_pt.size();i++){
       if(MuonisGood[i]){
@@ -93,6 +94,7 @@ int frame(){
 		      width = (0.004*pow(GenPart_eta[k],2)+0.01)*GenPart_pt[k];
 		      smear_pt = rans[nslot]->Gaus(mean, width);
 		      //Define pt+ (not +, but it doesn't matter, I mean the 1st side) side of the smear_beta_weight 
+		      // ????????? also i would need the pt for beta = 0.95 for binning in eta pt eta pt
 		      smear_beta_weight_first_term = TMath::Gaus(smear_pt, mean*beta, width) / TMath::Gaus(smear_pt, mean, width);
 		      //Overwriting reco track
 		      firstTrack.SetPtEtaPhiM(smear_pt, GenPart_eta[k], GenPart_phi[k], rest_mass);
@@ -107,7 +109,7 @@ int frame(){
 		      //width = (0.0084*abs(GenPart_eta[k])+0.01)*GenPart_pt[k];
                       mean = GenPart_pt[k]; //beta = 1
 		      width = (0.004*pow(GenPart_eta[k],2)+0.01)*GenPart_pt[k];
-		      smear_pt = rans[nslot]->Gaus(mean, width); //???????????????????? is it a problem that this is the same nslot?
+		      smear_pt = rans_2[nslot]->Gaus(mean, width); 
 		      //Define pt- (not -, but it doesn't matter, I mean the 2nd side) side of the smear_beta_weight
 		      smear_beta_weight_second_term = TMath::Gaus(smear_pt, mean*beta, width) / TMath::Gaus(smear_pt, mean, width);
 		      //Overwriting reco track
