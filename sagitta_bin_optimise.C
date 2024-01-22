@@ -104,7 +104,7 @@ int frame(){
 
   //these must match how the 5D histo was produced
   double ptlow=25.0, pthigh=55.0;
-  int nbinsmll_diff=10, nbinsmll=10, nbinseta=24, nbinspt=5;
+  int nbinsmll_diff=5, nbinsmll=5, nbinseta=24, nbinspt=5;
   vector<double> etabinranges, mllbinranges, ptbinranges{25.0, 33.3584, 38.4562, 42.2942, 45.9469, 55.0};
 
   std::cout<<"\n etabinranges = [";
@@ -299,7 +299,7 @@ int frame(){
 	      
 	      name = stringify_name(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin);
 	      f3 << name << "\n";
-	      std::cout<< name <<"\n";
+	      //std::cout<< name <<"\n";
 
 	      /////////////// Reco sigma_MC fit //////////////////////////////////////////////////
 	      fitresult = fitHisto(multi_hist_proj_diff_reco, 4);
@@ -393,12 +393,12 @@ int frame(){
 	      leg2->AddEntry(multi_hist_proj_reco, "reco", "l");
 	      leg2->AddEntry(multi_hist_proj_gen, "gen", "l");
 	      leg2->AddEntry(multi_hist_proj_smear, "smeared gen beta 1", "l");
-	      leg2->AddEntry(multi_hist_proj_smear_beta_val, "smeared gen beta 0.95", "l"); //value of beta goes here !!!!!!
+	      leg2->AddEntry(multi_hist_proj_smear_beta_val, "smeared gen beta 0.995", "l"); //value of beta goes here !!!!!!
 	      	      
 	      /////////////// Fill vectors and variance for minimisation //////////////////////////////////////////
 	      filled_bins_mll=0;
 	      for(int i=1; i<=nbinsmll; i++){
-		if (multi_hist_proj_smear_beta_val->GetBinContent(i) > 0 && multi_hist_proj_smear->GetBinContent(i) > 0 && multi_hist_proj_gen->GetBinContent(i) > 0){
+		if (multi_hist_proj_smear_beta_val->GetBinContent(i) > 10 && multi_hist_proj_smear->GetBinContent(i) > 10 && multi_hist_proj_gen->GetBinContent(i) > 0){
 		  filled_bins_mll++;
 		}
 	      }
@@ -410,7 +410,7 @@ int frame(){
               V_inv_sqrt=MatrixXd::Zero(filled_bins_mll, filled_bins_mll);
 	      position_to_fill=0;
               for(int i=1; i<=nbinsmll; i++){
-		if (multi_hist_proj_smear_beta_val->GetBinContent(i) > 0 && multi_hist_proj_smear->GetBinContent(i) > 0 && multi_hist_proj_gen->GetBinContent(i) > 0){
+		if (multi_hist_proj_smear_beta_val->GetBinContent(i) > 10 && multi_hist_proj_smear->GetBinContent(i) > 10 && multi_hist_proj_gen->GetBinContent(i) > 0){
 		  h_smear_minus_smear_vector(position_to_fill) = multi_hist_proj_smear_beta_val->GetBinContent(i) - multi_hist_proj_smear->GetBinContent(i); 
 		  V_inv_sqrt(position_to_fill,position_to_fill) = 1/(multi_hist_proj_smear_beta_val->GetBinErrorLow(i));
 		  position_to_fill++;
@@ -449,7 +449,7 @@ int frame(){
 	
 		evts_in_bin = multi_hist_proj_smear->GetBinContent(i);
 	
-		if (multi_hist_proj_smear_beta_val->GetBinContent(i) > 0 && evts_in_bin > 0 && multi_hist_proj_gen->GetBinContent(i) > 0){
+		if (multi_hist_proj_smear_beta_val->GetBinContent(i) > 10 && evts_in_bin > 10 && multi_hist_proj_gen->GetBinContent(i) > 0){
 		  value =  diff_squared /  (evts_in_bin * sigma_mc * sigma_mc) - 1;
 		  error = 1 / (evts_in_bin * sigma_mc*sigma_mc) * pow((4 * diff_squared*diff_squared * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_diff_squared*error_diff_squared) , 0.5);
 		  J(position_to_fill) = value;
@@ -482,7 +482,7 @@ int frame(){
 		diff_squared = multi_hist_proj_diff_squared_smear_control->GetBinContent(i);
 		error_diff_squared = multi_hist_proj_diff_squared_smear_control->GetBinErrorLow(i);
 		evts_in_bin = multi_hist_proj_diff_smear->GetBinContent(i);
-		if (multi_hist_proj_smear_beta_val->GetBinContent(i) > 0 && evts_in_bin > 0 && multi_hist_proj_gen->GetBinContent(i) > 0){
+		if (multi_hist_proj_smear_beta_val->GetBinContent(i) > 10 && evts_in_bin > 10 && multi_hist_proj_gen->GetBinContent(i) > 0){
 		  value =  diff_squared /  (evts_in_bin * sigma_mc * sigma_mc) - 1;
 		  error = 1 / (evts_in_bin * sigma_mc*sigma_mc) * pow((4 * diff_squared*diff_squared * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_diff_squared*error_diff_squared) , 0.5);
 		} else {
@@ -502,13 +502,16 @@ int frame(){
 	      Eigen::MatrixXd b = V_inv_sqrt*h_smear_minus_smear_vector;
  //!!!!!!!!!!! Attention alpha_vector contains alpha-1, not alpha !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	      Eigen::VectorXd alpha_vector = A.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
-	      alpha->SetBinError(alpha->Fill(name.c_str(), alpha_vector[0]+1), 0.01); //write alpha
+	      alpha->SetBinError(alpha->Fill(name.c_str(), alpha_vector(0)+1), 0.01); //write alpha
 	      
 	      ////////////////// solve for beta //////////////////
 	      Eigen::MatrixXd A_beta = V_inv_sqrt*J_beta;
  //!!!!!!!!!!! Attention beta_vector contains beta-1, not beta !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	      Eigen::VectorXd beta_vector = A_beta.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
-	      beta->SetBinError(beta->Fill(name.c_str(), beta_vector[0]+1), 0.01); //write beta
+
+	      ////////////////// error on beta //////////////////
+	      Eigen::MatrixXd V_beta = (J_beta.transpose()*(V_inv_sqrt*V_inv_sqrt)*J_beta).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
+	      beta->SetBinError(beta->Fill(name.c_str(), beta_vector(0)+1), pow(V_beta(0,0),0.5)); //write beta
 
 	      //////////////// Finish drawing mll ////////////////////////////////
 	      leg_entry = "Fitted beta = " + to_string(beta_vector[0]);
@@ -552,6 +555,7 @@ int frame(){
   f1->WriteObject(alpha, "alpha");
   f1->WriteObject(jac_inclusive, "jacobian_inclusive");
 
+  beta->Fit("pol0");
   f1->WriteObject(beta, "beta");
   f1->WriteObject(jac_beta_inclusive, "jacobian_beta_inclusive");
 

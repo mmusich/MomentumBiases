@@ -214,7 +214,7 @@ int frame(){
   
   
   double ptlow=25.0, pthigh=55.0;
-  int nbinsmll_diff=10, nbinsmll=10, nbinseta=24, nbinspt=5;
+  int nbinsmll_diff=5, nbinsmll=5, nbinseta=24, nbinspt=5;
   vector<double> etabinranges, ptbinranges, mllbinranges;
   vector<double> mll_diffbinranges;
 
