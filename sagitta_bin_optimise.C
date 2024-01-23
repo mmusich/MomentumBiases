@@ -26,7 +26,7 @@ string stringify_title(int a, int b, int c, int d, vector<double> e, vector<doub
 }
 
 /////////////// Function for Gaussian fit and integral ////////////////////////////////////////
-vector<double> fitHisto(TH1* histogram, int color){
+vector<double> fitHisto(TH1* histogram, int option, int color){
 
   vector<double> fitresult;
 
@@ -44,7 +44,7 @@ vector<double> fitHisto(TH1* histogram, int color){
     if (0 == histogram->Fit(gaussianFunc, "Q0R")) {
       if (histogram->GetFunction(gaussianFunc->GetName())) { // Take care that it is later on drawn:
 	histogram->GetFunction(gaussianFunc->GetName())->SetLineColor(color);
-        histogram->GetFunction(gaussianFunc->GetName())->ResetBit(TF1::kNotDraw);
+        if (option == 1){ histogram->GetFunction(gaussianFunc->GetName())->ResetBit(TF1::kNotDraw);}
       }
       mean = gaussianFunc->GetParameter(1);
       sigma = gaussianFunc->GetParameter(2);
@@ -203,6 +203,7 @@ int frame(){
 
   // Canvas
   TCanvas *c1 = new TCanvas("c1","c1",800,600);
+  gStyle->SetOptStat(0);
   c1->Divide(2,1);
 
   auto leg1 = new TLegend(0.58, 0.68, 0.90, 0.90);
@@ -288,7 +289,7 @@ int frame(){
 	    multi_hist_proj_reco = mDh_reco->Projection(4);
 	    multi_hist_proj_reco->GetXaxis()->SetTitle("mll [GeV]");
 	    multi_hist_proj_reco->GetYaxis()->SetTitle("Events");
-	    fitresult = fitHisto(multi_hist_proj_reco, 4); // get integral of m_reco Gaussian
+	    fitresult = fitHisto(multi_hist_proj_reco, 0, 4); // get integral of m_reco Gaussian
 	    
 	    if (fitresult[4] < 0.75){ // reject small gaus integral 
 	      empty_histos_count++;
@@ -302,7 +303,7 @@ int frame(){
 	      //std::cout<< name <<"\n";
 
 	      /////////////// Reco sigma_MC fit //////////////////////////////////////////////////
-	      fitresult = fitHisto(multi_hist_proj_diff_reco, 4);
+	      fitresult = fitHisto(multi_hist_proj_diff_reco, 1, 4);
 	      
 	      GenRecoFit[name] = fitresult;
 	      if (fitresult[0] > -90.0){ mean_reco->SetBinError(mean_reco->Fill(name.c_str(), fitresult[0]), fitresult[2]); }
@@ -322,7 +323,7 @@ int frame(){
 	      multi_hist_proj_diff_smear = mDh_diff_smear->Projection(4);
 	      multi_hist_proj_diff_smear->GetXaxis()->SetTitle("mll_diff [GeV]");
 	      multi_hist_proj_diff_smear->GetYaxis()->SetTitle("Events");
-	      fitresult = fitHisto(multi_hist_proj_diff_smear, 8);
+	      fitresult = fitHisto(multi_hist_proj_diff_smear, 1, 8);
 	      if (fitresult[0] > -90.0){ mean_smear->SetBinError(mean_smear->Fill(name.c_str(), fitresult[0]), fitresult[2]); }
 	      sigma_mc = fitresult[1]; //for alpha fit
 	      error_sigma_mc = fitresult[3]; //for alpha fit
@@ -330,32 +331,34 @@ int frame(){
 	      multi_hist_proj_diff_smear->SetLineColor(kGreen);
 	      /////////////// Draw mll_diff ///////////////////////////////////////////////////////
 	      if(max_hist_mll_diff < multi_hist_proj_diff_smear->GetBinContent(multi_hist_proj_diff_smear->GetMaximumBin())){
-		multi_hist_proj_diff_smear->SetTitle(("mll diff " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
-		multi_hist_proj_diff_smear->Draw();
-		multi_hist_proj_diff_reco->Draw("SAME");
-	      } else {
-		multi_hist_proj_diff_reco->Draw();
-		multi_hist_proj_diff_smear->Draw("SAME");
-	      }
+		max_hist_mll_diff = multi_hist_proj_diff_smear->GetBinContent(multi_hist_proj_diff_smear->GetMaximumBin());
+	      } 
 	      
+	      max_hist_mll_diff = max_hist_mll_diff * 1.3;
+              multi_hist_proj_diff_smear->SetMaximum(max_hist_mll_diff);
+	      multi_hist_proj_diff_smear->SetTitle(("mll diff " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
+	      multi_hist_proj_diff_smear->Draw();
+	      //multi_hist_proj_diff_reco->Draw("SAME");
+
 	      leg1->Clear();
-	      leg1->AddEntry(multi_hist_proj_diff_reco, "reco-gen", "l");
-	      leg1->AddEntry(multi_hist_proj_diff_smear, "smeared-gen", "l");
+	      //leg1->AddEntry(multi_hist_proj_diff_reco, "reco-gen", "l");
+	      leg1->AddEntry(multi_hist_proj_diff_smear, "smeared-gen, beta=1", "l");
 	      leg1->Draw("");
 	      
 	      c1->cd(2); //prepare to draw mll
 	      max_hist_mll = -1.0;
 	      	      
 	      multi_hist_proj_reco->SetLineColor(kBlue);
-	      fitresult = fitHisto(multi_hist_proj_reco, 4);
+	      fitresult = fitHisto(multi_hist_proj_reco, 0, 4);
 	      multi_hist_proj_reco->SetTitle(("mll "+ stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
 	      max_hist_mll = multi_hist_proj_reco->GetBinContent(multi_hist_proj_reco->GetMaximumBin());
 	      if (fitresult[4] > -100.0){ gaus_integral->SetBinError(gaus_integral->Fill(name.c_str(), fitresult[4]), 0.01); }
 	      delete gROOT->FindObject("multi_data_histo_gen_proj_4");
 	      multi_hist_proj_gen = mDh_gen->Projection(4);
+	      multi_hist_proj_gen->SetTitle(("mll "+ stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
 	      multi_hist_proj_gen->GetXaxis()->SetTitle("mll [GeV]");
               multi_hist_proj_gen->GetYaxis()->SetTitle("Events");
-	      fitresult = fitHisto(multi_hist_proj_gen, 2);
+	      //fitresult = fitHisto(multi_hist_proj_gen, 0, 2);
 	      multi_hist_proj_gen->SetLineColor(kRed);
 	      if(max_hist_mll < multi_hist_proj_gen->GetBinContent(multi_hist_proj_gen->GetMaximumBin())){
 		max_hist_mll = multi_hist_proj_gen->GetBinContent(multi_hist_proj_gen->GetMaximumBin());
@@ -377,23 +380,23 @@ int frame(){
 	      }
 
 	      /////////////// Start drawing mll ///////////////////////////////////////////////////////
-	      fitresult = fitHisto(multi_hist_proj_smear, 8);
+	      //fitresult = fitHisto(multi_hist_proj_smear, 0, 8);
 	      multi_hist_proj_smear->SetLineColor(kGreen);
-	      fitresult = fitHisto(multi_hist_proj_smear_beta_val, 5);
+	      //fitresult = fitHisto(multi_hist_proj_smear_beta_val, 0, 5);
 	      multi_hist_proj_smear_beta_val->SetLineColor(kYellow);
 	      
 	      max_hist_mll = max_hist_mll * 1.3;
-	      multi_hist_proj_reco->SetMaximum(max_hist_mll);
-	      multi_hist_proj_reco->Draw();
-	      multi_hist_proj_gen->Draw("SAME");
+	      multi_hist_proj_gen->SetMaximum(max_hist_mll);
+	      //multi_hist_proj_reco->Draw();
+	      multi_hist_proj_gen->Draw();
 	      multi_hist_proj_smear->Draw("SAME");
 	      multi_hist_proj_smear_beta_val->Draw("SAME");
 	      	      
 	      leg2->Clear();
-	      leg2->AddEntry(multi_hist_proj_reco, "reco", "l");
+	      //leg2->AddEntry(multi_hist_proj_reco, "reco", "l");
 	      leg2->AddEntry(multi_hist_proj_gen, "gen", "l");
-	      leg2->AddEntry(multi_hist_proj_smear, "smeared gen beta 1", "l");
-	      leg2->AddEntry(multi_hist_proj_smear_beta_val, "smeared gen beta 0.995", "l"); //value of beta goes here !!!!!!
+	      leg2->AddEntry(multi_hist_proj_smear, "smeared, beta=1", "l");
+	      leg2->AddEntry(multi_hist_proj_smear_beta_val, "smeared, beta=0.995", "l"); //value of beta goes here !!!!!!
 	      	      
 	      /////////////// Fill vectors and variance for minimisation //////////////////////////////////////////
 	      filled_bins_mll=0;
@@ -515,6 +518,8 @@ int frame(){
 
 	      //////////////// Finish drawing mll ////////////////////////////////
 	      leg_entry = "Fitted beta = " + to_string(beta_vector[0]);
+	      leg2->AddEntry((TObject*)0, leg_entry.c_str(), "");
+	      leg_entry = "Region " + name;
 	      leg2->AddEntry((TObject*)0, leg_entry.c_str(), "");
 	      leg2->Draw("");
 
