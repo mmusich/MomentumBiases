@@ -94,7 +94,6 @@ int frame(){
 		      width = (0.004*pow(GenPart_eta[k],2)+0.01)*GenPart_pt[k];
 		      smear_pt = rans[nslot]->Gaus(mean, width);
 		      //Define pt+ (not +, but it doesn't matter, I mean the 1st side) side of the smear_beta_weight 
-		      // ????????? also i would need the pt for beta = 0.95 for binning in eta pt eta pt
 		      smear_beta_weight_first_term = TMath::Gaus(smear_pt, mean*beta, width) / TMath::Gaus(smear_pt, mean, width);
 		      //Overwriting reco track
 		      firstTrack.SetPtEtaPhiM(smear_pt, GenPart_eta[k], GenPart_phi[k], rest_mass);
@@ -214,7 +213,7 @@ int frame(){
   
   
   double ptlow=25.0, pthigh=55.0;
-  int nbinsmll_diff=5, nbinsmll=5, nbinseta=24, nbinspt=5;
+  int nbinsmll_diff=8, nbinsmll=5, nbinseta=24, nbinspt=5;
   vector<double> etabinranges, ptbinranges, mllbinranges;
   vector<double> mll_diffbinranges;
 
@@ -280,7 +279,12 @@ int frame(){
 
     //ATTENTION do not change variable name mll_diff, it's used for both reco and smear depending on option
     auto mDh_diff_smear = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_smear", "multi_data_histo_diff_smear", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff","weight"});
-    f6->WriteObject(mDh_diff_smear.GetPtr(), "multi_data_histo_diff_smear"); 
+    f6->WriteObject(mDh_diff_smear.GetPtr(), "multi_data_histo_diff_smear");
+
+    //ATTENTION do not change variable name mll_diff, it's used for both reco and smear depending on option
+    auto mDh_diff_smear_beta_val = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_smear_beta_val", "multi_data_histo_diff_smear_beta_val", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff","smear_beta_weight"});
+    f6->WriteObject(mDh_diff_smear_beta_val.GetPtr(), "multi_data_histo_diff_smear_beta_val");
+ 
   } else { // option==0 case
     std::unique_ptr<TFile> f5( TFile::Open("multiD_histo_reco.root", "RECREATE") );
 
