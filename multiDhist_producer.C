@@ -213,7 +213,7 @@ int frame(){
   
   
   double ptlow=25.0, pthigh=55.0;
-  int nbinsmll_diff=8, nbinsmll=5, nbinseta=24, nbinspt=5;
+  int nbinsmll_diff=8, nbinsmll=8, nbinseta=24, nbinspt=5;
   vector<double> etabinranges, ptbinranges, mllbinranges;
   vector<double> mll_diffbinranges;
 
@@ -272,6 +272,10 @@ int frame(){
     //ATTENTION do not change variable name jac_beta_weight, it's used for both reco and smear depending on option
     auto mDh_jac_beta_smear = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_beta_smear", "multi_data_histo_jac_beta_smear", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_reco","jac_beta_weight"});
     f6->WriteObject(mDh_jac_beta_smear.GetPtr(), "multi_data_histo_jac_beta_smear");
+
+    //ATTENTION do not change variable name jac_beta_weight, it's used for both reco and smear depending on option
+    auto mDh_jac_beta_smear_control = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_beta_smear_control", "multi_data_histo_jac_beta_smear_control", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff","jac_beta_weight"});
+    f6->WriteObject(mDh_jac_beta_smear_control.GetPtr(), "multi_data_histo_jac_beta_smear_control");
 
     //ATTENTION do not change variable name jac_beta_weight, it's used for both reco and smear depending on option
     auto mDh_smear_beta_val = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_smear_beta_val", "multi_data_histo_smear_beta_val", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_reco","smear_beta_weight"});
