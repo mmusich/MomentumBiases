@@ -193,6 +193,20 @@ int frame(){
   beta_control->GetXaxis()->SetTitle("Bin number");
   beta_control->GetYaxis()->SetTitle("beta from mll diff");
 
+  TH1D *nu = new TH1D("nu", "nu", 3, 0, 3);
+  nu->SetCanExtend(TH1::kAllAxes);
+  nu->SetMarkerStyle(kPlus);
+  nu->SetMarkerColor(kBlue);
+  nu->GetXaxis()->SetTitle("Bin number");
+  nu->GetYaxis()->SetTitle("nu");
+
+  TH1D *nu_control = new TH1D("nu_control", "nu_control", 3, 0, 3);
+  nu_control->SetCanExtend(TH1::kAllAxes);
+  nu_control->SetMarkerStyle(kPlus);
+  nu_control->SetMarkerColor(kBlue);
+  nu_control->GetXaxis()->SetTitle("Bin number");
+  nu_control->GetYaxis()->SetTitle("nu from mll diff");
+
   auto multi_hist_proj_diff_reco = mDh_diff_reco->Projection(4);
   auto multi_hist_proj_reco = mDh_reco->Projection(4);
   auto multi_hist_proj_gen = mDh_gen->Projection(4);
@@ -536,24 +550,32 @@ int frame(){
 		  error = 1 / (evts_in_bin * sigma_mc*sigma_mc) * pow((4 * diff_squared*diff_squared * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_diff_squared*error_diff_squared) , 0.5);
 		  J(position_to_fill,1) = value;
 
+		  jac->SetBinContent(i, value);
+		  jac->SetBinError(i, error);
+		  jac_inclusive->Fill(mllbinranges[i-1], value);
+
 		  value_beta = jac_b_weight / (evts_in_bin * sigma_mc * sigma_mc);
 		  error_beta = 1 / (evts_in_bin * sigma_mc*sigma_mc) * pow((4 * jac_b_weight*jac_b_weight * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_jac_b_weight*error_jac_b_weight) , 0.5);
 		  J_beta(position_to_fill,1) = value_beta;
+
+		  jac_beta->SetBinContent(i, value_beta);
+		  jac_beta->SetBinError(i, error_beta);
+		  jac_beta_inclusive->Fill(mllbinranges[i-1], value_beta);
 		  
 		  position_to_fill++;
-		} else {
-		  value = 0.0; ///// Attention, value must be changed
-		  error = 20;
-		  value_beta = 0.0; ///// Attention, value must be changed, but used for the integral of jac
-		  error_beta = 20;
-		}
-		jac->SetBinContent(i, value);
-		jac->SetBinError(i, error);
-		jac_inclusive->Fill(mllbinranges[i-1], value);
+		} //else {
+		  //value = 0.0; ///// Attention, value must be changed
+		  //error = 20;
+		  //value_beta = 0.0; ///// Attention, value must be changed, but used for the integral of jac
+		  //error_beta = 20;
+		//}
+		//jac->SetBinContent(i, value);
+		//jac->SetBinError(i, error);
+		//jac_inclusive->Fill(mllbinranges[i-1], value);
 		
-		jac_beta->SetBinContent(i, value_beta);
-                jac_beta->SetBinError(i, error_beta);
-		jac_beta_inclusive->Fill(mllbinranges[i-1], value_beta);
+		//jac_beta->SetBinContent(i, value_beta);
+                //jac_beta->SetBinError(i, error_beta);
+		//jac_beta_inclusive->Fill(mllbinranges[i-1], value_beta);
 	      }
 	      //jac_beta->Scale(1.0 / jac_beta->Integral(1,nbinsmll)); //normalise jacobian to unity
 	      //position_to_fill = 0;
@@ -575,12 +597,16 @@ int frame(){
 		if (multi_hist_proj_smear_beta_val->GetBinContent(i) > 10 && multi_hist_proj_diff_smear->GetBinContent(i) > 10 && multi_hist_proj_gen->GetBinContent(i) > 0){
 		  value =  diff_squared /  (evts_in_bin * sigma_mc * sigma_mc) - 1;
 		  error = 1 / (evts_in_bin * sigma_mc*sigma_mc) * pow((4 * diff_squared*diff_squared * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_diff_squared*error_diff_squared) , 0.5);
-		} else {
-		  value = 0.0; ///// Attention, value must be changed
-		  error = 20;
-		}
-		jac_control->SetBinContent(i, value);
-		jac_control->SetBinError(i, error);
+		  
+		  jac_control->SetBinContent(i, value);
+		  jac_control->SetBinError(i, error);
+		
+		} //else {
+		  //value = 0.0; ///// Attention, value must be changed
+		  //error = 20;
+		//}
+		//jac_control->SetBinContent(i, value);
+		//jac_control->SetBinError(i, error);
 	      }
 
 	      ////////// Jacobian beta vs m_diff /////////////////////////////////////////
@@ -596,15 +622,18 @@ int frame(){
                   value_beta = jac_b_weight / (evts_in_bin * sigma_mc * sigma_mc);
                   error_beta = 1 / (evts_in_bin * sigma_mc*sigma_mc) * pow((4 * jac_b_weight*jac_b_weight * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_jac_b_weight*error_jac_b_weight) , 0.5);
                   J_beta_control(position_to_fill,1) = value_beta;
+		  
+		  jac_beta_control->SetBinContent(i, value_beta);
+		  jac_beta_control->SetBinError(i, error_beta);
 
                   position_to_fill++;
 
-                } else {
-                  value = 0.0; ///// Attention, value must be changed
-                  error = 20;
-                }
-                jac_beta_control->SetBinContent(i, value_beta);
-                jac_beta_control->SetBinError(i, error_beta);
+                } //else {
+		// value_beta = 0.0; ///// Attention, value must be changed
+                //  error_beta = 20;
+                //}
+                //jac_beta_control->SetBinContent(i, value_beta);
+                //jac_beta_control->SetBinError(i, error_beta);
               }
 
               //jac_beta_control->Scale(1.0 / jac_beta_control->Integral(1,nbinsmll_diff)); //normalise jacobian to no. of events in MC
@@ -636,10 +665,11 @@ int frame(){
 	      Eigen::VectorXd beta_vector = A_beta.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
 
 	      ////////////////// error on beta //////////////////
-	      Eigen::MatrixXd V_beta = (J_beta.transpose()*(V_inv_sqrt*V_inv_sqrt)*J_beta).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
+	      Eigen::MatrixXd V_beta = (J_beta.col(1).transpose()*(V_inv_sqrt*V_inv_sqrt)*J_beta.col(1)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
+	      Eigen::MatrixXd V_nu = (J_beta.col(0).transpose()*(V_inv_sqrt*V_inv_sqrt)*J_beta.col(0)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
 	      fit_beta_error = pow(V_beta(0,0),0.5);
-	      //!!!!!!!!!!!!!!!!!!!! change variance !!!!!!!!!!
 	      beta->SetBinError(beta->Fill(name.c_str(), beta_vector(1)+1), fit_beta_error); //write beta
+	      nu->SetBinError(nu->Fill(name.c_str(), beta_vector(0)+1), pow(V_nu(0,0),0.5));
 
 	      ////////////////// solve for beta //////////////////
 	      Eigen::MatrixXd A_beta_control = V_inv_sqrt_control*J_beta_control;
@@ -647,12 +677,15 @@ int frame(){
 	      //!!!!!!!!!!! Attention beta_vector contains beta-1, not beta !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	      Eigen::VectorXd beta_vector_control = A_beta_control.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b_control);
               ////////////////// error on beta //////////////////
-	      //!!!!!!!!!!!!!!!!!!!! change variance !!!!!!!!!!
-	      Eigen::MatrixXd V_beta_control = (J_beta_control.transpose()*(V_inv_sqrt_control*V_inv_sqrt_control)*J_beta_control).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
+	      Eigen::MatrixXd V_beta_control = (J_beta_control.col(1).transpose()*(V_inv_sqrt_control*V_inv_sqrt_control)*J_beta_control.col(1)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
+	      Eigen::MatrixXd V_nu_control = (J_beta_control.col(0).transpose()*(V_inv_sqrt_control*V_inv_sqrt_control)*J_beta_control.col(0)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
 	      beta_control->SetBinError(beta_control->Fill(name.c_str(), beta_vector_control(1)+1), pow(V_beta_control(0,0),0.5)); //write beta
+	      nu_control->SetBinError(nu_control->Fill(name.c_str(), beta_vector_control(0)+1), pow(V_nu_control(0,0),0.5));
 
 	      //////////////// Finish drawing mll ////////////////////////////////
 	      leg_entry = "Fit #beta=" + to_string(beta_vector(1)+1).substr(0, 6) + "#pm" + to_string(fit_beta_error).substr(0, 6); 
+	      leg2->AddEntry((TObject*)0, leg_entry.c_str(), "");
+	      leg_entry = "Fit #nu=" + to_string(beta_vector(0)+1).substr(0, 6) + "#pm" + to_string(pow(V_nu(0,0),0.5)).substr(0, 6);
 	      leg2->AddEntry((TObject*)0, leg_entry.c_str(), "");
 	      
 	      leg2->Draw("");
@@ -660,6 +693,8 @@ int frame(){
               c1->cd();
 	      c1->cd(1);
 	      leg_entry = "Fit #beta=" + to_string(beta_vector_control(1)+1).substr(0, 6) + "#pm" + to_string(pow(V_beta_control(0,0),0.5)).substr(0, 6);
+	      leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
+	      leg_entry = "Fit #nu=" + to_string(beta_vector_control(0)+1).substr(0, 6) + "#pm" + to_string(pow(V_nu_control(0,0),0.5)).substr(0, 6);
 	      leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
 	      leg1->Draw("");
 
@@ -705,6 +740,9 @@ int frame(){
   std::cout<<"beta control: \n";
   beta_control->Fit("pol0");
   f1->WriteObject(beta_control, "beta_control");
+
+  f1->WriteObject(nu, "nu");
+  f1->WriteObject(nu_control, "nu_control");
 
   f1->WriteObject(jac_beta_inclusive, "jacobian_beta_inclusive");
 
