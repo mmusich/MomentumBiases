@@ -323,7 +323,7 @@ int frame(){
 	      //std::cout<< name <<"\n";
 
 	      /////////////// Reco sigma_MC fit //////////////////////////////////////////////////
-	      multi_hist_proj_diff_reco->Scale( 1.0 / multi_hist_proj_diff_reco->Integral(1,nbinsmll_diff) ); //normalise to unity
+	      //multi_hist_proj_diff_reco->Scale( 1.0 / multi_hist_proj_diff_reco->Integral(1,nbinsmll_diff) ); //normalise to unity
 	      fitresult = fitHisto(multi_hist_proj_diff_reco, 1, 4);
 
 	      GenRecoFit[name] = fitresult;
@@ -344,7 +344,7 @@ int frame(){
 	      multi_hist_proj_diff_smear = mDh_diff_smear->Projection(4);
 	      multi_hist_proj_diff_smear->GetXaxis()->SetTitle("mll_diff [GeV]");
 	      multi_hist_proj_diff_smear->GetYaxis()->SetTitle("Events");
-	      multi_hist_proj_diff_smear->Scale( 1.0 / multi_hist_proj_diff_smear->Integral(1,nbinsmll_diff) ); //normalise to unity
+	      //multi_hist_proj_diff_smear->Scale( 1.0 / multi_hist_proj_diff_smear->Integral(1,nbinsmll_diff) ); //normalise to unity
 	      fitresult = fitHisto(multi_hist_proj_diff_smear, 1, 8);
 	      if (fitresult[0] > -90.0){ mean_smear->SetBinError(mean_smear->Fill(name.c_str(), fitresult[0]), fitresult[2]); }
 	      mean_mc = fitresult[0]; 
@@ -357,7 +357,7 @@ int frame(){
 	      multi_hist_proj_diff_smear_beta_val = mDh_diff_smear_beta_val->Projection(4);
 	      multi_hist_proj_diff_smear_beta_val->GetXaxis()->SetTitle("mll_diff [GeV]");
               multi_hist_proj_diff_smear_beta_val->GetYaxis()->SetTitle("Events");
-	      multi_hist_proj_diff_smear_beta_val->Scale( 1.0 / multi_hist_proj_diff_smear_beta_val->Integral(1,nbinsmll_diff) ); //normalise to unity
+	      //multi_hist_proj_diff_smear_beta_val->Scale( 1.0 / multi_hist_proj_diff_smear_beta_val->Integral(1,nbinsmll_diff) ); //normalise to unity
 	      fitresult = fitHisto(multi_hist_proj_diff_smear_beta_val, 1, 5);
 	      multi_hist_proj_diff_smear_beta_val->SetLineColor(kYellow);
 	      if(max_hist_mll_diff < multi_hist_proj_diff_smear_beta_val->GetBinContent(multi_hist_proj_diff_smear_beta_val->GetMaximumBin())){
@@ -391,14 +391,14 @@ int frame(){
 	      max_hist_mll = -1.0;
 	      	      
 	      multi_hist_proj_reco->SetLineColor(kBlue);
-	      multi_hist_proj_reco->Scale(1.0 / multi_hist_proj_reco->Integral(1,nbinsmll)); //normalise to unity
+	      //multi_hist_proj_reco->Scale(1.0 / multi_hist_proj_reco->Integral(1,nbinsmll)); //normalise to unity
 	      fitresult = fitHisto(multi_hist_proj_reco, 0, 4);
 	      multi_hist_proj_reco->SetTitle(("mll "+ stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
 	      max_hist_mll = multi_hist_proj_reco->GetBinContent(multi_hist_proj_reco->GetMaximumBin());
 	      if (fitresult[4] > -100.0){ gaus_integral->SetBinError(gaus_integral->Fill(name.c_str(), fitresult[4]), 0.01); }
 	      delete gROOT->FindObject("multi_data_histo_gen_proj_4");
 	      multi_hist_proj_gen = mDh_gen->Projection(4);
-	      multi_hist_proj_gen->Scale(1.0 / multi_hist_proj_gen->Integral(1,nbinsmll)); //normalise to unity
+	      //multi_hist_proj_gen->Scale(1.0 / multi_hist_proj_gen->Integral(1,nbinsmll)); //normalise to unity
 	      multi_hist_proj_gen->SetTitle(("mll "+ stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
 	      multi_hist_proj_gen->GetXaxis()->SetTitle("mll [GeV]");
               multi_hist_proj_gen->GetYaxis()->SetTitle("Events");
@@ -410,7 +410,7 @@ int frame(){
 	      delete gROOT->FindObject("multi_data_histo_smear_proj_4");
 	      multi_hist_proj_smear = mDh_smear->Projection(4);
 	      normalisation_smear = 1.0 / multi_hist_proj_smear->Integral(1,nbinsmll); 
-	      multi_hist_proj_smear->Scale(normalisation_smear); //normalise to unity
+	      //multi_hist_proj_smear->Scale(normalisation_smear); //normalise to unity
 	      multi_hist_proj_smear->GetXaxis()->SetTitle("mll [GeV]");
               multi_hist_proj_smear->GetYaxis()->SetTitle("Events");
 	      if(max_hist_mll < multi_hist_proj_smear->GetBinContent(multi_hist_proj_smear->GetMaximumBin())){
@@ -420,7 +420,7 @@ int frame(){
 	      delete gROOT->FindObject("multi_data_histo_smear_beta_val_proj_4");
               multi_hist_proj_smear_beta_val = mDh_smear_beta_val->Projection(4);
 	      normalisation_smear_beta_val = 1.0 / multi_hist_proj_smear_beta_val->Integral(1,nbinsmll);
-	      multi_hist_proj_smear_beta_val->Scale(normalisation_smear_beta_val); //normalise to unity
+	      //multi_hist_proj_smear_beta_val->Scale(normalisation_smear_beta_val); //normalise to unity
               multi_hist_proj_smear_beta_val->GetXaxis()->SetTitle("mll [GeV]");
               multi_hist_proj_smear_beta_val->GetYaxis()->SetTitle("Events");
               if(max_hist_mll < multi_hist_proj_smear_beta_val->GetBinContent(multi_hist_proj_smear_beta_val->GetMaximumBin())){
@@ -452,7 +452,7 @@ int frame(){
 	      /////////////// Fill vectors and variance for minimisation //////////////////////////////////////////
 	      filled_bins_mll=0;
 	      for(int i=1; i<=nbinsmll; i++){
-		if (multi_hist_proj_smear_beta_val->GetBinContent(i) > 10*normalisation_smear_beta_val && multi_hist_proj_smear->GetBinContent(i) > 10*normalisation_smear && multi_hist_proj_gen->GetBinContent(i) > 0){
+		if (multi_hist_proj_smear_beta_val->GetBinContent(i) > 10 && multi_hist_proj_smear->GetBinContent(i) > 10 && multi_hist_proj_gen->GetBinContent(i) > 0){
 		  filled_bins_mll++;
 		}
 	      }
@@ -466,28 +466,31 @@ int frame(){
 	      }
 	      if (filled_bins_mll_diff <= 1 ){continue;} //This needs refined
 	      
-	      VectorXd h_smear_minus_smear_vector(filled_bins_mll), J(filled_bins_mll), J_beta(filled_bins_mll);
-	      Eigen::MatrixXd V_inv_sqrt(filled_bins_mll, filled_bins_mll);
+	      VectorXd h_smear_minus_smear_vector(filled_bins_mll);
+	      Eigen::MatrixXd V_inv_sqrt(filled_bins_mll, filled_bins_mll), J(filled_bins_mll, 2), J_beta(filled_bins_mll, 2);
 
               V_inv_sqrt=MatrixXd::Zero(filled_bins_mll, filled_bins_mll);
 	      position_to_fill=0;
               for(int i=1; i<=nbinsmll; i++){
-		if (multi_hist_proj_smear_beta_val->GetBinContent(i) > 10*normalisation_smear_beta_val && multi_hist_proj_smear->GetBinContent(i) > 10*normalisation_smear && multi_hist_proj_gen->GetBinContent(i) > 0){
-		  h_smear_minus_smear_vector(position_to_fill) = multi_hist_proj_smear_beta_val->GetBinContent(i) - multi_hist_proj_smear->GetBinContent(i); 
+		if (multi_hist_proj_smear_beta_val->GetBinContent(i) > 10 && multi_hist_proj_smear->GetBinContent(i) > 10 && multi_hist_proj_gen->GetBinContent(i) > 0){
+		  h_smear_minus_smear_vector(position_to_fill) = multi_hist_proj_smear_beta_val->GetBinContent(i) - multi_hist_proj_smear->GetBinContent(i);
+		  J(position_to_fill,0) = multi_hist_proj_smear->GetBinContent(i);
+		  J_beta(position_to_fill,0) = multi_hist_proj_smear->GetBinContent(i);
 		  V_inv_sqrt(position_to_fill,position_to_fill) = 1 / multi_hist_proj_smear_beta_val->GetBinErrorLow(i);
 		  position_to_fill++;
 		}
 	      }
 	      if (position_to_fill != filled_bins_mll){ std::cout<<"problem counting vector size \n"; }
               
-              VectorXd h_smear_diff_minus_smear_diff_vector(filled_bins_mll_diff), J_beta_control(filled_bins_mll_diff);
-	      Eigen::MatrixXd V_inv_sqrt_control(filled_bins_mll_diff, filled_bins_mll_diff);
+              VectorXd h_smear_diff_minus_smear_diff_vector(filled_bins_mll_diff);
+	      Eigen::MatrixXd V_inv_sqrt_control(filled_bins_mll_diff, filled_bins_mll_diff), J_beta_control(filled_bins_mll_diff, 2);
 
 	      V_inv_sqrt_control=MatrixXd::Zero(filled_bins_mll_diff, filled_bins_mll_diff);
 	      position_to_fill=0;
 	      for(int i=1; i<=nbinsmll_diff; i++){
 		if(multi_hist_proj_diff_smear_beta_val->GetBinContent(i) > 0 && multi_hist_proj_diff_smear->GetBinContent(i) > 0){
 		  h_smear_diff_minus_smear_diff_vector(position_to_fill) = multi_hist_proj_diff_smear_beta_val->GetBinContent(i) - multi_hist_proj_diff_smear->GetBinContent(i);
+		  J_beta_control(position_to_fill,0) = multi_hist_proj_diff_smear->GetBinContent(i);
 		  V_inv_sqrt_control(position_to_fill,position_to_fill) = 1 / multi_hist_proj_diff_smear_beta_val->GetBinErrorLow(i);
 		  position_to_fill++;
 		}
@@ -527,15 +530,15 @@ int frame(){
 		jac_b_weight = multi_hist_proj_jac_beta_smear->GetBinContent(i);
                 error_jac_b_weight = multi_hist_proj_jac_beta_smear->GetBinErrorLow(i);
 	
-		if (multi_hist_proj_smear_beta_val->GetBinContent(i) > 10*normalisation_smear_beta_val && multi_hist_proj_smear->GetBinContent(i) > 10*normalisation_smear && multi_hist_proj_gen->GetBinContent(i) > 0){
-		  evts_in_bin = multi_hist_proj_smear->GetBinContent(i) / normalisation_smear;
+		if (multi_hist_proj_smear_beta_val->GetBinContent(i) > 10 && multi_hist_proj_smear->GetBinContent(i) > 10 && multi_hist_proj_gen->GetBinContent(i) > 0){
+		  evts_in_bin = multi_hist_proj_smear->GetBinContent(i);
 		  value =  diff_squared /  (evts_in_bin * sigma_mc * sigma_mc) - 1;
 		  error = 1 / (evts_in_bin * sigma_mc*sigma_mc) * pow((4 * diff_squared*diff_squared * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_diff_squared*error_diff_squared) , 0.5);
-		  J(position_to_fill) = value;
+		  J(position_to_fill,1) = value;
 
 		  value_beta = jac_b_weight / (evts_in_bin * sigma_mc * sigma_mc);
 		  error_beta = 1 / (evts_in_bin * sigma_mc*sigma_mc) * pow((4 * jac_b_weight*jac_b_weight * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_jac_b_weight*error_jac_b_weight) , 0.5);
-		  //J_beta(position_to_fill) = value_beta;
+		  J_beta(position_to_fill,1) = value_beta;
 		  
 		  position_to_fill++;
 		} else {
@@ -552,14 +555,14 @@ int frame(){
                 jac_beta->SetBinError(i, error_beta);
 		jac_beta_inclusive->Fill(mllbinranges[i-1], value_beta);
 	      }
-	      jac_beta->Scale(1.0 / jac_beta->Integral(1,nbinsmll)); //normalise jacobian to unity
-	      position_to_fill = 0;
-	      for(int i=1; i<=nbinsmll; i++){
-		if (jac_beta->GetBinContent(i) != 0 ){
-		  J_beta(position_to_fill) = jac_beta->GetBinContent(i);
-		  position_to_fill++;
-		}
-	      }
+	      //jac_beta->Scale(1.0 / jac_beta->Integral(1,nbinsmll)); //normalise jacobian to unity
+	      //position_to_fill = 0;
+	      //for(int i=1; i<=nbinsmll; i++){
+	      //if (jac_beta->GetBinContent(i) != 0 ){
+	      //  J_beta(position_to_fill) = jac_beta->GetBinContent(i);
+	      //  position_to_fill++;
+	      //}
+	      //}
 	      if (position_to_fill != filled_bins_mll){ std::cout<<"problem counting jac size \n"; }
 
 	      ////////// Jacobian alpha vs m_diff /////////////////////////////////////////
@@ -569,7 +572,7 @@ int frame(){
 		diff_squared = multi_hist_proj_diff_squared_smear_control->GetBinContent(i);
 		error_diff_squared = multi_hist_proj_diff_squared_smear_control->GetBinErrorLow(i);
 		evts_in_bin = multi_hist_proj_diff_smear->GetBinContent(i);
-		if (multi_hist_proj_smear_beta_val->GetBinContent(i) > 10*normalisation_smear_beta_val && multi_hist_proj_diff_smear->GetBinContent(i) > 10 && multi_hist_proj_gen->GetBinContent(i) > 0){
+		if (multi_hist_proj_smear_beta_val->GetBinContent(i) > 10 && multi_hist_proj_diff_smear->GetBinContent(i) > 10 && multi_hist_proj_gen->GetBinContent(i) > 0){
 		  value =  diff_squared /  (evts_in_bin * sigma_mc * sigma_mc) - 1;
 		  error = 1 / (evts_in_bin * sigma_mc*sigma_mc) * pow((4 * diff_squared*diff_squared * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_diff_squared*error_diff_squared) , 0.5);
 		} else {
@@ -592,7 +595,7 @@ int frame(){
                 if (multi_hist_proj_diff_smear_beta_val->GetBinContent(i) > 0 && multi_hist_proj_diff_smear->GetBinContent(i) > 0){
                   value_beta = jac_b_weight / (evts_in_bin * sigma_mc * sigma_mc);
                   error_beta = 1 / (evts_in_bin * sigma_mc*sigma_mc) * pow((4 * jac_b_weight*jac_b_weight * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_jac_b_weight*error_jac_b_weight) , 0.5);
-                  //J_beta_control(position_to_fill) = value_beta;
+                  J_beta_control(position_to_fill,1) = value_beta;
 
                   position_to_fill++;
 
@@ -604,14 +607,14 @@ int frame(){
                 jac_beta_control->SetBinError(i, error_beta);
               }
 
-              jac_beta_control->Scale(1.0 / jac_beta_control->Integral(1,nbinsmll_diff)); //normalise jacobian to unity
-              position_to_fill = 0;
-              for(int i=1; i<=nbinsmll_diff; i++){
-                if ( multi_hist_proj_diff_smear_beta_val->GetBinContent(i) > 0 && multi_hist_proj_diff_smear->GetBinContent(i) > 0 ){ //////is this the corrrect way of counting this?????
-                  J_beta_control(position_to_fill) = jac_beta_control->GetBinContent(i);
-                  position_to_fill++;
-                }
-              }
+              //jac_beta_control->Scale(1.0 / jac_beta_control->Integral(1,nbinsmll_diff)); //normalise jacobian to no. of events in MC
+              //position_to_fill = 0;
+              //for(int i=1; i<=nbinsmll_diff; i++){
+	      //if ( multi_hist_proj_diff_smear_beta_val->GetBinContent(i) > 0 && multi_hist_proj_diff_smear->GetBinContent(i) > 0 ){ //////is this the corrrect way of counting this?????
+	      //  J_beta_control(position_to_fill) = jac_beta_control->GetBinContent(i);
+	      //  position_to_fill++;
+	      //}
+              //}
               if (position_to_fill != filled_bins_mll_diff){ std::cout<<"problem counting jac_beta_control size \n"; }
 
 	      //write jacobians
@@ -625,7 +628,7 @@ int frame(){
 	      Eigen::MatrixXd b = V_inv_sqrt*h_smear_minus_smear_vector;
  //!!!!!!!!!!! Attention alpha_vector contains alpha-1, not alpha !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	      Eigen::VectorXd alpha_vector = A.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
-	      alpha->SetBinError(alpha->Fill(name.c_str(), alpha_vector(0)+1), 0.01); //write alpha
+	      alpha->SetBinError(alpha->Fill(name.c_str(), alpha_vector(1)+1), 0.01); //write alpha
 	      
 	      ////////////////// solve for beta //////////////////
 	      Eigen::MatrixXd A_beta = V_inv_sqrt*J_beta;
@@ -635,7 +638,8 @@ int frame(){
 	      ////////////////// error on beta //////////////////
 	      Eigen::MatrixXd V_beta = (J_beta.transpose()*(V_inv_sqrt*V_inv_sqrt)*J_beta).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
 	      fit_beta_error = pow(V_beta(0,0),0.5);
-	      beta->SetBinError(beta->Fill(name.c_str(), beta_vector(0)+1), fit_beta_error); //write beta
+	      //!!!!!!!!!!!!!!!!!!!! change variance !!!!!!!!!!
+	      beta->SetBinError(beta->Fill(name.c_str(), beta_vector(1)+1), fit_beta_error); //write beta
 
 	      ////////////////// solve for beta //////////////////
 	      Eigen::MatrixXd A_beta_control = V_inv_sqrt_control*J_beta_control;
@@ -643,18 +647,19 @@ int frame(){
 	      //!!!!!!!!!!! Attention beta_vector contains beta-1, not beta !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	      Eigen::VectorXd beta_vector_control = A_beta_control.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b_control);
               ////////////////// error on beta //////////////////
+	      //!!!!!!!!!!!!!!!!!!!! change variance !!!!!!!!!!
 	      Eigen::MatrixXd V_beta_control = (J_beta_control.transpose()*(V_inv_sqrt_control*V_inv_sqrt_control)*J_beta_control).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
-	      beta_control->SetBinError(beta_control->Fill(name.c_str(), beta_vector_control(0)+1), pow(V_beta_control(0,0),0.5)); //write beta
+	      beta_control->SetBinError(beta_control->Fill(name.c_str(), beta_vector_control(1)+1), pow(V_beta_control(0,0),0.5)); //write beta
 
 	      //////////////// Finish drawing mll ////////////////////////////////
-	      leg_entry = "Fit #beta=" + to_string(beta_vector(0)+1).substr(0, 6) + "#pm" + to_string(fit_beta_error).substr(0, 6); 
+	      leg_entry = "Fit #beta=" + to_string(beta_vector(1)+1).substr(0, 6) + "#pm" + to_string(fit_beta_error).substr(0, 6); 
 	      leg2->AddEntry((TObject*)0, leg_entry.c_str(), "");
 	      
 	      leg2->Draw("");
 
               c1->cd();
 	      c1->cd(1);
-	      leg_entry = "Fit #beta=" + to_string(beta_vector_control(0)+1).substr(0, 6) + "#pm" + to_string(pow(V_beta_control(0,0),0.5)).substr(0, 6);
+	      leg_entry = "Fit #beta=" + to_string(beta_vector_control(1)+1).substr(0, 6) + "#pm" + to_string(pow(V_beta_control(0,0),0.5)).substr(0, 6);
 	      leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
 	      leg1->Draw("");
 
