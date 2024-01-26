@@ -61,20 +61,19 @@ int frame(){
   }
 
   //Pairs
-  int option = 1; //ATTENTION, 1 gives pT smear
+  auto pairs = [&](unsigned int nslot, RVecF Muon_pt, RVecI Muon_charge, RVecF Muon_eta, RVecF Muon_phi, RVecB MuonisGood, RVecF Muon_dxy, RVecF Muon_dz, RVecI GenPart_status, RVecI GenPart_pdgId, RVecI GenPart_genPartIdxMother, RVecF GenPart_pt, RVecF GenPart_eta, RVecF GenPart_phi)->std::tuple<int,int,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float>{
 
-  auto pairs = [&](unsigned int nslot, RVecF Muon_pt, RVecI Muon_charge, RVecF Muon_eta, RVecF Muon_phi, RVecB MuonisGood, RVecF Muon_dxy, RVecF Muon_dz, RVecI GenPart_status, RVecI GenPart_pdgId, RVecI GenPart_genPartIdxMother, RVecF GenPart_pt, RVecF GenPart_eta, RVecF GenPart_phi)->std::tuple<int,int,float,float,float,float,float,float,float,float,float,float,float,float>{
-
-    RVec<std::tuple<int,int,float,float,float,float,float,float,float,float,float,float,float,float>> pairs; // <pos_muon_index, neg_muon_index, mll_reco (or gen smeared if option==1), mll_gen, mll_diff, posPt_reco(or smeared), negPt_reco(or smeared), posPt_gen, negPt_gen, mll_jac_alpha_weight, mll_jac_beta_weight, smear_beta_weight, posPt_smear_beta_val, negPt_smear_beta_val>
-    std::tuple<int,int,float,float,float,float,float,float,float,float,float,float,float,float> temp, pair_to_return;
+    RVec<std::tuple<int,int,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float>> pairs; // <pos_muon_index, neg_muon_index, mll_reco, posPt_reco, negPt_reco, mll_diff_reco, mll_smear, posPt_smear, negPt_smear, mll_diff_smear, mll_gen, posPt_gen, negPt_gen, mll_jac_alpha_weight_smear, mll_jac_beta_weight_smear, smear_beta_weight, posPt_smear_beta_val, negPt_smear_beta_val, mll_jac_alpha_weight_reco, mll_jac_beta_weight_reco>
+    std::tuple<int,int,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float> temp, pair_to_return;
     float rest_mass = 0.105658; // muMass = 0.105658 GeV
-    float smear_pt, mean, width, beta=0.995, firstPt_reco, secondPt_reco, mll_reco=0.0, firstPt_gen, secondPt_gen, firstPt_smear_beta_val=0.0, secondPt_smear_beta_val=0.0, smear_beta_weight=0.0, smear_beta_weight_first_term, smear_beta_weight_second_term;
+    float firstPt_reco, secondPt_reco, mll_reco, firstPt_smear, secondPt_smear, mll_smear, firstPt_gen, secondPt_gen, mll_gen, firstPt_smear_beta_val, secondPt_smear_beta_val, smear_beta_weight;
+    float smear_pt, mean, width, beta=0.995, smear_beta_weight_first_term, smear_beta_weight_second_term;
     
     for(int i=1;i<Muon_pt.size();i++){
       if(MuonisGood[i]){
 	for(int j=0;j<i;j++){
 	  if(MuonisGood[j] && Muon_charge[i]*Muon_charge[j]==-1 && abs(Muon_dxy[i]-Muon_dxy[j])<0.1 && abs(Muon_dz[i]-Muon_dz[j])<0.6){
-	    TLorentzVector firstTrack, secondTrack, mother, firstGenTrack, secondGenTrack, motherGen;
+	    TLorentzVector firstTrack, secondTrack, mother, firstGenTrack, secondGenTrack, motherGen, firstSmearTrack, secondSmearTrack, motherSmear;
 	    firstTrack.SetPtEtaPhiM(Muon_pt[i], Muon_eta[i], Muon_phi[i], rest_mass);
 	    secondTrack.SetPtEtaPhiM(Muon_pt[j], Muon_eta[j], Muon_phi[j], rest_mass);
 	    mother = firstTrack + secondTrack;
@@ -82,7 +81,6 @@ int frame(){
 	    firstPt_reco = Muon_pt[i];
 	    secondPt_reco = Muon_pt[j];
 	    
-	    //float mll_reco = r->Gaus(mother.M(), 0.03*mother.M());
 	    if(75.0<mll_reco && mll_reco<105.0){ //Cut in mll
 	      //Gen match
 	      bool firstGenMatched = false, secondGenMatched = false;
@@ -91,35 +89,31 @@ int frame(){
 		  if(pow(pow(GenPart_eta[k]-Muon_eta[i],2) + pow(GenPart_phi[k]-Muon_phi[i],2),0.5)<0.3){
 		    firstGenTrack.SetPtEtaPhiM(GenPart_pt[k], GenPart_eta[k], GenPart_phi[k], rest_mass);
 		    firstPt_gen = GenPart_pt[k];
-		    if(option==1){
-		      mean = GenPart_pt[k]; //beta = 1 
-		      width = (0.004*pow(GenPart_eta[k],2)+0.01)*GenPart_pt[k];
-		      smear_pt = rans[nslot]->Gaus(mean, width);
-		      //Define pt+ (not +, but it doesn't matter, I mean the 1st side) side of the smear_beta_weight 
-		      smear_beta_weight_first_term = TMath::Gaus(smear_pt, mean*beta, width) / TMath::Gaus(smear_pt, mean, width);
-		      //Overwriting reco track
-		      firstTrack.SetPtEtaPhiM(smear_pt, GenPart_eta[k], GenPart_phi[k], rest_mass);
-		      firstPt_reco = smear_pt; //overwriting reco pt as well, for bining purposes
-		      firstPt_smear_beta_val = rans_3[nslot]->Gaus(mean*beta, width);
-		      
-		    }
+		    
+		    //smear 1st muon
+		    mean = GenPart_pt[k]; //beta = 1 
+		    width = (0.004*pow(GenPart_eta[k],2)+0.01)*GenPart_pt[k];
+		    firstPt_smear = rans[nslot]->Gaus(mean, width);
+		    firstSmearTrack.SetPtEtaPhiM(firstPt_smear, GenPart_eta[k], GenPart_phi[k], rest_mass);
+		    //smear_beta_val 
+		    smear_beta_weight_first_term = TMath::Gaus(firstPt_smear, mean*beta, width) / TMath::Gaus(firstPt_smear, mean, width);
+		    firstPt_smear_beta_val = rans_3[nslot]->Gaus(mean*beta, width);
+		    		    
 		    firstGenMatched = true;
 		    if(secondGenMatched == true){break;}
 		  } else if(pow(pow(GenPart_eta[k]-Muon_eta[j],2) + pow(GenPart_phi[k]-Muon_phi[j],2),0.5)<0.3){
 		    secondGenTrack.SetPtEtaPhiM(GenPart_pt[k], GenPart_eta[k], GenPart_phi[k], rest_mass);
 		    secondPt_gen = GenPart_pt[k];
-		    if(option==1){
-		      //width = (0.0084*abs(GenPart_eta[k])+0.01)*GenPart_pt[k];
-                      mean = GenPart_pt[k]; //beta = 1
-		      width = (0.004*pow(GenPart_eta[k],2)+0.01)*GenPart_pt[k];
-		      smear_pt = rans_2[nslot]->Gaus(mean, width); 
-		      //Define pt- (not -, but it doesn't matter, I mean the 2nd side) side of the smear_beta_weight
-		      smear_beta_weight_second_term = TMath::Gaus(smear_pt, mean*beta, width) / TMath::Gaus(smear_pt, mean, width);
-		      //Overwriting reco track
-		      secondTrack.SetPtEtaPhiM(smear_pt, GenPart_eta[k], GenPart_phi[k], rest_mass);
-		      secondPt_reco = smear_pt; //Overwriting reco pt as well, for bining purposes
-		      secondPt_smear_beta_val = rans_4[nslot]->Gaus(mean*beta, width);
-		    }
+		    
+		    //smear 2nd muon
+		    mean = GenPart_pt[k]; //beta = 1
+		    width = (0.004*pow(GenPart_eta[k],2)+0.01)*GenPart_pt[k];
+		    secondPt_smear = rans_2[nslot]->Gaus(mean, width); 
+		    secondSmearTrack.SetPtEtaPhiM(secondPt_smear, GenPart_eta[k], GenPart_phi[k], rest_mass);
+		    //smear_beta_val
+		    smear_beta_weight_second_term = TMath::Gaus(secondPt_smear, mean*beta, width) / TMath::Gaus(secondPt_smear, mean, width);
+		    secondPt_smear_beta_val = rans_4[nslot]->Gaus(mean*beta, width);
+		    
 		    secondGenMatched = true;
 		    if(firstGenMatched == true){break;}
 		  }
@@ -128,24 +122,26 @@ int frame(){
 	      if(firstGenMatched == false || secondGenMatched == false){
 		continue;
 	      }
-	      if(option==1){
-		mother = firstTrack + secondTrack;
-		mll_reco = mother.M();
-		smear_beta_weight = smear_beta_weight_first_term * smear_beta_weight_second_term;
-	      }
-
+	      
+	      motherSmear = firstSmearTrack + secondSmearTrack;
+	      mll_smear = motherSmear.M();
+	      smear_beta_weight = smear_beta_weight_first_term * smear_beta_weight_second_term;
+	      
 	      motherGen = firstGenTrack + secondGenTrack;
 	      float mll_gen = motherGen.M();
-	      //attention
-	      //mll_reco = rans[nslot]->Gaus(motherGen.M(), 0.03*motherGen.M());
-	      float mll_diff = mll_reco - mll_gen;
-	      float mll_jac_alpha_weight = (mll_reco - mll_gen)*(mll_reco - mll_gen);
-	      float mll_jac_beta_weight = (mll_reco - mll_gen)*mll_gen;
+	      float mll_diff_reco = mll_reco - mll_gen;
+	      float mll_diff_smear = mll_smear - mll_gen;
+	      //jacobians for the SMEAR version of the method
+	      float mll_jac_alpha_weight_smear = (mll_smear - mll_gen)*(mll_smear - mll_gen);
+	      float mll_jac_beta_weight_smear = (mll_smear - mll_gen)*mll_gen;
+              //jacobians for the RECO version of the method
+	      float mll_jac_alpha_weight_reco = (mll_reco - mll_gen)*(mll_reco - mll_gen);
+              float mll_jac_beta_weight_reco = (mll_reco - mll_gen)*mll_gen;
 
 	      if(Muon_charge[i]==1){
-		temp=make_tuple(i,j,mll_reco,mll_gen,mll_diff,firstPt_reco,secondPt_reco,firstPt_gen,secondPt_gen,mll_jac_alpha_weight,mll_jac_beta_weight,smear_beta_weight,firstPt_smear_beta_val,secondPt_smear_beta_val);
+		temp=make_tuple(i,j,mll_reco,firstPt_reco,secondPt_reco,mll_diff_reco,mll_smear,firstPt_smear,secondPt_smear,mll_diff_smear,mll_gen,firstPt_gen,secondPt_gen,mll_jac_alpha_weight_smear,mll_jac_beta_weight_smear,smear_beta_weight,firstPt_smear_beta_val,secondPt_smear_beta_val, mll_jac_alpha_weight_reco, mll_jac_beta_weight_reco);
 	      } else {
-		temp=make_tuple(j,i,mll_reco,mll_gen,mll_diff,secondPt_reco,firstPt_reco,secondPt_gen,firstPt_gen,mll_jac_alpha_weight,mll_jac_beta_weight,smear_beta_weight,secondPt_smear_beta_val,firstPt_smear_beta_val);
+		temp=make_tuple(j,i,mll_reco,secondPt_reco,firstPt_reco,mll_diff_reco,mll_smear,secondPt_smear,firstPt_smear,mll_diff_smear,mll_gen,secondPt_gen,firstPt_gen,mll_jac_alpha_weight_smear,mll_jac_beta_weight_smear,smear_beta_weight,secondPt_smear_beta_val,firstPt_smear_beta_val, mll_jac_alpha_weight_reco, mll_jac_beta_weight_reco);
 	      }
 	      pairs.push_back(temp);
 	    }
@@ -167,7 +163,7 @@ int frame(){
       }
       pair_to_return=pairs.at(best);
     } else {
-      pair_to_return=make_tuple(0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
+      pair_to_return=make_tuple(0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
     }
     return pair_to_return;
   };
@@ -175,49 +171,45 @@ int frame(){
   auto d2 = d1.DefineSlot("pairs", pairs, {"Muon_pt", "Muon_charge", "Muon_eta", "Muon_phi", "MuonisGood", "Muon_dxy", "Muon_dz", "GenPart_status", "GenPart_pdgId", "GenPart_genPartIdxMother", "GenPart_pt", "GenPart_eta", "GenPart_phi"});
     
   auto dz = d2.Define("mll_reco","return get<2>(pairs);"); 
-  auto d3 = dz.Filter("mll_reco>70"); // this means only events with one mu pair are kept 
+  auto d3 = dz.Filter("mll_reco>1.0"); // this means only events with one mu pair are kept 
 
   // This below works because actually we kept only one pair per event
   // Accessing properties through the idices of pairs ensures the muons passed MuonisGood
   
-  auto d4 = d3.Define("mll_gen","return get<3>(pairs);")
-    .Define("mll_diff","return get<4>(pairs);")
-    .Define("jac_alpha_weight","return get<9>(pairs)*std::copysign(1.0, genWeight);")
-    .Define("jac_beta_weight","return get<10>(pairs)*std::copysign(1.0, genWeight);")
-    .Define("smear_beta_weight","return get<11>(pairs)*std::copysign(1.0, genWeight);")
+  auto d4 = d3.Define("posTrackPt","return get<3>(pairs);")
+    .Define("negTrackPt","return get<4>(pairs);")
+    .Define("mll_diff_reco","return get<5>(pairs);")
+    .Define("mll_smear","return get<6>(pairs);")
+    .Define("posPtSmear","return get<7>(pairs);")
+    .Define("negPtSmear","return get<8>(pairs);")
+    .Define("mll_diff_smear","return get<9>(pairs);")
+    .Define("mll_gen","return get<10>(pairs);")
+    .Define("posPtGen","return get<11>(pairs);")
+    .Define("negPtGen","return get<12>(pairs);")
+    .Define("jac_alpha_weight_smear","return get<13>(pairs)*std::copysign(1.0, genWeight);")
+    .Define("jac_beta_weight_smear","return get<14>(pairs)*std::copysign(1.0, genWeight);")
+    .Define("smear_beta_weight","return get<15>(pairs)*std::copysign(1.0, genWeight);")
+    .Define("posPtSmearBetaVal","return get<16>(pairs);")
+    .Define("negPtSmearBetaVal","return get<17>(pairs);")
     .Define("weight", "std::copysign(1.0, genWeight)")
-    .Define("posTrackPt","float posTrackPt = get<5>(pairs); return posTrackPt;")
-    .Define("negTrackPt","float negTrackPt = get<6>(pairs); return negTrackPt;")
-    .Define("posPtGen","float posPtGen = get<7>(pairs); return posPtGen;")
-    .Define("negPtGen","float negPtGen = get<8>(pairs); return negPtGen;")
-    .Define("posPtSmearBetaVal","return get<12>(pairs);")
-    .Define("negPtSmearBetaVal","return get<13>(pairs);")
-    .Define("posTrackEta","float posTrackEta; posTrackEta=Muon_eta[get<0>(pairs)]; return posTrackEta;")
-    .Define("negTrackEta","float negTrackEta; negTrackEta=Muon_eta[get<1>(pairs)]; return negTrackEta;");
+    .Define("posTrackEta","return Muon_eta[get<0>(pairs)];")
+    .Define("negTrackEta","return Muon_eta[get<1>(pairs)];");
 
   //Save tree for debugging
   //TFile *f1 = new TFile("snapshot_output.root","RECREATE");
-  //d4.Snapshot("Events", "snapshot_output.root", {"GenPart_status", "GenPart_pdgId", "GenPart_pt", "Muon_pt" ,"mll_reco", "mll_gen", "mll_diff","jac_weight"});
+  //d4.Snapshot("Events", "snapshot_output.root", {"GenPart_status"});
 
-  //Tree to pass to fitting script
-  //TFile *f2 = new TFile("tree_output.root","RECREATE");
-  //d4.Snapshot("Events", "tree_output.root",{"posTrackPt", "posTrackEta", "negTrackPt", "negTrackEta", "mll_reco", "mll_gen", "mll_diff", "weight"});
-  
-  
   //Control histograms
-  auto mll_reco = d4.Histo1D({"mll_smear", "mll inclusive all bins", 20, 75.0, 105.0},"mll_reco","weight"); //ATTENTION change title reco/smear according to option
-  auto mll_reco_beta_val = d4.Histo1D({"mll_smear_beta_val", "mll inclusive all bins", 20, 75.0, 105.0},"mll_reco","smear_beta_weight");
-  //auto mll_diff_hist = d4.Histo1D({"mll_diff", "mll diff inclusive all bins", 24, -5.0, 5.0},"mll_diff");
-  auto pt_smear = d4.Histo1D({"pt_smear", "pt smear beta = 1", 15, 25.0, 55.0},"posTrackPt","weight");
-  auto pt_smear_beta_val = d4.Histo1D({"pt_smear_beta_val", "pt smear beta = 0.95", 15, 25.0, 55.0},"posTrackPt","smear_beta_weight");
+  auto mll_smear = d4.Histo1D({"mll_smear", "mll inclusive all bins", 20, 75.0, 105.0},"mll_smear","weight"); 
+  auto mll_smear_beta_val = d4.Histo1D({"mll_smear_beta_val", "mll inclusive all bins", 20, 75.0, 105.0},"mll_smear","smear_beta_weight");
+  auto pt_smear = d4.Histo1D({"pt_smear", "pt smear beta = 1", 15, 25.0, 55.0},"posPtSmear","weight");
+  auto pt_smear_beta_val = d4.Histo1D({"pt_smear_beta_val", "pt smear beta = 0.95", 15, 25.0, 55.0},"posPtSmear","smear_beta_weight");
   TFile f3("control_histo.root","recreate");
-  mll_reco->Write();
-  mll_reco_beta_val->Write();
-  //mll_diff_hist->Write();
+  mll_smear->Write();
+  mll_smear_beta_val->Write();
   pt_smear->Write();
   pt_smear_beta_val->Write();
   f3.Close();
-  
   
   double ptlow=25.0, pthigh=55.0;
   int nbinsmll_diff=8, nbinsmll=8, nbinseta=24, nbinspt=5;
@@ -260,43 +252,43 @@ int frame(){
 
   auto pt_eta_pos = d4.Histo2D({"pt_eta_pos", "pt eta mu+", nbinseta, myetaboundaries, nbinspt, myptboundaries},"posTrackEta", "posTrackPt");
   f4->WriteObject(pt_eta_pos.GetPtr(), "pt_eta_pos");
-    
+  
+  int option = 1; //ATTENTION, 1 saves SMEAR plots (eventually can save both reco and smear plots and give up this option thing)  
   if (option==1){
     std::unique_ptr<TFile> f6( TFile::Open("multiD_histo_smear.root", "RECREATE") );
-    //ATTENTION do not change variable name mll_reco, it's used for both reco and smear depending on option
-    auto mDh_smear = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_smear", "multi_data_histo_smear", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_reco","weight"});
+    // mll_smear
+    auto mDh_smear = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_smear", "multi_data_histo_smear", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_smear","weight"});
     f6->WriteObject(mDh_smear.GetPtr(), "multi_data_histo_smear");
 
-    //one more 5D weighted histogram where the weight is the jac weight
-    //ATTENTION do not change variable name jac_alpha_weight, it's used for both reco and smear depending on option
-    auto mDh_diff_squared_smear = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_squared_smear", "multi_data_histo_diff_squared_smear", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_reco","jac_alpha_weight"});
-    f6->WriteObject(mDh_diff_squared_smear.GetPtr(), "multi_data_histo_diff_squared_smear");
-
-    //ATTENTION do not change variable name jac_alpha_weight, it's used for both reco and smear depending on option
-    auto mDh_diff_squared_smear_control = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_squared_smear_control", "multi_data_histo_diff_squared_smear_control", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff","jac_alpha_weight"});
-    f6->WriteObject(mDh_diff_squared_smear_control.GetPtr(), "multi_data_histo_diff_squared_smear_control");
-
-    //ATTENTION do not change variable name jac_beta_weight, it's used for both reco and smear depending on option
-    auto mDh_jac_beta_smear = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_beta_smear", "multi_data_histo_jac_beta_smear", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_reco","jac_beta_weight"});
-    f6->WriteObject(mDh_jac_beta_smear.GetPtr(), "multi_data_histo_jac_beta_smear");
-
-    //ATTENTION do not change variable name jac_beta_weight, it's used for both reco and smear depending on option
-    auto mDh_jac_beta_smear_control = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_beta_smear_control", "multi_data_histo_jac_beta_smear_control", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff","jac_beta_weight"});
-    f6->WriteObject(mDh_jac_beta_smear_control.GetPtr(), "multi_data_histo_jac_beta_smear_control");
-
-    //ATTENTION do not change variable name jac_beta_weight, it's used for both reco and smear depending on option
-    auto mDh_smear_beta_val = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_smear_beta_val", "multi_data_histo_smear_beta_val", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmearBetaVal","negTrackEta","negPtSmearBetaVal","mll_reco","smear_beta_weight"});
-    f6->WriteObject(mDh_smear_beta_val.GetPtr(), "multi_data_histo_smear_beta_val");
-
-    //ATTENTION do not change variable name mll_diff, it's used for both reco and smear depending on option
-    auto mDh_diff_smear = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_smear", "multi_data_histo_diff_smear", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff","weight"});
+    // mll_diff_smear
+    auto mDh_diff_smear = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_smear", "multi_data_histo_diff_smear", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_diff_smear","weight"});
     f6->WriteObject(mDh_diff_smear.GetPtr(), "multi_data_histo_diff_smear");
 
-    //ATTENTION do not change variable name mll_diff, it's used for both reco and smear depending on option
-    auto mDh_diff_smear_beta_val = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_smear_beta_val", "multi_data_histo_diff_smear_beta_val", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posPtSmearBetaVal","negTrackEta","negPtSmearBetaVal","mll_diff","smear_beta_weight"});
+    // mll_smear weighted by jac_alpha_weight_smear
+    auto mDh_diff_squared_smear = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_squared_smear", "multi_data_histo_diff_squared_smear", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_smear","jac_alpha_weight_smear"});
+    f6->WriteObject(mDh_diff_squared_smear.GetPtr(), "multi_data_histo_diff_squared_smear");
+
+    // mll_diff_smear weighted by jac_alpha_weight_smear
+    auto mDh_diff_squared_smear_control = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_squared_smear_control", "multi_data_histo_diff_squared_smear_control", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_diff_smear","jac_alpha_weight_smear"});
+    f6->WriteObject(mDh_diff_squared_smear_control.GetPtr(), "multi_data_histo_diff_squared_smear_control");
+
+    // mll_smear weighted by jac_beta_weight_smear
+    auto mDh_jac_beta_smear = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_beta_smear", "multi_data_histo_jac_beta_smear", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_smear","jac_beta_weight_smear"});
+    f6->WriteObject(mDh_jac_beta_smear.GetPtr(), "multi_data_histo_jac_beta_smear");
+
+    // mll_diff_smear weighted by jac_beta_weight_smear
+    auto mDh_jac_beta_smear_control = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_beta_smear_control", "multi_data_histo_jac_beta_smear_control", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_diff_smear","jac_beta_weight_smear"});
+    f6->WriteObject(mDh_jac_beta_smear_control.GetPtr(), "multi_data_histo_jac_beta_smear_control");
+
+    // mll_smear weighted by smear_beta_weight
+    auto mDh_smear_beta_val = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_smear_beta_val", "multi_data_histo_smear_beta_val", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmearBetaVal","negTrackEta","negPtSmearBetaVal","mll_smear","smear_beta_weight"});
+    f6->WriteObject(mDh_smear_beta_val.GetPtr(), "multi_data_histo_smear_beta_val");
+
+    // mll_diff_smear weighted by smear_beta_weight
+    auto mDh_diff_smear_beta_val = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_smear_beta_val", "multi_data_histo_diff_smear_beta_val", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posPtSmearBetaVal","negTrackEta","negPtSmearBetaVal","mll_diff_smear","smear_beta_weight"});
     f6->WriteObject(mDh_diff_smear_beta_val.GetPtr(), "multi_data_histo_diff_smear_beta_val");
  
-  } else { // option==0 case
+  } else { // option==0 saves RECO plots
     std::unique_ptr<TFile> f5( TFile::Open("multiD_histo_reco.root", "RECREATE") );
 
     auto mDh_reco = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_reco", "multi_data_histo_reco", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_reco","weight"});
@@ -305,7 +297,7 @@ int frame(){
     auto mDh_gen = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_gen", "multi_data_histo_gen", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges,ptbinranges, mllbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_gen","weight"});
     f5->WriteObject(mDh_gen.GetPtr(), "multi_data_histo_gen");
 
-    auto mDh_diff_reco = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_reco", "multi_data_histo_diff_reco", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff","weight"});
+    auto mDh_diff_reco = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_reco", "multi_data_histo_diff_reco", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff_reco","weight"});
     f5->WriteObject(mDh_diff_reco.GetPtr(), "multi_data_histo_diff_reco");
   }
   
