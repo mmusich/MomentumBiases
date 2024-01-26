@@ -253,6 +253,13 @@ int frame(){
   auto pt_eta_pos = d4.Histo2D({"pt_eta_pos", "pt eta mu+", nbinseta, myetaboundaries, nbinspt, myptboundaries},"posTrackEta", "posTrackPt");
   f4->WriteObject(pt_eta_pos.GetPtr(), "pt_eta_pos");
   
+  /*
+  std::unique_ptr<TFile> f7( TFile::Open("multiD_histo_smear_beta_val_easy.root", "RECREATE") );
+  // mll_diff_smear_beta_val_easy
+  auto mDh_diff_smear_beta_val_easy = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_smear_beta_val_easy", "multi_data_histo_diff_smear_beta_val_easy", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_diff_smear","weight"});
+  f7->WriteObject(mDh_diff_smear_beta_val_easy.GetPtr(), "multi_data_histo_diff_smear_beta_val_easy");
+  */
+  
   int option = 1; //ATTENTION, 1 saves SMEAR plots (eventually can save both reco and smear plots and give up this option thing)  
   if (option==1){
     std::unique_ptr<TFile> f6( TFile::Open("multiD_histo_smear.root", "RECREATE") );
