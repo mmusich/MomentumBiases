@@ -67,7 +67,7 @@ int frame(){
     std::tuple<int,int,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float> temp, pair_to_return;
     float rest_mass = 0.105658; // muMass = 0.105658 GeV
     float firstPt_reco, secondPt_reco, mll_reco, firstPt_smear, secondPt_smear, mll_smear, firstPt_gen, secondPt_gen, mll_gen, firstPt_smear_beta_val, secondPt_smear_beta_val, smear_beta_weight;
-    float smear_pt, mean, width, beta=0.995, smear_beta_weight_first_term, smear_beta_weight_second_term;
+    float smear_pt, mean, width, beta=-0.15, smear_beta_weight_first_term, smear_beta_weight_second_term;
     
     for(int i=1;i<Muon_pt.size();i++){
       if(MuonisGood[i]){
@@ -95,9 +95,10 @@ int frame(){
 		    width = (0.004*pow(GenPart_eta[k],2)+0.01)*GenPart_pt[k];
 		    firstPt_smear = rans[nslot]->Gaus(mean, width);
 		    firstSmearTrack.SetPtEtaPhiM(firstPt_smear, GenPart_eta[k], GenPart_phi[k], rest_mass);
-		    //smear_beta_val 
-		    smear_beta_weight_first_term = TMath::Gaus(firstPt_smear, mean*beta, width) / TMath::Gaus(firstPt_smear, mean, width);
-		    firstPt_smear_beta_val = rans_3[nslot]->Gaus(mean*beta, width);
+		    //smear_beta_val, weight for beta!=1
+		    // ATTENTION changing beta from multiplicative to additive
+		    smear_beta_weight_first_term = TMath::Gaus(firstPt_smear, mean+beta, width) / TMath::Gaus(firstPt_smear, mean, width);
+		    firstPt_smear_beta_val = rans_3[nslot]->Gaus(mean+beta, width);
 		    		    
 		    firstGenMatched = true;
 		    if(secondGenMatched == true){break;}
@@ -108,11 +109,12 @@ int frame(){
 		    //smear 2nd muon
 		    mean = GenPart_pt[k]; //beta = 1
 		    width = (0.004*pow(GenPart_eta[k],2)+0.01)*GenPart_pt[k];
-		    secondPt_smear = rans_2[nslot]->Gaus(mean, width); 
+		    secondPt_smear = rans_2[nslot]->Gaus(mean, width);
 		    secondSmearTrack.SetPtEtaPhiM(secondPt_smear, GenPart_eta[k], GenPart_phi[k], rest_mass);
-		    //smear_beta_val
-		    smear_beta_weight_second_term = TMath::Gaus(secondPt_smear, mean*beta, width) / TMath::Gaus(secondPt_smear, mean, width);
-		    secondPt_smear_beta_val = rans_4[nslot]->Gaus(mean*beta, width);
+		    //smear_beta_val, weight for beta!=1
+		    // ATTENTION changing beta from multiplicative to additive
+		    smear_beta_weight_second_term = TMath::Gaus(secondPt_smear, mean+beta, width) / TMath::Gaus(secondPt_smear, mean, width); 
+		    secondPt_smear_beta_val = rans_4[nslot]->Gaus(mean+beta, width);
 		    
 		    secondGenMatched = true;
 		    if(firstGenMatched == true){break;}
@@ -256,15 +258,15 @@ int frame(){
   
   /*
   std::unique_ptr<TFile> f7( TFile::Open("multiD_histo_smear_beta_val_easy.root", "RECREATE") );
-  // mll_diff_smear_beta_val_easy
+  // mll_diff_smear_beta_val_easy 
   auto mDh_diff_smear_beta_val_easy = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_smear_beta_val_easy", "multi_data_histo_diff_smear_beta_val_easy", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_diff_smear","weight"});
   f7->WriteObject(mDh_diff_smear_beta_val_easy.GetPtr(), "multi_data_histo_diff_smear_beta_val_easy");
-  */
   
+  */
   int option = 1; //ATTENTION, 1 saves SMEAR plots (eventually can save both reco and smear plots and give up this option thing)  
   if (option==1){
-    std::unique_ptr<TFile> f6( TFile::Open("multiD_histo_smear.root", "UPDATE") ); //RECREATE
-    /*
+    std::unique_ptr<TFile> f6( TFile::Open("multiD_histo_smear.root", "RECREATE") );
+    
     // mll_smear
     auto mDh_smear = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_smear", "multi_data_histo_smear", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_smear","weight"});
     f6->WriteObject(mDh_smear.GetPtr(), "multi_data_histo_smear");
@@ -290,16 +292,16 @@ int frame(){
     f6->WriteObject(mDh_jac_beta_smear_control.GetPtr(), "multi_data_histo_jac_beta_smear_control");
 
     // mll_smear weighted by smear_beta_weight
-    auto mDh_smear_beta_val = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_smear_beta_val", "multi_data_histo_smear_beta_val", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmearBetaVal","negTrackEta","negPtSmearBetaVal","mll_smear","smear_beta_weight"});
+    auto mDh_smear_beta_val = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_smear_beta_val", "multi_data_histo_smear_beta_val", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_smear","smear_beta_weight"});
     f6->WriteObject(mDh_smear_beta_val.GetPtr(), "multi_data_histo_smear_beta_val");
 
     // mll_diff_smear weighted by smear_beta_weight
-    auto mDh_diff_smear_beta_val = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_smear_beta_val", "multi_data_histo_diff_smear_beta_val", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posPtSmearBetaVal","negTrackEta","negPtSmearBetaVal","mll_diff_smear","smear_beta_weight"});
+    auto mDh_diff_smear_beta_val = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_smear_beta_val", "multi_data_histo_diff_smear_beta_val", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_diff_smear","smear_beta_weight"});
     f6->WriteObject(mDh_diff_smear_beta_val.GetPtr(), "multi_data_histo_diff_smear_beta_val");
-    */
+    
     // mll_diff_smear weighted by jacobian_beta_weight_smear_mll_diff
-    auto mDh_jac_beta_weight_smear_mll_diff = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_beta_weight_smear_mll_diff", "multi_data_histo_jac_beta_weight_smear_mll_diff", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_diff_smear","jacobian_beta_weight_smear_mll_diff"});
-    f6->WriteObject(mDh_jac_beta_weight_smear_mll_diff.GetPtr(), "multi_data_histo_jac_beta_weight_smear_mll_diff");
+    auto mDh_jac_beta_smear_mll_diff = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_beta_smear_mll_diff", "multi_data_histo_jac_beta_smear_mll_diff", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_diff_smear","jacobian_beta_weight_smear_mll_diff"});
+    f6->WriteObject(mDh_jac_beta_smear_mll_diff.GetPtr(), "multi_data_histo_jac_beta_smear_mll_diff");
 
   } else { // option==0 saves RECO plots
     std::unique_ptr<TFile> f5( TFile::Open("multiD_histo_reco.root", "RECREATE") );
@@ -313,7 +315,7 @@ int frame(){
     auto mDh_diff_reco = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_reco", "multi_data_histo_diff_reco", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff_reco","weight"});
     f5->WriteObject(mDh_diff_reco.GetPtr(), "multi_data_histo_diff_reco");
   }
-  
+  */
   return 0;
 
 }

@@ -104,7 +104,7 @@ int frame(){
   std::unique_ptr<THnD> mDh_diff_squared_smear(myFile2->Get<THnD>("multi_data_histo_diff_squared_smear")); // it's smeared - gen  
   std::unique_ptr<THnD> mDh_diff_squared_smear_control(myFile2->Get<THnD>("multi_data_histo_diff_squared_smear_control")); // it's smeared - gen
   std::unique_ptr<THnD> mDh_jac_beta_smear(myFile2->Get<THnD>("multi_data_histo_jac_beta_smear")); 
-  std::unique_ptr<THnD> mDh_jac_beta_smear_mll_diff(myFile2->Get<THnD>("multi_data_histo_jac_beta_weight_smear_mll_diff"));
+  std::unique_ptr<THnD> mDh_jac_beta_smear_mll_diff(myFile2->Get<THnD>("multi_data_histo_jac_beta_smear_mll_diff"));
 
   //smear easy way
   std::unique_ptr<TFile> myFile3( TFile::Open("multiD_histo_smear_beta_val_easy.root") );
@@ -196,7 +196,7 @@ int frame(){
   beta_control->SetMarkerStyle(kPlus);
   beta_control->SetMarkerColor(kBlue);
   beta_control->GetXaxis()->SetTitle("Bin number");
-  beta_control->GetYaxis()->SetTitle("beta from mll diff");
+  beta_control->GetYaxis()->SetTitle("epsilon from mll diff");
 
   TH1D *nu = new TH1D("nu", "nu", 3, 0, 3);
   nu->SetCanExtend(TH1::kAllAxes);
@@ -419,10 +419,10 @@ int frame(){
 	      leg1->SetHeader(leg_entry.c_str(),"C");
               
 	      //leg1->AddEntry(multi_hist_proj_diff_reco, "reco-gen", "l");
-	      leg1->AddEntry(multi_hist_proj_diff_smear, "smeared-gen, #beta=1", "l");
-	      leg1->AddEntry(multi_hist_proj_diff_smear_beta_val, "smeared-gen, #beta=0.995,by weight", "l");
-	      leg1->AddEntry(multi_hist_proj_diff_smear_beta_val_easy, "smeared-gen, #beta=0.995,by sampling", "l");
-	      leg_entry = "#beta=1: #mu=" + to_string(mean_mc).substr(0, 5) + ", #sigma=" + to_string(sigma_mc).substr(0, 5);
+	      leg1->AddEntry(multi_hist_proj_diff_smear, "smeared-gen, #varepsilon=0", "l");
+	      leg1->AddEntry(multi_hist_proj_diff_smear_beta_val, "smeared-gen, #varepsilon=-0.15,by weight", "l");
+	      leg1->AddEntry(multi_hist_proj_diff_smear_beta_val_easy, "smeared-gen, #varepsilon=-0.15,by sampling", "l");
+	      leg_entry = "#varepsilon=0: #mu=" + to_string(mean_mc).substr(0, 5) + ", #sigma=" + to_string(sigma_mc).substr(0, 5);
 	      leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
 	      //leg1->Draw("");
 	      
@@ -631,9 +631,9 @@ int frame(){
                 evts_in_bin = multi_hist_proj_diff_smear->GetBinContent(i);
                 
                 if ( find(good_indices_mll_diff.begin(), good_indices_mll_diff.end(), i) != good_indices_mll_diff.end() ){
-                  value_beta = mean_mc / pow(sigma_mc,2) * (jac_b_weight / evts_in_bin - mean_mc); 
-                  error_beta = 1; //ATTENTION fill this
-                  J_beta_control(position_to_fill,1) = value_beta;
+                  value_beta = ( jac_b_weight/evts_in_bin - mean_mc ) / pow(sigma_mc,2);  
+		  error_beta = pow( pow(error_mean_mc,2) + 4*pow(jac_b_weight/evts_in_bin - mean_mc,2)*pow(error_sigma_mc,2)/pow(sigma_mc,2) + pow(error_jac_b_weight,2)/pow(evts_in_bin,2), 0.5) / pow(sigma_mc,2);
+		  J_beta_control(position_to_fill,1) = value_beta;
 		  
 		  jac_beta_control->SetBinContent(i, value_beta);
 		  jac_beta_control->SetBinError(i, error_beta);
@@ -681,12 +681,12 @@ int frame(){
 	      ////////////////// solve for beta //////////////////
 	      Eigen::MatrixXd A_beta_control = V_inv_sqrt_control*J_beta_control;
 	      Eigen::MatrixXd b_control = V_inv_sqrt_control*h_smear_diff_minus_smear_diff_vector;
-	      //!!!!!!!!!!! Attention beta_vector contains beta-1, not beta !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	      // for beta_vector_control, we actually need just beta, instead of beta-1 
 	      Eigen::VectorXd beta_vector_control = A_beta_control.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b_control);
               ////////////////// error on beta //////////////////
 	      Eigen::MatrixXd V_beta_control = (J_beta_control.col(1).transpose()*(V_inv_sqrt_control*V_inv_sqrt_control)*J_beta_control.col(1)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
 	      Eigen::MatrixXd V_nu_control = (J_beta_control.col(0).transpose()*(V_inv_sqrt_control*V_inv_sqrt_control)*J_beta_control.col(0)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
-	      beta_control->SetBinError(beta_control->Fill(name.c_str(), beta_vector_control(1)+1), pow(V_beta_control(0,0),0.5)); //write beta
+	      beta_control->SetBinError(beta_control->Fill(name.c_str(), beta_vector_control(1)), pow(V_beta_control(0,0),0.5)); //write beta, no need to subtract one
 	      nu_control->SetBinError(nu_control->Fill(name.c_str(), beta_vector_control(0)+1), pow(V_nu_control(0,0),0.5));
 
 	      //////////////// Finish drawing mll ////////////////////////////////
@@ -699,7 +699,7 @@ int frame(){
 
               c1->cd();
 	      c1->cd(1);
-	      leg_entry = "Fit #beta=" + to_string(beta_vector_control(1)+1).substr(0, 6) + "#pm" + to_string(pow(V_beta_control(0,0),0.5)).substr(0, 6);
+	      leg_entry = "Fit #varepsilon=" + to_string(beta_vector_control(1)).substr(0, 6) + "#pm" + to_string(pow(V_beta_control(0,0),0.5)).substr(0, 6); //write beta, no need to subtract one
 	      leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
 	      leg_entry = "Fit #nu=" + to_string(beta_vector_control(0)+1).substr(0, 6) + "#pm" + to_string(pow(V_nu_control(0,0),0.5)).substr(0, 6);
 	      leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
