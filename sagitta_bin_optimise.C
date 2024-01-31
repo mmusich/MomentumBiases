@@ -125,7 +125,7 @@ int frame(){
 
   /////////////// Prepare variables, histograms //////////////////////////////////////////////////
   double total_nevents=0.0, nevents=0.0, all_histos_count=0.0, remaining_nevents=0.0, empty_histos_count=0.0, hfrac=-1.0, efrac=-1.0;
-  double max_hist_mll_diff, max_hist_mll, value, error, value_beta, error_beta, diff_squared, jac_b_weight, evts_in_bin, mean_mc, error_mean_mc, sigma_mc=0.0, error_sigma_mc, error_diff_squared, error_jac_b_weight, normalisation_smear, normalisation_smear_beta_val, fit_beta_error;
+  double max_hist_mll_diff, max_hist_mll, value, error, value_beta, error_beta, diff_squared, jac_b_weight, evts_in_bin, mean_mc, error_mean_mc, sigma_mc=0.0, error_sigma_mc, error_diff_squared, error_jac_b_weight, normalisation_smear, normalisation_smear_beta_val, fit_beta_error, value_corrected, mean_diff_smear_beta_val, error_mean_diff_smear_beta_val, mean_corrected_diff_smear, error_mean_corrected_diff_smear;
   int filled_bins_mll, position_to_fill, filled_bins_mll_diff;
   string name, leg_entry;
 
@@ -191,12 +191,16 @@ int frame(){
   beta->GetXaxis()->SetTitle("Bin number");
   beta->GetYaxis()->SetTitle("beta");
 
-  TH1D *beta_control = new TH1D("beta_control", "beta_control", 3, 0, 3);
+  TH1D *beta_control = new TH1D("beta_control", "mll_diff shifted - mll_diff corrected", 3, 0, 3);
   beta_control->SetCanExtend(TH1::kAllAxes);
   beta_control->SetMarkerStyle(kPlus);
   beta_control->SetMarkerColor(kBlue);
   beta_control->GetXaxis()->SetTitle("Bin number");
-  beta_control->GetYaxis()->SetTitle("epsilon from mll diff");
+  beta_control->GetYaxis()->SetTitle(" ");
+
+  TH1D *pull_beta_control = new TH1D("pull_beta_control", "Pull epsilon mll_diff", 12, -6.0, 6.0);
+  pull_beta_control->GetXaxis()->SetTitle("Pull");
+  pull_beta_control->GetYaxis()->SetTitle("Events");
 
   TH1D *nu = new TH1D("nu", "nu", 3, 0, 3);
   nu->SetCanExtend(TH1::kAllAxes);
@@ -386,6 +390,10 @@ int frame(){
               multi_hist_proj_diff_smear_beta_val->GetYaxis()->SetTitle("Events");
 	      //multi_hist_proj_diff_smear_beta_val->Scale( 1.0 / multi_hist_proj_diff_smear_beta_val->Integral(1,nbinsmll_diff) ); //normalise to unity
 	      fitresult = fitHisto(multi_hist_proj_diff_smear_beta_val, 1, 5);
+	      // save these below for beta_control histogram 
+	      mean_diff_smear_beta_val = fitresult[0]; 
+	      error_mean_diff_smear_beta_val = fitresult[2];
+
 	      multi_hist_proj_diff_smear_beta_val->SetLineColor(kYellow);
 	      if(max_hist_mll_diff < multi_hist_proj_diff_smear_beta_val->GetBinContent(multi_hist_proj_diff_smear_beta_val->GetMaximumBin())){
                 max_hist_mll_diff = multi_hist_proj_diff_smear_beta_val->GetBinContent(multi_hist_proj_diff_smear_beta_val->GetMaximumBin());
@@ -411,7 +419,7 @@ int frame(){
 	      multi_hist_proj_diff_smear->SetTitle(("mll diff " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
 	      multi_hist_proj_diff_smear->Draw();
 	      multi_hist_proj_diff_smear_beta_val->Draw("SAME");
-	      multi_hist_proj_diff_smear_beta_val_easy->Draw("SAME");
+	      //multi_hist_proj_diff_smear_beta_val_easy->Draw("SAME");
 	      //multi_hist_proj_diff_reco->Draw("SAME");
 
 	      leg1->Clear();
@@ -421,7 +429,7 @@ int frame(){
 	      //leg1->AddEntry(multi_hist_proj_diff_reco, "reco-gen", "l");
 	      leg1->AddEntry(multi_hist_proj_diff_smear, "smeared-gen, #varepsilon=0", "l");
 	      leg1->AddEntry(multi_hist_proj_diff_smear_beta_val, "smeared-gen, #varepsilon=-0.15,by weight", "l");
-	      leg1->AddEntry(multi_hist_proj_diff_smear_beta_val_easy, "smeared-gen, #varepsilon=-0.15,by sampling", "l");
+	      //leg1->AddEntry(multi_hist_proj_diff_smear_beta_val_easy, "smeared-gen, #varepsilon=-0.15,by sampling", "l");
 	      leg_entry = "#varepsilon=0: #mu=" + to_string(mean_mc).substr(0, 5) + ", #sigma=" + to_string(sigma_mc).substr(0, 5);
 	      leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
 	      //leg1->Draw("");
@@ -502,7 +510,7 @@ int frame(){
 	      filled_bins_mll_diff=0;
 	      vector<int> good_indices_mll_diff;
 	      for(int i=1; i<=nbinsmll_diff; i++){
-		if( multi_hist_proj_diff_smear->GetBinContent(i) >= 10 ){ //asking jacobian to be average over at least 10 events
+		if( multi_hist_proj_diff_smear->GetBinContent(i) >= 10 && multi_hist_proj_diff_smear_beta_val->GetBinContent(i) > 0 ){ //asking jacobian to be average over at least 10 events
 		  good_indices_mll_diff.push_back(i);
 		  filled_bins_mll_diff++;
 		}
@@ -631,8 +639,10 @@ int frame(){
                 evts_in_bin = multi_hist_proj_diff_smear->GetBinContent(i);
                 
                 if ( find(good_indices_mll_diff.begin(), good_indices_mll_diff.end(), i) != good_indices_mll_diff.end() ){
-                  value_beta = ( jac_b_weight/evts_in_bin - mean_mc ) / pow(sigma_mc,2);  
-		  error_beta = pow( pow(error_mean_mc,2) + 4*pow(jac_b_weight/evts_in_bin - mean_mc,2)*pow(error_sigma_mc,2)/pow(sigma_mc,2) + pow(error_jac_b_weight,2)/pow(evts_in_bin,2), 0.5) / pow(sigma_mc,2);
+                  //value_beta = ( jac_b_weight/evts_in_bin - mean_mc ) / pow(sigma_mc,2);  
+		  value_beta = ( jac_b_weight - evts_in_bin*mean_mc ) / pow(sigma_mc,2);
+		  //error_beta = pow( pow(error_mean_mc,2) + 4*pow(jac_b_weight/evts_in_bin - mean_mc,2)*pow(error_sigma_mc,2)/pow(sigma_mc,2) + pow(error_jac_b_weight,2)/pow(evts_in_bin,2), 0.5) / pow(sigma_mc,2);
+		  error_beta = pow( pow(evts_in_bin*error_mean_mc,2) + 4*pow(jac_b_weight - evts_in_bin*mean_mc,2)*pow(error_sigma_mc,2)/pow(sigma_mc,2) + pow(error_jac_b_weight,2), 0.5) / pow(sigma_mc,2);
 		  J_beta_control(position_to_fill,1) = value_beta;
 		  
 		  jac_beta_control->SetBinContent(i, value_beta);
@@ -686,8 +696,7 @@ int frame(){
               ////////////////// error on beta //////////////////
 	      Eigen::MatrixXd V_beta_control = (J_beta_control.col(1).transpose()*(V_inv_sqrt_control*V_inv_sqrt_control)*J_beta_control.col(1)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
 	      Eigen::MatrixXd V_nu_control = (J_beta_control.col(0).transpose()*(V_inv_sqrt_control*V_inv_sqrt_control)*J_beta_control.col(0)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
-	      beta_control->SetBinError(beta_control->Fill(name.c_str(), beta_vector_control(1)), pow(V_beta_control(0,0),0.5)); //write beta, no need to subtract one
-	      nu_control->SetBinError(nu_control->Fill(name.c_str(), beta_vector_control(0)+1), pow(V_nu_control(0,0),0.5));
+	      nu_control->SetBinError(nu_control->Fill(name.c_str(), beta_vector_control(0)+1), pow(V_nu_control(0,0),0.5)); 
 
 	      //////////////// Finish drawing mll ////////////////////////////////
 	      leg_entry = "Fit #beta=" + to_string(beta_vector(1)+1).substr(0, 6) + "#pm" + to_string(fit_beta_error).substr(0, 6); 
@@ -699,14 +708,48 @@ int frame(){
 
               c1->cd();
 	      c1->cd(1);
-	      leg_entry = "Fit #varepsilon=" + to_string(beta_vector_control(1)).substr(0, 6) + "#pm" + to_string(pow(V_beta_control(0,0),0.5)).substr(0, 6); //write beta, no need to subtract one
+	      leg_entry = "Fit #varepsilon=" + to_string(beta_vector_control(1)).substr(0, 6) + "#pm" + to_string(pow(V_beta_control(0,0),0.5)).substr(0, 6); //write beta, no need to add one
 	      leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
-	      leg_entry = "Fit #nu=" + to_string(beta_vector_control(0)+1).substr(0, 6) + "#pm" + to_string(pow(V_nu_control(0,0),0.5)).substr(0, 6);
+	      leg_entry = "Fit #nu=" + to_string(beta_vector_control(0)+1).substr(0, 6) + "#pm" + to_string(pow(V_nu_control(0,0),0.5)).substr(0, 6); 
 	      leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
-	      leg1->Draw("");
+	      
+	      // apply fitted epsilon and nu correction
+	      delete gROOT->FindObject("corrected_diff_smear");
+	      TH1D *corrected_diff_smear = new TH1D("corrected_diff_smear", "corrected_diff_smear", nbinsmll_diff, -5.0, 5.0);
+	      corrected_diff_smear->SetTitle(("mll diff " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
+	      corrected_diff_smear->GetXaxis()->SetTitle("mll_diff [GeV]");
+              corrected_diff_smear->GetYaxis()->SetTitle("Events");
+	      
+	      position_to_fill = 0;
+              for(int i=1; i<=nbinsmll_diff; i++){
+		if ( find(good_indices_mll_diff.begin(), good_indices_mll_diff.end(), i) != good_indices_mll_diff.end() ){
+		  value_corrected = multi_hist_proj_diff_smear->GetBinContent(i) + beta_vector_control(1)*J_beta_control(position_to_fill,1) + beta_vector_control(0)*J_beta_control(position_to_fill,0);
+		  error = pow( pow(J_beta_control(position_to_fill,1),2)*V_beta_control(0,0) + pow(beta_vector_control(1)*jac_beta_control->GetBinErrorLow(i),2) + pow(multi_hist_proj_diff_smear->GetBinContent(i),2)*V_nu_control(0,0) , 0.5);
+		  corrected_diff_smear->SetBinContent(i, value_corrected);
+		  corrected_diff_smear->SetBinError(i, error);
 
+		  position_to_fill++;
+		}
+	      }
+	      if (position_to_fill != filled_bins_mll_diff){ std::cout<<"problem counting vector size \n"; }
+	      
+	      //draw it, add to leg
+	      fitresult = fitHisto(corrected_diff_smear, 1, 1);
+	      // save for beta_control
+	      mean_corrected_diff_smear = fitresult[0];
+	      error_mean_corrected_diff_smear = fitresult[2];
+              corrected_diff_smear->SetLineColor(kBlack);
+	      corrected_diff_smear->Draw("SAME");
+
+	      leg1->AddEntry(corrected_diff_smear, "corrected smeared-gen, #varepsilon from 0 to -0.15", "l");
+	      leg1->Draw("");
+	      
 	      c1->cd();
               f2->WriteObject(c1, name.c_str());
+
+	      beta_control->SetBinError(beta_control->Fill(name.c_str(), mean_diff_smear_beta_val - mean_corrected_diff_smear), pow( pow(error_mean_diff_smear_beta_val,2) + pow(error_mean_corrected_diff_smear,2) ,0.5) );
+	      pull_beta_control->Fill( (mean_diff_smear_beta_val - mean_mc - beta_vector_control(1)) / pow(V_beta_control(0,0),0.5) );
+
 	    }
 	  }
 	  
@@ -747,6 +790,10 @@ int frame(){
   std::cout<<"beta control: \n";
   beta_control->Fit("pol0");
   f1->WriteObject(beta_control, "beta_control");
+
+  fitresult = fitHisto(pull_beta_control, 1, 1);
+  std::cout<<"Pull epsilon control distribution fitted mean: "<<fitresult[0]<<" +/- "<<fitresult[2]<<" and sigma "<<fitresult[1]<<" +/- "<<fitresult[3]<<"\n";
+  f1->WriteObject(pull_beta_control, "pull_beta_control");
 
   f1->WriteObject(nu, "nu");
   f1->WriteObject(nu_control, "nu_control");
