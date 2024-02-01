@@ -190,6 +190,7 @@ int frame(){
     .Define("posPtGen","return get<11>(pairs);")
     .Define("negPtGen","return get<12>(pairs);")
     .Define("jac_alpha_weight_smear","return get<13>(pairs)*std::copysign(1.0, genWeight);")
+    .Define("jac_alpha_weight_smear2","return get<9>(pairs)*std::copysign(1.0, genWeight);")
     .Define("jac_beta_weight_smear","return get<14>(pairs)*std::copysign(1.0, genWeight);")
     .Define("smear_beta_weight","return get<15>(pairs)*std::copysign(1.0, genWeight);")
     .Define("posPtSmearBetaVal","return get<16>(pairs);")
@@ -265,7 +266,7 @@ int frame(){
   */
   int option = 1; //ATTENTION, 1 saves SMEAR plots (eventually can save both reco and smear plots and give up this option thing)  
   if (option==1){
-    std::unique_ptr<TFile> f6( TFile::Open("multiD_histo_smear.root", "RECREATE") );
+    std::unique_ptr<TFile> f6( TFile::Open("multiD_histo_smear.root", "RECREATE") ); 
     
     // mll_smear
     auto mDh_smear = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_smear", "multi_data_histo_smear", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_smear","weight"});
@@ -282,7 +283,11 @@ int frame(){
     // mll_diff_smear weighted by jac_alpha_weight_smear
     auto mDh_diff_squared_smear_control = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_squared_smear_control", "multi_data_histo_diff_squared_smear_control", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_diff_smear","jac_alpha_weight_smear"});
     f6->WriteObject(mDh_diff_squared_smear_control.GetPtr(), "multi_data_histo_diff_squared_smear_control");
-
+    
+    // mll_diff_smear weighted by jac_alpha_weight_smear2
+    auto mDh_diff_smear_control = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_smear_control", "multi_data_histo_diff_smear_control", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_diff_smear","jac_alpha_weight_smear2"});
+    f6->WriteObject(mDh_diff_smear_control.GetPtr(), "multi_data_histo_diff_smear_control");
+    
     // mll_smear weighted by jac_beta_weight_smear
     auto mDh_jac_beta_smear = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_beta_smear", "multi_data_histo_jac_beta_smear", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_smear","jac_beta_weight_smear"});
     f6->WriteObject(mDh_jac_beta_smear.GetPtr(), "multi_data_histo_jac_beta_smear");
@@ -302,7 +307,7 @@ int frame(){
     // mll_diff_smear weighted by jacobian_beta_weight_smear_mll_diff
     auto mDh_jac_beta_smear_mll_diff = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_beta_smear_mll_diff", "multi_data_histo_jac_beta_smear_mll_diff", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_diff_smear","jacobian_beta_weight_smear_mll_diff"});
     f6->WriteObject(mDh_jac_beta_smear_mll_diff.GetPtr(), "multi_data_histo_jac_beta_smear_mll_diff");
-
+    
   } else { // option==0 saves RECO plots
     std::unique_ptr<TFile> f5( TFile::Open("multiD_histo_reco.root", "RECREATE") );
 
@@ -315,7 +320,7 @@ int frame(){
     auto mDh_diff_reco = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_reco", "multi_data_histo_diff_reco", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff_reco","weight"});
     f5->WriteObject(mDh_diff_reco.GetPtr(), "multi_data_histo_diff_reco");
   }
-  */
+  
   return 0;
 
 }
