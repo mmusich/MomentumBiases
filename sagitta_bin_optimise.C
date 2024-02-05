@@ -350,29 +350,30 @@ int frame(){
 	mDh_diff_smear_beta_val_easy->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	mDh_jac_beta_smear_mll_diff->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	for (int neg_pt_bin=1; neg_pt_bin<=nbinspt; neg_pt_bin++){
+	  // TODO move some of these set ranges inside the loop, if the k bin fails selection you don t need to profile these all
 	  mDh_diff_reco->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-          mDh_reco->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-          mDh_gen->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-          mDh_smear->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	  mDh_reco->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	  mDh_gen->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	  mDh_smear->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	  mDh_diff_smear->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	  mDh_diff_squared_smear->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-          mDh_diff_squared_smear_control->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	  mDh_diff_squared_smear_control->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	  mDh_diff_smear_control->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	  mDh_jac_beta_smear->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	  mDh_smear_beta_val->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	  mDh_diff_smear_beta_val->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	  mDh_diff_smear_beta_val_easy->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	  mDh_jac_beta_smear_mll_diff->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-
+	  
 	  all_histos_count++;
-
+	  
 	  //--------------------------------------------------------------------------
-
+	  
 	  // Require enough stats in mll_diff_reco for sigma_MC fit
 	  delete gROOT->FindObject("multi_data_histo_diff_reco_proj_4");
 	  multi_hist_proj_diff_reco = mDh_diff_reco->Projection(4);
 	  nevents = multi_hist_proj_diff_reco->Integral(1,nbinsmll_diff); 
-
+	  
 	  if (nevents < 100.0){ // reject low stats
 	    empty_histos_count++;
 	  } else {
@@ -403,7 +404,7 @@ int frame(){
 	      multi_hist_proj_diff_reco->GetXaxis()->SetTitle("mll_diff [GeV]");
 	      multi_hist_proj_diff_reco->GetYaxis()->SetTitle("Events");
 	      multi_hist_proj_diff_reco->SetLineColor(kBlue);
-
+	      
 	      // Fit diff_reco
 	      fitresult = fitHisto(multi_hist_proj_diff_reco, 1, 4);
 	      if (fitresult[0] > -90.0){ mean_reco->SetBinError(mean_reco->Fill(name.c_str(), fitresult[0]), fitresult[2]); }
@@ -595,6 +596,7 @@ int frame(){
 	      leg2->AddEntry(multi_hist_proj_smear, "smeared, #beta=1", "l");
 	      leg2->AddEntry(multi_hist_proj_smear_beta_val, "smeared, #beta=0.995", "l"); //value of beta goes here !!!!!!
 	      
+	      
 	      //--------------------------------------------------------------------------
 	      // Fill vectors and variance for minimisation
 	      //--------------------------------------------------------------------------
@@ -610,7 +612,7 @@ int frame(){
 		  filled_bins_mll++;
 		}
 	      }
-	      if (filled_bins_mll <= 1 ){continue;} //This needs refined
+	      if (filled_bins_mll < 3 ){continue;} // Need 3 data points to fit nu, epsilon, alpha TODO refine this continue, e.g maybe i want to ocntinue to mll_diff
 
 	      // Find mll_diff bins with defined jacobian
 	      
@@ -622,24 +624,20 @@ int frame(){
 		  filled_bins_mll_diff++;
 		}
 	      }
-	      if (filled_bins_mll_diff <= 1 ){continue;} //This needs refined
+	      if (filled_bins_mll_diff < 3 ){continue;} // Need 3 data points to fit nu, epsilon, alpha TODO refine this continue
 	      
 	      //--------------------------------------------------------------------------
 	      // Declare mass vectors, jacobians and variance
 	      
 	      VectorXd h_smear_minus_smear_vector(filled_bins_mll);
-
-	      // TODO remove one of the jacobians
-
-	      Eigen::MatrixXd V_inv_sqrt(filled_bins_mll, filled_bins_mll), J(filled_bins_mll, 2), J_beta(filled_bins_mll, 2);
+	      Eigen::MatrixXd V_inv_sqrt(filled_bins_mll, filled_bins_mll), J(filled_bins_mll, 2); //J.col(0) is nu-1, 1 is beta-1, 2 is alpha-1
 
               V_inv_sqrt=MatrixXd::Zero(filled_bins_mll, filled_bins_mll);
 	      position_to_fill=0;
               for(int i=1; i<=nbinsmll; i++){
 		if ( find(good_indices_mll.begin(), good_indices_mll.end(), i) != good_indices_mll.end() ){
 		  h_smear_minus_smear_vector(position_to_fill) = multi_hist_proj_smear_beta_val->GetBinContent(i) - multi_hist_proj_smear->GetBinContent(i);
-		  J(position_to_fill,0) = multi_hist_proj_smear->GetBinContent(i);
-		  J_beta(position_to_fill,0) = multi_hist_proj_smear->GetBinContent(i);
+		  J(position_to_fill,0) = multi_hist_proj_smear->GetBinContent(i); //J_control.col(0) is nu-1
 		  V_inv_sqrt(position_to_fill,position_to_fill) = 1 / multi_hist_proj_smear_beta_val->GetBinErrorLow(i);
 		  position_to_fill++;
 		}
@@ -648,17 +646,14 @@ int frame(){
               
 	      // Declare mll_diff vectors, jacobians and variance
               VectorXd h_smear_diff_minus_smear_diff_vector(filled_bins_mll_diff);
-	      
-	      //TODO rename J_beta_control to J_control
-	      
-	      Eigen::MatrixXd V_inv_sqrt_control(filled_bins_mll_diff, filled_bins_mll_diff), J_beta_control(filled_bins_mll_diff, 2);
+	      Eigen::MatrixXd V_inv_sqrt_control(filled_bins_mll_diff, filled_bins_mll_diff), J_control(filled_bins_mll_diff, 3); //J_control.col(0) is nu-1, 1 is epsilon, 2 is alpha-1 
 
 	      V_inv_sqrt_control=MatrixXd::Zero(filled_bins_mll_diff, filled_bins_mll_diff);
 	      position_to_fill=0;
 	      for(int i=1; i<=nbinsmll_diff; i++){
 		if( find(good_indices_mll_diff.begin(), good_indices_mll_diff.end(), i) != good_indices_mll_diff.end() ){
 		  h_smear_diff_minus_smear_diff_vector(position_to_fill) = multi_hist_proj_diff_smear_beta_val->GetBinContent(i) - multi_hist_proj_diff_smear->GetBinContent(i);
-		  J_beta_control(position_to_fill,0) = multi_hist_proj_diff_smear->GetBinContent(i);
+		  J_control(position_to_fill,0) = multi_hist_proj_diff_smear->GetBinContent(i); //J_control.col(0) is nu-1
 		  V_inv_sqrt_control(position_to_fill,position_to_fill) = 1 / multi_hist_proj_diff_smear_beta_val->GetBinErrorLow(i);
 		  position_to_fill++;
 		}
@@ -701,7 +696,7 @@ int frame(){
 	      // Needed for jacobian beta mass smear
 	      delete gROOT->FindObject("multi_data_histo_jac_beta_smear_proj_4");
               multi_hist_proj_jac_beta_smear = mDh_jac_beta_smear->Projection(4);
-
+	      
 	      position_to_fill=0;
 	      for(int i=1; i<=nbinsmll; i++){
 		// alpha mass smear
@@ -710,8 +705,9 @@ int frame(){
 		// beta mass smear
 		jac_b_weight = multi_hist_proj_jac_beta_smear->GetBinContent(i);
                 error_jac_b_weight = multi_hist_proj_jac_beta_smear->GetBinErrorLow(i);
-	
+		
 		if ( find(good_indices_mll.begin(), good_indices_mll.end(), i) != good_indices_mll.end() ){
+		  
 		  evts_in_bin = multi_hist_proj_smear->GetBinContent(i);
 		  // alpha mass smear
 		  value =  diff_squared / (sigma_mc * sigma_mc) - evts_in_bin;
@@ -721,26 +717,29 @@ int frame(){
 		  jac->SetBinContent(i, value);
 		  jac->SetBinError(i, error);
 		  jac_inclusive->Fill(mllbinranges[i-1], value);
-
+		  
 		  // beta mass smear
 		  value_beta = jac_b_weight / (evts_in_bin * sigma_mc * sigma_mc);
 		  error_beta = 1 / (evts_in_bin * sigma_mc*sigma_mc) * pow((4 * jac_b_weight*jac_b_weight * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_jac_b_weight*error_jac_b_weight) , 0.5);
-		  J_beta(position_to_fill,1) = value_beta;
-
+		  J(position_to_fill,0) = value_beta;
+		  
 		  jac_beta->SetBinContent(i, value_beta);
 		  jac_beta->SetBinError(i, error_beta);
 		  jac_beta_inclusive->Fill(mllbinranges[i-1], value_beta);
 		  
+		  std::cout<<"position to fill was "<< position_to_fill <<"\n"; 
 		  position_to_fill++;
+		  
 		} 
 	      }
-
+	      
 	      if (position_to_fill != filled_bins_mll){ std::cout<<"PROBLEM: counting jac mass smear size \n"; }
-
+	      
 	      //--------------------------------------------------------------------------
               // Compute jacobians diff_smear
 
 	      // Needed for jacobian alpha diff_smear
+	      delete gROOT->FindObject("multi_data_histo_diff_squared_smear_control_proj_4");
 	      multi_hist_proj_diff_squared_smear_control = mDh_diff_squared_smear_control->Projection(4);
               delete gROOT->FindObject("multi_data_histo_diff_smear_control_proj_4");
               multi_hist_proj_diff_smear_control = mDh_diff_smear_control->Projection(4);
@@ -765,7 +764,7 @@ int frame(){
 		  value =  (diff_squared - 2.0*mean_mc*diff + evts_in_bin*mean_mc*mean_mc) / (sigma_mc * sigma_mc) - evts_in_bin;
 		  error = 2.0 / (sigma_mc*sigma_mc) * pow( pow((diff_squared-2.0*mean_mc*diff + evts_in_bin*mean_mc*mean_mc)*error_sigma_mc/sigma_mc,2) + pow(mean_mc*error_diff,2) + pow(error_diff_squared,2)/4.0 + pow((evts_in_bin*mean_mc-diff)*error_mean_mc,2)  ,0.5);
 
-		  //J_beta_control(position_to_fill,2) = value;
+		  //J_control(position_to_fill,2) = value;
 		  jac_control->SetBinContent(i, value);
                   jac_control->SetBinError(i, error);
 		  
@@ -773,7 +772,7 @@ int frame(){
 		  value_beta = ( jac_b_weight - evts_in_bin*mean_mc ) / pow(sigma_mc,2);
 		  error_beta = pow( pow(evts_in_bin*error_mean_mc,2) + 4.0*pow(jac_b_weight - evts_in_bin*mean_mc,2)*pow(error_sigma_mc,2)/pow(sigma_mc,2) + pow(error_jac_b_weight,2), 0.5) / pow(sigma_mc,2);
 	
-		  J_beta_control(position_to_fill,1) = value_beta;
+		  J_control(position_to_fill,1) = value_beta;
 		  jac_beta_control->SetBinContent(i, value_beta);
 		  jac_beta_control->SetBinError(i, error_beta);
 
@@ -796,58 +795,56 @@ int frame(){
               // Solve for alpha, beta, nu
               //--------------------------------------------------------------------------
 	      
-	      // Solve for alpha mass smear 
+	      // Solve for nu, beta, alpha mass smear 
 	      Eigen::MatrixXd A = V_inv_sqrt*J;
 	      Eigen::MatrixXd b = V_inv_sqrt*h_smear_minus_smear_vector;
-	      // ATTENTION: alpha_vector contains alpha-1, not alpha 
-	      Eigen::VectorXd alpha_vector = A.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
+	      // ATTENTION: n_b_a_vector contains nu-1, beta, alpha-1
+	      Eigen::VectorXd n_b_a_vector = A.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
 	      // Write alpha
-	      alpha->SetBinError(alpha->Fill(name.c_str(), alpha_vector(1)+1), 0.01); // +1 to alpha_vector elements to get alpha
-
-	      // Solve for beta mass smear
-	      Eigen::MatrixXd A_beta = V_inv_sqrt*J_beta;
+	      // alpha->SetBinError(alpha->Fill(name.c_str(), n_b_a_vector(2)+1), 0.01); // +1 to n_b_a_vector(2) to get alpha
+	      
 	      // TODO is this still true? ->  Attention beta_vector contains beta-1, not beta !!!
-	      Eigen::VectorXd beta_vector = A_beta.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
-	      // Error on beta mass smear 
-	      Eigen::MatrixXd V_beta = (J_beta.col(1).transpose()*(V_inv_sqrt*V_inv_sqrt)*J_beta.col(1)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
-	      Eigen::MatrixXd V_nu = (J_beta.col(0).transpose()*(V_inv_sqrt*V_inv_sqrt)*J_beta.col(0)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
+
+	      // Error on nu, beta, alpha mass smear 
+	      Eigen::MatrixXd V_beta = (J.col(1).transpose()*(V_inv_sqrt*V_inv_sqrt)*J.col(1)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
+	      Eigen::MatrixXd V_nu = (J.col(0).transpose()*(V_inv_sqrt*V_inv_sqrt)*J.col(0)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
 	      fit_beta_error = pow(V_beta(0,0),0.5); // save for closure test
 	      // Write beta mass smear
-	      beta->SetBinError(beta->Fill(name.c_str(), beta_vector(1)+1), fit_beta_error);
-	      nu->SetBinError(nu->Fill(name.c_str(), beta_vector(0)+1), pow(V_nu(0,0),0.5));
-	      //std::cout<<"i got to here0 "<< name.c_str() <<"\n";
-
-	      // Solve for beta diff smear
-	      Eigen::MatrixXd A_beta_control(filled_bins_mll_diff, 3);
-	      A_beta_control = V_inv_sqrt_control*J_beta_control;
+	      beta->SetBinError(beta->Fill(name.c_str(), n_b_a_vector(1)+1), fit_beta_error); // +1 to n_b_a_vector(1) to get beta TODO change for epsilon
+	      nu->SetBinError(nu->Fill(name.c_str(), n_b_a_vector(0)+1), pow(V_nu(0,0),0.5)); // +1 to n_b_a_vector(0) to get nu
+	      
+	      // Solve for nu, beta, alpha diff smear
+	      Eigen::MatrixXd A_control(filled_bins_mll_diff, 3);
+	      A_control = V_inv_sqrt_control*J_control;
 	      Eigen::MatrixXd b_control(filled_bins_mll_diff, 1);
 	      b_control = V_inv_sqrt_control*h_smear_diff_minus_smear_diff_vector;
-	      // TODO clarify, alpha beta nu for beta_vector_control: we actually need just beta, instead of beta-1 
-	      //std::cout<<"i got to here1 "<< name.c_str() <<"\n";
-	      Eigen::VectorXd beta_vector_control(3);
-	      beta_vector_control = A_beta_control.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b_control);
-              // Error on beta diff smear
-	      //std::cout<<"i got to here2 "<<name.c_str() <<"\n";
+	      
+	      // ATTENTION: n_b_a_vector_control contains nu-1, epsilon, alpha-1
+	      Eigen::VectorXd n_b_a_vector_control(3);
+	      n_b_a_vector_control = A_control.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b_control);
+              
+	      // Error on beta diff smear
+	      
 	      Eigen::MatrixXd V_beta_control(1,1); 
-	      V_beta_control = (J_beta_control.col(1).transpose()*(V_inv_sqrt_control*V_inv_sqrt_control)*J_beta_control.col(1)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
-	      //std::cout<<"i got to here3 "<<name.c_str() <<"\n";
+	      V_beta_control = (J_control.col(1).transpose()*(V_inv_sqrt_control*V_inv_sqrt_control)*J_control.col(1)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
+	      
 	      // Error on nu diff smear
 	      Eigen::MatrixXd V_nu_control(1,1); 
-	      V_nu_control = (J_beta_control.col(0).transpose()*(V_inv_sqrt_control*V_inv_sqrt_control)*J_beta_control.col(0)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
+	      V_nu_control = (J_control.col(0).transpose()*(V_inv_sqrt_control*V_inv_sqrt_control)*J_control.col(0)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
 	      // Write nu diff smear
-	      nu_control->SetBinError(nu_control->Fill(name.c_str(), beta_vector_control(0)+1), pow(V_nu_control(0,0),0.5)); 
-
+	      nu_control->SetBinError(nu_control->Fill(name.c_str(), n_b_a_vector_control(0)+1), pow(V_nu_control(0,0),0.5)); // +1 to n_b_a_vector(0) to get nu 
+	      
 	      //Eigen::MatrixXd V_alpha_control(1,1);
-	      //V_alpha_control = (J_beta_control.col(2).transpose()*(V_inv_sqrt_control*V_inv_sqrt_control)*J_beta_control.col(2)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
+	      //V_alpha_control = (J_control.col(2).transpose()*(V_inv_sqrt_control*V_inv_sqrt_control)*J_control.col(2)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
 	      //alpha_control->SetBinError(alpha_control->Fill(name.c_str(), beta_vector_control(2)+1), pow(V_alpha_control(0,0),0.5));
 
 	      
 	      //--------------------------------------------------------------------------
               // Add fitted parameters to mll fit panel 
 
-	      leg_entry = "Fit #beta=" + to_string(beta_vector(1)+1).substr(0, 6) + "#pm" + to_string(fit_beta_error).substr(0, 6); 
+	      leg_entry = "Fit #beta=" + to_string(n_b_a_vector(1)+1).substr(0, 6) + "#pm" + to_string(fit_beta_error).substr(0, 6); // +1 to n_b_a_vector(1) to get beta TODO change for epsilon 
 	      leg2->AddEntry((TObject*)0, leg_entry.c_str(), "");
-	      leg_entry = "Fit #nu=" + to_string(beta_vector(0)+1).substr(0, 6) + "#pm" + to_string(pow(V_nu(0,0),0.5)).substr(0, 6);
+	      leg_entry = "Fit #nu=" + to_string(n_b_a_vector(0)+1).substr(0, 6) + "#pm" + to_string(pow(V_nu(0,0),0.5)).substr(0, 6); // +1 to n_b_a_vector(0) to get nu
 	      leg2->AddEntry((TObject*)0, leg_entry.c_str(), "");
 
 	      leg2->Draw("");
@@ -856,9 +853,9 @@ int frame(){
               c1->cd();
 	      c1->cd(1);
 
-	      leg_entry = "Fit #varepsilon=" + to_string(beta_vector_control(1)).substr(0, 6) + "#pm" + to_string(pow(V_beta_control(0,0),0.5)).substr(0, 6); //write beta, no need to add one
+	      leg_entry = "Fit #varepsilon=" + to_string(n_b_a_vector_control(1)).substr(0, 6) + "#pm" + to_string(pow(V_beta_control(0,0),0.5)).substr(0, 6); // n_b_a_vector_control(1) is epsilon
 	      leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
-	      leg_entry = "Fit #nu=" + to_string(beta_vector_control(0)+1).substr(0, 6) + "#pm" + to_string(pow(V_nu_control(0,0),0.5)).substr(0, 6); 
+	      leg_entry = "Fit #nu=" + to_string(n_b_a_vector_control(0)+1).substr(0, 6) + "#pm" + to_string(pow(V_nu_control(0,0),0.5)).substr(0, 6); // +1 to n_b_a_vector_control(0) to get nu 
 	      leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
 	      //leg_entry = "Fit #alpha=" + to_string(beta_vector_control(2)+1).substr(0, 6) + "#pm" + to_string(pow(V_alpha_control(0,0),0.5)).substr(0, 6);
               //leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
@@ -876,22 +873,22 @@ int frame(){
 	      position_to_fill = 0;
               for(int i=1; i<=nbinsmll_diff; i++){
 		if ( find(good_indices_mll_diff.begin(), good_indices_mll_diff.end(), i) != good_indices_mll_diff.end() ){
-		  value_corrected = multi_hist_proj_diff_smear->GetBinContent(i) + beta_vector_control(1)*J_beta_control(position_to_fill,1) + beta_vector_control(0)*J_beta_control(position_to_fill,0);
-		  //value_corrected = multi_hist_proj_diff_smear->GetBinContent(i) + beta_vector_control(1)*J_beta_control(position_to_fill,1) + beta_vector_control(0)*J_beta_control(position_to_fill,0) +beta_vector_control(2)*J_beta_control(position_to_fill,2);
+		  value_corrected = multi_hist_proj_diff_smear->GetBinContent(i) + n_b_a_vector_control(1)*J_control(position_to_fill,1) + n_b_a_vector_control(0)*J_control(position_to_fill,0);
+		  //value_corrected = multi_hist_proj_diff_smear->GetBinContent(i) + n_b_a_vector_control(1)*J_control(position_to_fill,1) + n_b_a_vector_control(0)*J_control(position_to_fill,0) + n_b_a_vector_control(2)*J_control(position_to_fill,2);
 		  error = pow( 
 		  	      pow(multi_hist_proj_diff_smear->GetBinErrorLow(i),2) + 
-			      pow(beta_vector_control(1)*jac_beta_control->GetBinErrorLow(i),2) + 
-		              pow(J_beta_control(position_to_fill,1),2)*V_beta_control(0,0) + 
-		  	      pow(beta_vector_control(0)*multi_hist_proj_diff_smear->GetBinErrorLow(i),2) + //no need to add 1, beta_vector_control(0) contains nu-1  
-		  	      pow(J_beta_control(position_to_fill,0),2)*V_nu_control(0,0),0.5);
+			      pow(n_b_a_vector_control(1)*jac_beta_control->GetBinErrorLow(i),2) + 
+		              pow(J_control(position_to_fill,1),2)*V_beta_control(0,0) + 
+		  	      pow(n_b_a_vector_control(0)*multi_hist_proj_diff_smear->GetBinErrorLow(i),2) + // need nu-1, which is n_b_a_vector_control(0)
+		  	      pow(J_control(position_to_fill,0),2)*V_nu_control(0,0),0.5);
 		  //error = pow(
 		  //          pow(multi_hist_proj_diff_smear->GetBinErrorLow(i),2) +
-		  //          pow(beta_vector_control(1)*jac_beta_control->GetBinErrorLow(i),2) +
-		  //          pow(J_beta_control(position_to_fill,1),2)*V_beta_control(0,0) +
-		  //          pow(beta_vector_control(0)*multi_hist_proj_diff_smear->GetBinErrorLow(i),2) +
-		  //          pow(J_beta_control(position_to_fill,0),2)*V_nu_control(0,0) +
-		  //          pow(beta_vector_control(2)*jac_control->GetBinErrorLow(i),2) +
-		  //          pow(J_beta_control(position_to_fill,2),2)*V_alpha_control(0,0) ,0.5);
+		  //          pow(n_b_a_vector_control(1)*jac_beta_control->GetBinErrorLow(i),2) +
+		  //          pow(J_control(position_to_fill,1),2)*V_beta_control(0,0) +
+		  //          pow(n_b_a_vector_control(0)*multi_hist_proj_diff_smear->GetBinErrorLow(i),2) + // need nu-1, which is n_b_a_vector_control(0)
+		  //          pow(J_control(position_to_fill,0),2)*V_nu_control(0,0) +
+		  //          pow(n_b_a_vector_control(2)*jac_control->GetBinErrorLow(i),2) + // need alpha-1, which is n_b_a_vector_control(2)
+		  //          pow(J_control(position_to_fill,2),2)*V_alpha_control(0,0) ,0.5);
 		  
 		  corrected_diff_smear->SetBinContent(i, value_corrected);
 		  corrected_diff_smear->SetBinError(i, error);
@@ -919,16 +916,15 @@ int frame(){
               f_fits->WriteObject(c1, name.c_str());
 
 	      // Draw pull distributions
-	      if( pow(error_mean_diff_smear_beta_val,2) + pow(error_mean_mc,2) > V_beta_control(0,0) ){ 
-		beta_control->Fill(name.c_str(), (beta_vector_control(1) - (mean_diff_smear_beta_val - mean_mc) ) / pow( pow(error_mean_diff_smear_beta_val,2) + pow(error_mean_mc,2) - V_beta_control(0,0),0.5));
-		pull_beta_control->Fill( (beta_vector_control(1) - (mean_diff_smear_beta_val - mean_mc) ) / pow( pow(error_mean_diff_smear_beta_val,2) + pow(error_mean_mc,2) - V_beta_control(0,0),0.5) );
+	      if( pow(error_mean_diff_smear_beta_val,2) + pow(error_mean_mc,2) > V_beta_control(0,0) ){ // require constraint to have smaller uncertainty than fit parameter
+		beta_control->Fill(name.c_str(), (n_b_a_vector_control(1) - (mean_diff_smear_beta_val - mean_mc) ) / pow( pow(error_mean_diff_smear_beta_val,2) + pow(error_mean_mc,2) - V_beta_control(0,0),0.5));
+		pull_beta_control->Fill( (n_b_a_vector_control(1) - (mean_diff_smear_beta_val - mean_mc) ) / pow( pow(error_mean_diff_smear_beta_val,2) + pow(error_mean_mc,2) - V_beta_control(0,0),0.5) );
 	      } else {
 		if (nevents > 170){std::cout<<"this histo has >170 events, yet ";}
 		std::cout<<"error_constraint > error_fit for: "<<name.c_str()<<"\n";
 		unchecked_fits ++; 
 	      }
-	      
-	      
+	      	      
 	    }
 	  }
 	  
