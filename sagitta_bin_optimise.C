@@ -138,7 +138,7 @@ int frame(){
   // Variables declaration 
 
   double total_nevents=0.0, nevents=0.0, all_histos_count=0.0, remaining_nevents=0.0, empty_histos_count=0.0, hfrac=-1.0, efrac=-1.0;
-  double max_hist_mll_diff, max_hist_mll, value, error, value_beta, value_epsilon, error_epsilon, error_beta, diff_squared, diff, jac_e_weight, jac_b_weight, evts_in_bin, mean_mc, error_mean_mc, sigma_mc=0.0, error_sigma_mc, error_diff_squared, error_diff, error_jac_e_weight, error_jac_b_weight, fit_beta_error, value_corrected, mean_diff_smear_epsilon_val, error_mean_diff_smear_epsilon_val, mean_corrected_diff_smear, error_mean_corrected_diff_smear;
+  double max_hist_mll_diff, max_hist_mll, value, error, value_beta, value_epsilon, error_epsilon, error_beta, diff_squared, diff, jac_e_weight, jac_b_weight, evts_in_bin, mean_mc, error_mean_mc, sigma_mc=0.0, error_sigma_mc, error_diff_squared, error_diff, error_jac_e_weight, error_jac_b_weight, fit_beta_error, value_corrected, mean_diff_smear_epsilon_val, error_mean_diff_smear_epsilon_val, sigma_diff_smear_epsilon_val, error_sigma_diff_smear_epsilon_val, mean_corrected_diff_smear, error_mean_corrected_diff_smear, sigma_corrected_diff_smear, error_sigma_corrected_diff_smear;
   int filled_bins_mll, position_to_fill, filled_bins_mll_diff, unchecked_fits=0;
   string name, leg_entry;
   vector<double> fitresult;
@@ -203,12 +203,12 @@ int frame(){
   alpha->GetXaxis()->SetTitle("Bin number");
   alpha->GetYaxis()->SetTitle("alpha");
 
-  TH1D *alpha_control = new TH1D("alpha_control", "alpha_control", 3, 0, 3);
+  TH1D *alpha_control = new TH1D("alpha_control", "(sigma_yellow - sigma_black) / sqrt(error_sigma_yellow**2 + error_sigma_black**2)", 3, 0, 3);
   alpha_control->SetCanExtend(TH1::kAllAxes);
   alpha_control->SetMarkerStyle(kPlus);
   alpha_control->SetMarkerColor(kBlue);
   alpha_control->GetXaxis()->SetTitle("Bin number");
-  alpha_control->GetYaxis()->SetTitle("alpha from mll diff");
+  alpha_control->GetYaxis()->SetTitle("Pull");
 
   TH1D *beta = new TH1D("beta", "beta", 3, 0, 3);
   beta->SetCanExtend(TH1::kAllAxes);
@@ -217,7 +217,7 @@ int frame(){
   beta->GetXaxis()->SetTitle("Bin number");
   beta->GetYaxis()->SetTitle("beta");
 
-  TH1D *epsilon_control = new TH1D("epsilon_control", "pull", 3, 0, 3);
+  TH1D *epsilon_control = new TH1D("epsilon_control", "(mean_yellow - mean_black) / sqrt(error_mean_yellow**2 + error_mean_black**2)", 3, 0, 3);
   epsilon_control->SetCanExtend(TH1::kAllAxes);
   epsilon_control->SetMarkerStyle(kPlus);
   epsilon_control->SetMarkerColor(kBlue);
@@ -240,9 +240,13 @@ int frame(){
 
   // Histograms for pull distributions
 
-  TH1D *pull_epsilon_control = new TH1D("pull_epsilon_control", "Pull epsilon mll_diff", 12, -6.0, 6.0);
+  TH1D *pull_epsilon_control = new TH1D("pull_epsilon_control", " (mean_yellow - mean_black) / sqrt(error_mean_yellow**2 + error_mean_black**2) ", 6, -3.0, 3.0);
   pull_epsilon_control->GetXaxis()->SetTitle("Pull");
   pull_epsilon_control->GetYaxis()->SetTitle("Events");
+
+  TH1D *pull_alpha_control = new TH1D("pull_alpha_control", " (sigma_yellow - sigma_black) / sqrt(error_sigma_yellow**2 + error_sigma_black**2) ", 6, -3.0, 3.0);
+  pull_alpha_control->GetXaxis()->SetTitle("Pull");
+  pull_alpha_control->GetYaxis()->SetTitle("Events");
 
   // Histograms for fit constituents for each k bin
 
@@ -456,9 +460,11 @@ int frame(){
 
 	      // Fit diff_smear_beta_val
 	      fitresult = fitHisto(multi_hist_proj_diff_smear_beta_val, 1, 5);
-	      // Save these for beta_control histogram 
+	      // Save these for pull histograms 
 	      mean_diff_smear_epsilon_val = fitresult[0]; 
 	      error_mean_diff_smear_epsilon_val = fitresult[2];
+	      sigma_diff_smear_epsilon_val = fitresult[1];
+	      error_sigma_diff_smear_epsilon_val = fitresult[3];
 
 	      if(max_hist_mll_diff < multi_hist_proj_diff_smear_beta_val->GetBinContent(multi_hist_proj_diff_smear_beta_val->GetMaximumBin())){
                 max_hist_mll_diff = multi_hist_proj_diff_smear_beta_val->GetBinContent(multi_hist_proj_diff_smear_beta_val->GetMaximumBin());
@@ -833,9 +839,7 @@ int frame(){
 	      // Error on alpha diff smear
 	      Eigen::MatrixXd V_alpha_control(1,1);
 	      V_alpha_control = (J_control.col(2).transpose()*(V_inv_sqrt_control*V_inv_sqrt_control)*J_control.col(2)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
-	      // TODO change to pull on alpha
-	      alpha_control->SetBinError(alpha_control->Fill(name.c_str(), n_e_a_vector_control(2)+1), pow(V_alpha_control(0,0),0.5)); // +1 to n_e_a_vector(2) to get alpha
-	      
+	      	      
 	      //--------------------------------------------------------------------------
               // Add fitted parameters to mass fit panel 
 
@@ -900,7 +904,9 @@ int frame(){
 
 	      // Save for pull distribution epsilon_control
 	      mean_corrected_diff_smear = fitresult[0];
+	      sigma_corrected_diff_smear = fitresult[1];
 	      error_mean_corrected_diff_smear = fitresult[2];
+	      error_sigma_corrected_diff_smear = fitresult[3];
               corrected_diff_smear->SetLineColor(kBlack);
 	      corrected_diff_smear->Draw("SAME");
 
@@ -910,18 +916,17 @@ int frame(){
 	      leg1->Draw("");
 	      
 	      c1->cd();
-              f_fits->WriteObject(c1, name.c_str());
+              //f_fits->WriteObject(c1, name.c_str());
 
 	      // Draw pull distributions
-	      if( pow(error_mean_diff_smear_epsilon_val,2) + pow(error_mean_mc,2) > V_epsilon_control(0,0) ){ // require constraint to have smaller uncertainty than fit parameter
-		epsilon_control->Fill(name.c_str(), (n_e_a_vector_control(1) - (mean_diff_smear_epsilon_val - mean_mc) ) / pow( pow(error_mean_diff_smear_epsilon_val,2) + pow(error_mean_mc,2) - V_epsilon_control(0,0),0.5));
-		pull_epsilon_control->Fill( (n_e_a_vector_control(1) - (mean_diff_smear_epsilon_val - mean_mc) ) / pow( pow(error_mean_diff_smear_epsilon_val,2) + pow(error_mean_mc,2) - V_epsilon_control(0,0),0.5) );
-	      } else {
-		if (nevents > 170){std::cout<<"this histo has >170 events, yet ";}
-		std::cout<<"error_constraint > error_fit for: "<<name.c_str()<<"\n";
-		unchecked_fits ++; 
-	      }
-	      	      
+	      // epsilon diff
+	      epsilon_control->SetBinError(epsilon_control->Fill(name.c_str(), (mean_diff_smear_epsilon_val - mean_corrected_diff_smear) / pow( pow(error_mean_diff_smear_epsilon_val,2) + pow(error_mean_corrected_diff_smear,2),0.5)), 0.001);
+	      pull_epsilon_control->Fill( (mean_diff_smear_epsilon_val - mean_corrected_diff_smear) / pow( pow(error_mean_diff_smear_epsilon_val,2) + pow(error_mean_corrected_diff_smear,2),0.5) );
+	      
+	      // alpha diff
+	      alpha_control->SetBinError(alpha_control->Fill(name.c_str(), (sigma_diff_smear_epsilon_val - sigma_corrected_diff_smear) / pow( pow(error_sigma_diff_smear_epsilon_val,2) + pow(error_sigma_corrected_diff_smear,2),0.5)), 0.001);
+	      pull_alpha_control->Fill( (sigma_diff_smear_epsilon_val - sigma_corrected_diff_smear) / pow( pow(error_sigma_diff_smear_epsilon_val,2) + pow(error_sigma_corrected_diff_smear,2),0.5) );
+		
 	    }
 	  }
 	  
@@ -934,7 +939,6 @@ int frame(){
   hfrac = empty_histos_count / all_histos_count;
   efrac = remaining_nevents / total_nevents;
   std::cout<<"CHECKPOINT: "<<stringify_name(nbinseta, nbinspt, nbinseta, nbinspt)<<" histos  empty/all="<< hfrac <<"; events remaining/all "<< efrac <<"\n";
-  std::cout<<"CHECKPOINT: "<< unchecked_fits <<" out of "<< all_histos_count - empty_histos_count << "fits do not go in pull distribution"<<"\n";
 
   //--------------------------------------------------------------------------
   // Write remaining histograms 
@@ -969,10 +973,14 @@ int frame(){
   std::cout<<"CHECKPOINT: "<<"Pull epsilon control distribution fitted mean: "<<fitresult[0]<<" +/- "<<fitresult[2]<<" and sigma "<<fitresult[1]<<" +/- "<<fitresult[3]<<"\n";
   f_control->WriteObject(pull_epsilon_control, "pull_epsilon_control");
 
+  f_control->WriteObject(alpha_control, "alpha_control");
+
+  fitresult = fitHisto(pull_alpha_control, 1, 1);
+  std::cout<<"CHECKPOINT: "<<"Pull alpha control distribution fitted mean: "<<fitresult[0]<<" +/- "<<fitresult[2]<<" and sigma "<<fitresult[1]<<" +/- "<<fitresult[3]<<"\n";
+  f_control->WriteObject(pull_alpha_control, "pull_alpha_control");
+  
   f_control->WriteObject(nu, "nu");
   f_control->WriteObject(nu_control, "nu_control");
-
-  //  f_control->WriteObject(alpha_control, "alpha_control");
 
   f_control->WriteObject(jac_beta_inclusive, "jacobian_beta_inclusive");
 
