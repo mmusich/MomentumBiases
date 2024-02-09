@@ -67,7 +67,7 @@ int frame(){
     std::tuple<int,int,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float> temp, pair_to_return;
     float rest_mass = 0.105658; // muMass = 0.105658 GeV
     float firstPt_reco, secondPt_reco, mll_reco, firstPt_smear, secondPt_smear, mll_smear, firstPt_gen, secondPt_gen, mll_gen, firstPt_smear_beta_val, secondPt_smear_beta_val, smear_beta_weight;
-    float smear_pt, mean, width, beta=0.001, smear_beta_weight_first_term, smear_beta_weight_second_term;
+    float smear_pt, mean, width, beta=0.999, smear_beta_weight_first_term, smear_beta_weight_second_term;
     
     for(int i=1;i<Muon_pt.size();i++){
       if(MuonisGood[i]){

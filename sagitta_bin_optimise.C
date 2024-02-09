@@ -97,28 +97,29 @@ int frame(){
 
   // Input files 
 
-  // reco
+  // Reco
   std::unique_ptr<TFile> myFile( TFile::Open("multiD_histo_reco.root") );
   std::unique_ptr<THnD> mDh_reco(myFile->Get<THnD>("multi_data_histo_reco"));
   std::unique_ptr<THnD> mDh_gen(myFile->Get<THnD>("multi_data_histo_gen"));
   std::unique_ptr<THnD> mDh_diff_reco(myFile->Get<THnD>("multi_data_histo_diff_reco")); // it's reco - gen
 
-  // smear
+  // Smear
   std::unique_ptr<TFile> myFile2( TFile::Open("multiD_histo_smear.root") );
   std::unique_ptr<THnD> mDh_smear(myFile2->Get<THnD>("multi_data_histo_smear"));
   std::unique_ptr<THnD> mDh_diff_smear(myFile2->Get<THnD>("multi_data_histo_diff_smear")); //it's smeared - gen
+  // Shift weights
   std::unique_ptr<THnD> mDh_smear_beta_val(myFile2->Get<THnD>("multi_data_histo_smear_beta_val"));
-  std::unique_ptr<THnD> mDh_diff_smear_beta_val(myFile2->Get<THnD>("multi_data_histo_diff_smear_beta_val")); //it's smeared - gen
-  // weights
-  std::unique_ptr<THnD> mDh_diff_squared_smear(myFile2->Get<THnD>("multi_data_histo_diff_squared_smear")); // it's smeared - gen  
-  std::unique_ptr<THnD> mDh_diff_squared_smear_control(myFile2->Get<THnD>("multi_data_histo_diff_squared_smear_control")); // it's smeared - gen
-  std::unique_ptr<THnD> mDh_diff_smear_control(myFile2->Get<THnD>("multi_data_histo_diff_smear_control")); // it's smeared - gen
-  std::unique_ptr<THnD> mDh_jac_beta_smear(myFile2->Get<THnD>("multi_data_histo_jac_beta_smear")); 
-  std::unique_ptr<THnD> mDh_jac_beta_smear_mll_diff(myFile2->Get<THnD>("multi_data_histo_jac_beta_smear_mll_diff"));
+  std::unique_ptr<THnD> mDh_diff_smear_beta_val(myFile2->Get<THnD>("multi_data_histo_diff_smear_beta_val")); 
+    
+  // Jacobian terms
+  std::unique_ptr<THnD> mDh_jac_diff_squared_smear_mll(myFile2->Get<THnD>("multi_data_histo_jac_diff_squared_smear_mll")); // sum of mll_diff_squared in mll bin smear
+  std::unique_ptr<THnD> mDh_jac_diff_squared_smear_mll_diff(myFile2->Get<THnD>("multi_data_histo_jac_diff_squared_smear_mll_diff")); // sum of mll_diff_squared in mll_diff bin smear
+  std::unique_ptr<THnD> mDh_jac_diff_smear_mll(myFile2->Get<THnD>("multi_data_histo_jac_diff_smear_mll")); // sum of mll_diff in mll bin smear
+  std::unique_ptr<THnD> mDh_jac_diff_smear_mll_diff(myFile2->Get<THnD>("multi_data_histo_jac_diff_smear_mll_diff")); // sum of mll_diff in mll_diff bin smear
 
-  // smear easy way
+  // Smear easy way
   std::unique_ptr<TFile> myFile3( TFile::Open("multiD_histo_smear_beta_val_easy.root") );
-  std::unique_ptr<THnD> mDh_diff_smear_beta_val_easy(myFile3->Get<THnD>("multi_data_histo_diff_smear_beta_val_easy")); //it's smeared - gen
+  std::unique_ptr<THnD> mDh_diff_smear_beta_val_easy(myFile3->Get<THnD>("multi_data_histo_diff_smear_beta_val_easy")); //it's smeared_beta_val_easy - gen  
 
   // Binning must match with 5D histogram
   double ptlow=25.0, pthigh=55.0;
@@ -138,7 +139,7 @@ int frame(){
   // Variables declaration 
 
   double total_nevents=0.0, nevents=0.0, all_histos_count=0.0, remaining_nevents=0.0, empty_histos_count=0.0, hfrac=-1.0, efrac=-1.0;
-  double max_hist_mll_diff, max_hist_mll, value, error, value_beta, value_epsilon, error_epsilon, error_beta, diff_squared, diff, jac_e_weight, jac_b_weight, evts_in_bin, mean_mc, error_mean_mc, sigma_mc=0.0, error_sigma_mc, error_diff_squared, error_diff, error_jac_e_weight, error_jac_b_weight, fit_beta_error, value_corrected, mean_diff_smear_epsilon_val, error_mean_diff_smear_epsilon_val, sigma_diff_smear_epsilon_val, error_sigma_diff_smear_epsilon_val, mean_corrected_diff_smear, error_mean_corrected_diff_smear, sigma_corrected_diff_smear, error_sigma_corrected_diff_smear, integral_diff_smear_epsilon_val, integral_mc;
+  double max_hist_mll_diff, max_hist_mll, value, error, value_epsilon, error_epsilon, diff_squared, diff, jac_e_weight, jac_b_weight, evts_in_bin, mean_mc, error_mean_mc, sigma_mc=0.0, error_sigma_mc, error_diff_squared, error_diff, error_jac_e_weight, error_jac_b_weight, fit_epsilon_error, value_corrected, mean_diff_smear_epsilon_val, error_mean_diff_smear_epsilon_val, sigma_diff_smear_epsilon_val, error_sigma_diff_smear_epsilon_val, mean_corrected_diff_smear, error_mean_corrected_diff_smear, sigma_corrected_diff_smear, error_sigma_corrected_diff_smear, integral_diff_smear_epsilon_val, integral_mc;
   int filled_bins_mll, position_to_fill, filled_bins_mll_diff, unchecked_fits=0;
   string name, leg_entry;
   vector<double> fitresult;
@@ -190,9 +191,9 @@ int frame(){
   jac_inclusive->GetXaxis()->SetTitle("mll smear");
   jac_inclusive->GetYaxis()->SetTitle("jacobian alpha");
 
-  TH1D *jac_beta_inclusive = new TH1D("jacobian_beta_inclusive", "jacobian beta inclusive in eta, pt", nbinsmll, 75.0, 105.0);
-  jac_beta_inclusive->GetXaxis()->SetTitle("mll smear");
-  jac_beta_inclusive->GetYaxis()->SetTitle("jacobian beta");
+  TH1D *jac_epsilon_inclusive = new TH1D("jacobian_epsilon_inclusive", "jacobian epsilon inclusive in eta, pt", nbinsmll, 75.0, 105.0);
+  jac_epsilon_inclusive->GetXaxis()->SetTitle("mll smear");
+  jac_epsilon_inclusive->GetYaxis()->SetTitle("jacobian epsilon");
 
   // Histograms for pull of fitted variables per k bin
 
@@ -210,12 +211,12 @@ int frame(){
   alpha_control->GetXaxis()->SetTitle("Bin number");
   alpha_control->GetYaxis()->SetTitle("Pull");
 
-  TH1D *beta = new TH1D("beta", "beta", 3, 0, 3);
-  beta->SetCanExtend(TH1::kAllAxes);
-  beta->SetMarkerStyle(kPlus);
-  beta->SetMarkerColor(kBlue);
-  beta->GetXaxis()->SetTitle("Bin number");
-  beta->GetYaxis()->SetTitle("beta");
+  TH1D *epsilon = new TH1D("epsilon", "epsilon", 3, 0, 3);
+  epsilon->SetCanExtend(TH1::kAllAxes);
+  epsilon->SetMarkerStyle(kPlus);
+  epsilon->SetMarkerColor(kBlue);
+  epsilon->GetXaxis()->SetTitle("Bin number");
+  epsilon->GetYaxis()->SetTitle("epsilon");
 
   TH1D *epsilon_control = new TH1D("epsilon_control", "((mean_yellow - mean_green) - epsilon) / error", 3, 0, 3);
   epsilon_control->SetCanExtend(TH1::kAllAxes);
@@ -259,14 +260,14 @@ int frame(){
   auto multi_hist_proj_gen = mDh_gen->Projection(4);
   auto multi_hist_proj_smear = mDh_smear->Projection(4);
   auto multi_hist_proj_diff_smear = mDh_diff_smear->Projection(4);
-  auto multi_hist_proj_diff_squared_smear = mDh_diff_squared_smear->Projection(4);
-  auto multi_hist_proj_diff_squared_smear_control = mDh_diff_squared_smear_control->Projection(4);
-  auto multi_hist_proj_diff_smear_control = mDh_diff_smear_control->Projection(4);
-  auto multi_hist_proj_jac_beta_smear = mDh_jac_beta_smear->Projection(4);
+  auto multi_hist_proj_jac_diff_squared_smear_mll = mDh_jac_diff_squared_smear_mll->Projection(4);
+  auto multi_hist_proj_jac_diff_squared_smear_mll_diff = mDh_jac_diff_squared_smear_mll_diff->Projection(4);
+  auto multi_hist_proj_jac_diff_smear_mll_diff = mDh_jac_diff_smear_mll_diff->Projection(4);
+  auto multi_hist_proj_jac_diff_smear_mll = mDh_jac_diff_smear_mll->Projection(4);
   auto multi_hist_proj_smear_beta_val = mDh_smear_beta_val->Projection(4);
   auto multi_hist_proj_diff_smear_beta_val = mDh_diff_smear_beta_val->Projection(4);
   auto multi_hist_proj_diff_smear_beta_val_easy = mDh_diff_smear_beta_val_easy->Projection(4);
-  auto multi_hist_proj_jac_beta_smear_mll_diff = mDh_jac_beta_smear_mll_diff->Projection(4);
+  
 
   //--------------------------------------------------------------------------------------
 
@@ -274,9 +275,6 @@ int frame(){
   std::unique_ptr<TFile> f_control( TFile::Open("control_bin_histo.root", "RECREATE") ); // histos inclusive in k bins
   std::unique_ptr<TFile> f_fits( TFile::Open("reco_gen_histos.root", "RECREATE") ); // histos per k bin
   ofstream f_pass_reg("passed_regions.txt"); // to check if there are enough k bins to constrain all sagitta parameters
-
-  f_control->WriteObject(multi_hist_proj_diff_smear, "multi_hist_proj_diff_smear"); 
-  f_control->WriteObject(multi_hist_proj_diff_squared_smear, "multi_hist_proj_diff_squared_smear");
 
   // Canvas
   TCanvas *c1 = new TCanvas("c1","c1",800,600);
@@ -321,42 +319,42 @@ int frame(){
     mDh_gen->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_smear->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_diff_smear->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
-    mDh_diff_squared_smear->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
-    mDh_diff_squared_smear_control->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
-    mDh_diff_smear_control->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
-    mDh_jac_beta_smear->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+    mDh_jac_diff_squared_smear_mll->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+    mDh_jac_diff_squared_smear_mll_diff->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+    mDh_jac_diff_smear_mll_diff->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+    mDh_jac_diff_smear_mll->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_smear_beta_val->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_diff_smear_beta_val->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_diff_smear_beta_val_easy->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
-    mDh_jac_beta_smear_mll_diff->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+    
     for (int pos_pt_bin=1; pos_pt_bin<=nbinspt; pos_pt_bin++){   
       mDh_diff_reco->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_reco->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_gen->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_smear->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_diff_smear->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
-      mDh_diff_squared_smear->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
-      mDh_diff_squared_smear_control->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
-      mDh_diff_smear_control->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
-      mDh_jac_beta_smear->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+      mDh_jac_diff_squared_smear_mll->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+      mDh_jac_diff_squared_smear_mll_diff->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+      mDh_jac_diff_smear_mll_diff->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+      mDh_jac_diff_smear_mll->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_smear_beta_val->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_diff_smear_beta_val->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_diff_smear_beta_val_easy->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
-      mDh_jac_beta_smear_mll_diff->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+    
       for (int neg_eta_bin=1; neg_eta_bin<=nbinseta; neg_eta_bin++){
 	mDh_diff_reco->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	mDh_reco->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
         mDh_gen->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
         mDh_smear->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	mDh_diff_smear->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
-	mDh_diff_squared_smear->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
-        mDh_diff_squared_smear_control->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
-	mDh_diff_smear_control->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
-	mDh_jac_beta_smear->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+	mDh_jac_diff_squared_smear_mll->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+        mDh_jac_diff_squared_smear_mll_diff->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+	mDh_jac_diff_smear_mll_diff->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+	mDh_jac_diff_smear_mll->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	mDh_smear_beta_val->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	mDh_diff_smear_beta_val->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	mDh_diff_smear_beta_val_easy->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
-	mDh_jac_beta_smear_mll_diff->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+	
 	for (int neg_pt_bin=1; neg_pt_bin<=nbinspt; neg_pt_bin++){
 	  mDh_diff_reco->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	  mDh_reco->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
@@ -380,7 +378,8 @@ int frame(){
 	    multi_hist_proj_reco->GetXaxis()->SetTitle("mll [GeV]");
 	    multi_hist_proj_reco->GetYaxis()->SetTitle("Events");
 	    fitresult = fitHisto(multi_hist_proj_reco, 0, 4); 
-	    
+	    std::cout<<"first fit /n";
+
 	    if (fitresult[4] < 0.75){ // reject small gaus integral 
 	      empty_histos_count++;
 	    } else {
@@ -397,14 +396,14 @@ int frame(){
 	      mDh_gen->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	      mDh_smear->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	      mDh_diff_smear->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-	      mDh_diff_squared_smear->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-	      mDh_diff_squared_smear_control->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-	      mDh_diff_smear_control->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-	      mDh_jac_beta_smear->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	      mDh_jac_diff_squared_smear_mll->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	      mDh_jac_diff_squared_smear_mll_diff->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	      mDh_jac_diff_smear_mll_diff->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	      mDh_jac_diff_smear_mll->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	      mDh_smear_beta_val->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	      mDh_diff_smear_beta_val->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	      mDh_diff_smear_beta_val_easy->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-	      mDh_jac_beta_smear_mll_diff->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	      
 
 	      //--------------------------------------------------------------------------
 	      // diff_reco histogram
@@ -417,6 +416,7 @@ int frame(){
 	      
 	      // Fit diff_reco
 	      fitresult = fitHisto(multi_hist_proj_diff_reco, 1, 4);
+	      std::cout<<"second fit \n";
 	      if (fitresult[0] > -90.0){ mean_reco->SetBinError(mean_reco->Fill(name.c_str(), fitresult[0]), fitresult[2]); }
 	      if (fitresult[1] > -5.0){ sigma_reco->SetBinError(sigma_reco->Fill(name.c_str(), fitresult[1]), fitresult[3]); }
 	      	      
@@ -437,6 +437,7 @@ int frame(){
 	      
 	      // Fit diff_smear
 	      fitresult = fitHisto(multi_hist_proj_diff_smear, 1, 8);
+	      std::cout<<"3rd fit \n";
 	      if (fitresult[0] > -90.0){ mean_smear->SetBinError(mean_smear->Fill(name.c_str(), fitresult[0]), fitresult[2]); }
 	      if (fitresult[1] > -5.0){ sigma_smear->SetBinError(sigma_smear->Fill(name.c_str(), fitresult[1]), fitresult[3]); }
 	      
@@ -464,6 +465,7 @@ int frame(){
 
 	      // Fit diff_smear_beta_val
 	      fitresult = fitHisto(multi_hist_proj_diff_smear_beta_val, 1, 5);
+	      std::cout<<"4th fit \n";
 	      // Save these for pull histograms 
 	      mean_diff_smear_epsilon_val = fitresult[0]; 
 	      error_mean_diff_smear_epsilon_val = fitresult[2];
@@ -486,7 +488,7 @@ int frame(){
 	      
 	      // Fit diff_smear_beta_val_easy
 	      fitresult = fitHisto(multi_hist_proj_diff_smear_beta_val_easy, 1, 51);
-	      
+	      std::cout<<"5th fit \n";
 	      if(max_hist_mll_diff < multi_hist_proj_diff_smear_beta_val_easy->GetBinContent(multi_hist_proj_diff_smear_beta_val_easy->GetMaximumBin())){
 		max_hist_mll_diff = multi_hist_proj_diff_smear_beta_val_easy->GetBinContent(multi_hist_proj_diff_smear_beta_val_easy->GetMaximumBin());
               }
@@ -531,6 +533,7 @@ int frame(){
 	      
 	      // Fit mass reco
 	      fitresult = fitHisto(multi_hist_proj_reco, 0, 4);
+	      std::cout<<"6th fit \n";
 	      if (fitresult[4] > -100.0){ gaus_integral->SetBinError(gaus_integral->Fill(name.c_str(), fitresult[4]), 0.01); }
 
 	      max_hist_mll = multi_hist_proj_reco->GetBinContent(multi_hist_proj_reco->GetMaximumBin());
@@ -606,7 +609,7 @@ int frame(){
 	      //leg2->AddEntry(multi_hist_proj_reco, "reco", "l");
 	      leg2->AddEntry(multi_hist_proj_gen, "gen", "l");
 	      leg2->AddEntry(multi_hist_proj_smear, "smeared, #beta=1", "l");
-	      leg2->AddEntry(multi_hist_proj_smear_beta_val, "smeared, #beta=0.995", "l"); //value of beta goes here !!!!!!
+	      leg2->AddEntry(multi_hist_proj_smear_beta_val, "smeared, #beta=0.999", "l"); //value of beta goes here !!!!!!
 	      
 	      
 	      //--------------------------------------------------------------------------
@@ -642,7 +645,7 @@ int frame(){
 	      // Declare mass vectors, jacobians and variance
 	      
 	      VectorXd h_smear_minus_smear_vector(filled_bins_mll);
-	      Eigen::MatrixXd V_inv_sqrt(filled_bins_mll, filled_bins_mll), J(filled_bins_mll, 2); //J.col(0) is nu, (1) is beta, (2) is alpha
+	      Eigen::MatrixXd V_inv_sqrt(filled_bins_mll, filled_bins_mll), J(filled_bins_mll, 2); //J.col(0) is nu, (1) is epsilon, (2) is alpha
 
               V_inv_sqrt=MatrixXd::Zero(filled_bins_mll, filled_bins_mll);
 	      position_to_fill=0;
@@ -693,11 +696,11 @@ int frame(){
               jac_control->GetXaxis()->SetTitle("mll_smear(#beta=1) - mll_gen [GeV]");
               jac_control->GetYaxis()->SetTitle("GeV");
 
-	      // Jacobian histogram beta mass smear
-	      delete gROOT->FindObject("jacobian_beta");
-	      TH1D *jac_beta = new TH1D("jacobian_beta", "jacobian beta", nbinsmll, 75.0, 105.0);
-              jac_beta->GetXaxis()->SetTitle("mll_smear [GeV]");
-              jac_beta->GetYaxis()->SetTitle("GeV");
+	      // Jacobian histogram epsilon mass smear
+	      delete gROOT->FindObject("jacobian_epsilon");
+	      TH1D *jac_epsilon = new TH1D("jacobian_epsilon", "jacobian epsilon", nbinsmll, 75.0, 105.0);
+              jac_epsilon->GetXaxis()->SetTitle("mll_smear [GeV]");
+              jac_epsilon->GetYaxis()->SetTitle("GeV");
 
 	      // Jacobian histogram epsilon diff_smear
 	      delete gROOT->FindObject("jacobian_epsilon_control");
@@ -709,20 +712,20 @@ int frame(){
               // Compute jacobians mass smear
 
 	      // Needed for jacobian alpha mass smear
-	      delete gROOT->FindObject("multi_data_histo_diff_squared_smear_proj_4");
-	      multi_hist_proj_diff_squared_smear = mDh_diff_squared_smear->Projection(4);
-	      // Needed for jacobian beta mass smear
-	      delete gROOT->FindObject("multi_data_histo_jac_beta_smear_proj_4");
-              multi_hist_proj_jac_beta_smear = mDh_jac_beta_smear->Projection(4);
-	      
+	      delete gROOT->FindObject("multi_data_histo_jac_diff_squared_smear_mll_proj_4");
+	      multi_hist_proj_jac_diff_squared_smear_mll = mDh_jac_diff_squared_smear_mll->Projection(4);
+	      // Needed for jacobian epsilon mass smear
+	      delete gROOT->FindObject("multi_data_histo_jac_diff_smear_mll_proj_4");
+	      multi_hist_proj_jac_diff_smear_mll = mDh_jac_diff_smear_mll->Projection(4);
+           	      
 	      position_to_fill=0;
 	      for(int i=1; i<=nbinsmll; i++){
 		// alpha mass smear
-		diff_squared = multi_hist_proj_diff_squared_smear->GetBinContent(i);
-		error_diff_squared = multi_hist_proj_diff_squared_smear->GetBinErrorLow(i);
-		// beta mass smear
-		jac_b_weight = multi_hist_proj_jac_beta_smear->GetBinContent(i);
-                error_jac_b_weight = multi_hist_proj_jac_beta_smear->GetBinErrorLow(i);
+		diff_squared = multi_hist_proj_jac_diff_squared_smear_mll->GetBinContent(i);
+		error_diff_squared = multi_hist_proj_jac_diff_squared_smear_mll->GetBinErrorLow(i);
+		// epsilon mass smear
+		jac_e_weight = multi_hist_proj_jac_diff_smear_mll->GetBinContent(i);
+                error_jac_e_weight = multi_hist_proj_jac_diff_smear_mll->GetBinErrorLow(i);
 		
 		if ( find(good_indices_mll.begin(), good_indices_mll.end(), i) != good_indices_mll.end() ){
 		  
@@ -736,14 +739,14 @@ int frame(){
 		  jac->SetBinError(i, error);
 		  jac_inclusive->Fill(mllbinranges[i-1], value);
 		  
-		  // beta mass smear
-		  value_beta = jac_b_weight / (evts_in_bin * sigma_mc * sigma_mc);
-		  error_beta = 1 / (evts_in_bin * sigma_mc*sigma_mc) * pow((4 * jac_b_weight*jac_b_weight * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_jac_b_weight*error_jac_b_weight) , 0.5);
-		  J(position_to_fill,0) = value_beta;
+		  // epsilon mass smear
+		  value_epsilon = jac_e_weight / (evts_in_bin * sigma_mc * sigma_mc);
+		  error_epsilon = 1 / (evts_in_bin * sigma_mc*sigma_mc) * pow((4 * jac_e_weight*jac_e_weight * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_jac_e_weight*error_jac_e_weight) , 0.5);
+		  J(position_to_fill,0) = value_epsilon;
 		  
-		  jac_beta->SetBinContent(i, value_beta);
-		  jac_beta->SetBinError(i, error_beta);
-		  jac_beta_inclusive->Fill(mllbinranges[i-1], value_beta);
+		  jac_epsilon->SetBinContent(i, value_epsilon);
+		  jac_epsilon->SetBinError(i, error_epsilon);
+		  jac_epsilon_inclusive->Fill(mllbinranges[i-1], value_epsilon);
 		  
 		  position_to_fill++;
 		  
@@ -756,25 +759,26 @@ int frame(){
               // Compute jacobians diff_smear
 
 	      // Needed for jacobian alpha diff_smear
-	      delete gROOT->FindObject("multi_data_histo_diff_squared_smear_control_proj_4");
-	      multi_hist_proj_diff_squared_smear_control = mDh_diff_squared_smear_control->Projection(4);
-              delete gROOT->FindObject("multi_data_histo_diff_smear_control_proj_4");
-              multi_hist_proj_diff_smear_control = mDh_diff_smear_control->Projection(4);
+	      delete gROOT->FindObject("multi_data_histo_jac_diff_squared_smear_mll_diff_proj_4");
+	      multi_hist_proj_jac_diff_squared_smear_mll_diff = mDh_jac_diff_squared_smear_mll_diff->Projection(4);
+              delete gROOT->FindObject("multi_data_histo_jac_diff_smear_mll_diff_proj_4");
+              multi_hist_proj_jac_diff_smear_mll_diff = mDh_jac_diff_smear_mll_diff->Projection(4);
 	      // Needed for jacobian epsilon diff_smear
-              delete gROOT->FindObject("multi_data_histo_jac_beta_smear_mll_diff_proj_4");
-              multi_hist_proj_jac_beta_smear_mll_diff = mDh_jac_beta_smear_mll_diff->Projection(4);
+	      delete gROOT->FindObject("multi_data_histo_jac_diff_smear_mll_diff_proj_4");
+	      multi_hist_proj_jac_diff_smear_mll_diff = mDh_jac_diff_smear_mll_diff->Projection(4);
 	     
 	      position_to_fill = 0;
               for(int i=1; i<=nbinsmll_diff; i++){
 		evts_in_bin = multi_hist_proj_diff_smear->GetBinContent(i);
 		// alpha diff_smear
-		diff_squared = multi_hist_proj_diff_squared_smear_control->GetBinContent(i);
-                error_diff_squared = multi_hist_proj_diff_squared_smear_control->GetBinErrorLow(i);
-                diff = multi_hist_proj_diff_smear_control->GetBinContent(i);
-                error_diff = multi_hist_proj_diff_smear_control->GetBinErrorLow(i);
+		diff_squared = multi_hist_proj_jac_diff_squared_smear_mll_diff->GetBinContent(i);
+                error_diff_squared = multi_hist_proj_jac_diff_squared_smear_mll_diff->GetBinErrorLow(i);
+                diff = multi_hist_proj_jac_diff_smear_mll_diff->GetBinContent(i);
+                error_diff = multi_hist_proj_jac_diff_smear_mll_diff->GetBinErrorLow(i);
 		// epsilon diff_smear
-                jac_e_weight = multi_hist_proj_jac_beta_smear_mll_diff->GetBinContent(i);
-                error_jac_e_weight = multi_hist_proj_jac_beta_smear_mll_diff->GetBinErrorLow(i);
+		// TODO just use diff variable
+                jac_e_weight = multi_hist_proj_jac_diff_smear_mll_diff->GetBinContent(i);
+                error_jac_e_weight = multi_hist_proj_jac_diff_smear_mll_diff->GetBinErrorLow(i);
                 
                 if ( find(good_indices_mll_diff.begin(), good_indices_mll_diff.end(), i) != good_indices_mll_diff.end() ){
 		  // alpha diff_smear
@@ -786,6 +790,7 @@ int frame(){
                   jac_control->SetBinError(i, error);
 		  
 		  // epsilon diff_smear
+		  // TODO check error and formula
 		  value_epsilon = ( jac_e_weight - evts_in_bin*mean_mc ) / pow(sigma_mc,2);
 		  error_epsilon = pow( pow(evts_in_bin*error_mean_mc,2) + 4.0*pow(jac_e_weight - evts_in_bin*mean_mc,2)*pow(error_sigma_mc,2)/pow(sigma_mc,2) + pow(error_jac_e_weight,2), 0.5) / pow(sigma_mc,2);
 	
@@ -805,29 +810,29 @@ int frame(){
 
 	      f_fits->WriteObject(jac, ("jac_alpha" + name).c_str());
 	      f_fits->WriteObject(jac_control, ("jac_alpha_control" + name).c_str());
-	      f_fits->WriteObject(jac_beta, ("jac_beta" + name).c_str());
+	      f_fits->WriteObject(jac_epsilon, ("jac_epsilon" + name).c_str());
 	      f_fits->WriteObject(jac_epsilon_control, ("jac_epsilon_control" + name).c_str());
 		      
 	      //--------------------------------------------------------------------------
-              // Solve for alpha, beta, nu
+              // Solve for alpha, epsilon, nu
               //--------------------------------------------------------------------------
 	      
-	      // Solve for nu, beta, alpha mass smear 
+	      // Solve for nu, epsilon, alpha mass smear 
 	      Eigen::MatrixXd A = V_inv_sqrt*J;
 	      Eigen::MatrixXd b = V_inv_sqrt*h_smear_minus_smear_vector;
-	      // ATTENTION: n_b_a_vector contains nu, beta, alpha
-	      Eigen::VectorXd n_b_a_vector = A.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
+	      // ATTENTION: n_e_a_vector contains nu, epsilon, alpha
+	      Eigen::VectorXd n_e_a_vector = A.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
 	      // Write alpha
-	      // alpha->SetBinError(alpha->Fill(name.c_str(), n_b_a_vector(2)), 0.01); 	      
+	      // alpha->SetBinError(alpha->Fill(name.c_str(), n_e_a_vector(2)), 0.01); 	      
 	      // TODO is this still true? ->  Attention beta_vector contains beta-1, not beta !!!
 
-	      // Error on nu, beta, alpha mass smear 
-	      Eigen::MatrixXd V_beta = (J.col(1).transpose()*(V_inv_sqrt*V_inv_sqrt)*J.col(1)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
+	      // Error on nu, epsilon, alpha mass smear 
+	      Eigen::MatrixXd V_epsilon = (J.col(1).transpose()*(V_inv_sqrt*V_inv_sqrt)*J.col(1)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
 	      Eigen::MatrixXd V_nu = (J.col(0).transpose()*(V_inv_sqrt*V_inv_sqrt)*J.col(0)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
-	      fit_beta_error = pow(V_beta(0,0),0.5); // save for closure test
-	      // Write beta mass smear
-	      beta->SetBinError(beta->Fill(name.c_str(), n_b_a_vector(1)), fit_beta_error); // TODO change for epsilon
-	      nu->SetBinError(nu->Fill(name.c_str(), n_b_a_vector(0)), pow(V_nu(0,0),0.5)); 
+	      fit_epsilon_error = pow(V_epsilon(0,0),0.5); // save for closure test
+	      // Write epsilon mass smear
+	      epsilon->SetBinError(epsilon->Fill(name.c_str(), n_e_a_vector(1)), fit_epsilon_error); 
+	      nu->SetBinError(nu->Fill(name.c_str(), n_e_a_vector(0)), pow(V_nu(0,0),0.5)); 
 	      
 	      //--------------------------------------------------------------------------
 
@@ -852,9 +857,9 @@ int frame(){
 	      //--------------------------------------------------------------------------
               // Add fitted parameters to mass fit panel 
 
-	      leg_entry = "Fit #beta=" + to_string(n_b_a_vector(1)).substr(0, 6) + "#pm" + to_string(fit_beta_error).substr(0, 6); // TODO change for epsilon 
+	      leg_entry = "Fit #epsilon=" + to_string(n_e_a_vector(1)).substr(0, 6) + "#pm" + to_string(fit_epsilon_error).substr(0, 6); 
 	      leg2->AddEntry((TObject*)0, leg_entry.c_str(), "");
-	      leg_entry = "Fit #nu=" + to_string(n_b_a_vector(0)).substr(0, 6) + "#pm" + to_string(pow(V_nu(0,0),0.5)).substr(0, 6); 
+	      leg_entry = "Fit #nu=" + to_string(n_e_a_vector(0)).substr(0, 6) + "#pm" + to_string(pow(V_nu(0,0),0.5)).substr(0, 6); 
 	      leg2->AddEntry((TObject*)0, leg_entry.c_str(), "");
 
 	      leg2->Draw("");
@@ -910,6 +915,7 @@ int frame(){
 	      
 	      // Draw corrected_diff_smear
 	      fitresult = fitHisto(corrected_diff_smear, 1, 1);
+	      std::cout<<"7th fit \n";
 
 	      // Save for pull distribution epsilon_control
 	      mean_corrected_diff_smear = fitresult[0];
@@ -926,7 +932,7 @@ int frame(){
 	      
 	      c1->cd();
 	      // Write plots per k bin
-              //f_fits->WriteObject(c1, name.c_str());
+              f_fits->WriteObject(c1, name.c_str());
 
 	      // Draw pull distributions
 
@@ -982,8 +988,8 @@ int frame(){
   f_control->WriteObject(alpha, "alpha");
   f_control->WriteObject(jac_inclusive, "jacobian_inclusive");
 
-  f_control->WriteObject(beta, "beta");
-  f_control->WriteObject(jac_beta_inclusive, "jacobian_beta_inclusive");
+  f_control->WriteObject(epsilon, "epsilon");
+  f_control->WriteObject(jac_epsilon_inclusive, "jacobian_epsilon_inclusive");
 
   f_control->WriteObject(nu, "nu");
 
