@@ -204,7 +204,7 @@ int frame(){
   alpha->GetXaxis()->SetTitle("Bin number");
   alpha->GetYaxis()->SetTitle("alpha");
 
-  TH1D *alpha_control = new TH1D("alpha_control", "((sigma_yellow - sigma_green) - sigma_green*Delta_alpha) / error", 3, 0, 3);
+  TH1D *alpha_control = new TH1D("alpha_control", "((sigma_yellow - sigma_green) - sigma_green*Delta_alpha) / error_alpha", 3, 0, 3);
   alpha_control->SetCanExtend(TH1::kAllAxes);
   alpha_control->SetMarkerStyle(kPlus);
   alpha_control->SetMarkerColor(kBlue);
@@ -218,12 +218,30 @@ int frame(){
   epsilon->GetXaxis()->SetTitle("Bin number");
   epsilon->GetYaxis()->SetTitle("epsilon");
 
-  TH1D *epsilon_control = new TH1D("epsilon_control", "((mean_yellow - mean_green) - epsilon) / error", 3, 0, 3);
+  TH1D *epsilon_control = new TH1D("epsilon_control", "((mean_yellow - mean_green) - epsilon) / error_epsilon", 3, 0, 3);
   epsilon_control->SetCanExtend(TH1::kAllAxes);
   epsilon_control->SetMarkerStyle(kPlus);
-  epsilon_control->SetMarkerColor(kBlue);
+  epsilon_control->SetMarkerColor(kBlack);
   epsilon_control->GetXaxis()->SetTitle("Bin number");
   epsilon_control->GetYaxis()->SetTitle("Pull");
+
+  TH1D *epsilon_control2 = new TH1D("epsilon_control2", "((mean_yellow - mean_green) - epsilon) / error_epsilon (freeze #nu #alpha)", 3, 0, 3);
+  epsilon_control2->SetCanExtend(TH1::kAllAxes);
+  epsilon_control2->SetMarkerStyle(kPlus);
+  epsilon_control2->SetMarkerColor(kGreen);
+  epsilon_control2->GetXaxis()->SetTitle("Bin number");
+  epsilon_control2->GetYaxis()->SetTitle("Pull");
+
+  TH1D *epsilon_test1 = new TH1D("epsilon_test1", " (mean_yellow - mean_green) / sigma_green", 3, 0, 3);
+  epsilon_test1->SetCanExtend(TH1::kAllAxes);
+  epsilon_test1->SetMarkerStyle(kPlus);
+  epsilon_test1->SetMarkerColor(kBlue);
+  epsilon_test1->GetXaxis()->SetTitle("Bin number");
+  epsilon_test1->GetYaxis()->SetTitle("Pull");
+
+  TH2D *epsilon_test2 = new TH2D("epsilon_test2", "epsilon_test2", 8, 0.1, 0.4, 8, -3.0, 3.0);
+  epsilon_test2->GetXaxis()->SetTitle("abs((mean_yellow - mean_green) / sigma_green)");
+  epsilon_test2->GetYaxis()->SetTitle("((mean_yellow - mean_green) - epsilon) / error_epsilon");
 
   TH1D *nu = new TH1D("nu", "nu", 3, 0, 3);
   nu->SetCanExtend(TH1::kAllAxes);
@@ -232,7 +250,7 @@ int frame(){
   nu->GetXaxis()->SetTitle("Bin number");
   nu->GetYaxis()->SetTitle("nu");
 
-  TH1D *nu_control = new TH1D("nu_control", "((integral_yellow - integral_green) - integral_green*delta_nu) / error", 3, 0, 3);
+  TH1D *nu_control = new TH1D("nu_control", "((integral_yellow - integral_green) - integral_green*delta_nu) / error_nu", 3, 0, 3);
   nu_control->SetCanExtend(TH1::kAllAxes);
   nu_control->SetMarkerStyle(kPlus);
   nu_control->SetMarkerColor(kBlue);
@@ -241,15 +259,23 @@ int frame(){
 
   // Histograms for pull distributions
 
-  TH1D *pull_nu_control = new TH1D("pull_nu_control", " ((integral_yellow - integral_green) - integral_green*Delta_nu) / error ", 6, -3.0, 3.0);
+  TH1D *pull_nu_control = new TH1D("pull_nu_control", " ((integral_yellow - integral_green) - integral_green*Delta_nu) / error_nu ", 6, -3.0, 3.0);
   pull_nu_control->GetXaxis()->SetTitle("Pull");
   pull_nu_control->GetYaxis()->SetTitle("Events");
 
-  TH1D *pull_epsilon_control = new TH1D("pull_epsilon_control", " ((mean_yellow - mean_green) - epsilon) / error ", 6, -3.0, 3.0);
+  TH1D *pull_epsilon_control = new TH1D("pull_epsilon_control", " ((mean_yellow - mean_green) - epsilon) / error_epsilon ", 6, -3.0, 3.0);
   pull_epsilon_control->GetXaxis()->SetTitle("Pull");
   pull_epsilon_control->GetYaxis()->SetTitle("Events");
 
-  TH1D *pull_alpha_control = new TH1D("pull_alpha_control", " ((sigma_yellow - sigma_green) - sigma_green*Delta_alpha) / error ", 6, -3.0, 3.0);
+  TH1D *pull_epsilon_control1 = new TH1D("pull_epsilon_control1", " ((mean_yellow - mean_green) - epsilon) / error_epsilon (freeze nu) ", 6, -3.0, 3.0);
+  pull_epsilon_control1->GetXaxis()->SetTitle("Pull");
+  pull_epsilon_control1->GetYaxis()->SetTitle("Events");
+
+  TH1D *pull_epsilon_control2 = new TH1D("pull_epsilon_control2", " ((mean_yellow - mean_green) - epsilon) / error_epsilon (freeze nu, alpha) ", 6, -3.0, 3.0);
+  pull_epsilon_control2->GetXaxis()->SetTitle("Pull");
+  pull_epsilon_control2->GetYaxis()->SetTitle("Events");
+
+  TH1D *pull_alpha_control = new TH1D("pull_alpha_control", " ((sigma_yellow - sigma_green) - sigma_green*Delta_alpha) / error_alpha ", 6, -3.0, 3.0);
   pull_alpha_control->GetXaxis()->SetTitle("Pull");
   pull_alpha_control->GetYaxis()->SetTitle("Events");
 
@@ -378,8 +404,7 @@ int frame(){
 	    multi_hist_proj_reco->GetXaxis()->SetTitle("mll [GeV]");
 	    multi_hist_proj_reco->GetYaxis()->SetTitle("Events");
 	    fitresult = fitHisto(multi_hist_proj_reco, 0, 4); 
-	    std::cout<<"first fit /n";
-
+	    
 	    if (fitresult[4] < 0.75){ // reject small gaus integral 
 	      empty_histos_count++;
 	    } else {
@@ -416,7 +441,6 @@ int frame(){
 	      
 	      // Fit diff_reco
 	      fitresult = fitHisto(multi_hist_proj_diff_reco, 1, 4);
-	      std::cout<<"second fit \n";
 	      if (fitresult[0] > -90.0){ mean_reco->SetBinError(mean_reco->Fill(name.c_str(), fitresult[0]), fitresult[2]); }
 	      if (fitresult[1] > -5.0){ sigma_reco->SetBinError(sigma_reco->Fill(name.c_str(), fitresult[1]), fitresult[3]); }
 	      	      
@@ -437,7 +461,6 @@ int frame(){
 	      
 	      // Fit diff_smear
 	      fitresult = fitHisto(multi_hist_proj_diff_smear, 1, 8);
-	      std::cout<<"3rd fit \n";
 	      if (fitresult[0] > -90.0){ mean_smear->SetBinError(mean_smear->Fill(name.c_str(), fitresult[0]), fitresult[2]); }
 	      if (fitresult[1] > -5.0){ sigma_smear->SetBinError(sigma_smear->Fill(name.c_str(), fitresult[1]), fitresult[3]); }
 	      
@@ -465,7 +488,7 @@ int frame(){
 
 	      // Fit diff_smear_beta_val
 	      fitresult = fitHisto(multi_hist_proj_diff_smear_beta_val, 1, 5);
-	      std::cout<<"4th fit \n";
+	      
 	      // Save these for pull histograms 
 	      mean_diff_smear_epsilon_val = fitresult[0]; 
 	      error_mean_diff_smear_epsilon_val = fitresult[2];
@@ -488,7 +511,7 @@ int frame(){
 	      
 	      // Fit diff_smear_beta_val_easy
 	      fitresult = fitHisto(multi_hist_proj_diff_smear_beta_val_easy, 1, 51);
-	      std::cout<<"5th fit \n";
+	      
 	      if(max_hist_mll_diff < multi_hist_proj_diff_smear_beta_val_easy->GetBinContent(multi_hist_proj_diff_smear_beta_val_easy->GetMaximumBin())){
 		max_hist_mll_diff = multi_hist_proj_diff_smear_beta_val_easy->GetBinContent(multi_hist_proj_diff_smear_beta_val_easy->GetMaximumBin());
               }
@@ -533,7 +556,7 @@ int frame(){
 	      
 	      // Fit mass reco
 	      fitresult = fitHisto(multi_hist_proj_reco, 0, 4);
-	      std::cout<<"6th fit \n";
+	      
 	      if (fitresult[4] > -100.0){ gaus_integral->SetBinError(gaus_integral->Fill(name.c_str(), fitresult[4]), 0.01); }
 
 	      max_hist_mll = multi_hist_proj_reco->GetBinContent(multi_hist_proj_reco->GetMaximumBin());
@@ -836,12 +859,24 @@ int frame(){
 	      
 	      //--------------------------------------------------------------------------
 
-	      // Solve for nu, epsilon, alpha diff smear
+	      // Solve for nu, epsilon, alpha diff smear simultaneously
 	      Eigen::MatrixXd A_control = V_inv_sqrt_control*J_control;
 	      Eigen::MatrixXd b_control = V_inv_sqrt_control*h_smear_diff_minus_smear_diff_vector;
 	      // ATTENTION: n_e_a_vector_control contains nu, epsilon, alpha
 	      Eigen::VectorXd n_e_a_vector_control = A_control.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b_control);
               
+	      // Solve for epsilon, alpha diff smear only
+	      Eigen::MatrixXd A1_control = V_inv_sqrt_control*J_control.rightCols(2); 
+	      Eigen::MatrixXd b1_control = V_inv_sqrt_control*h_smear_diff_minus_smear_diff_vector;
+              // ATTENTION: e_a_vector_control contains epsilon, alpha
+	      Eigen::VectorXd e_a_vector_control = A1_control.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b1_control);
+
+	      // Solve for epsilon diff smear only
+	      Eigen::MatrixXd A2_control = V_inv_sqrt_control*J.col(1);
+	      Eigen::MatrixXd b2_control = V_inv_sqrt_control*h_smear_diff_minus_smear_diff_vector;
+              // ATTENTION: e_vector_control contains epsilon
+	      Eigen::VectorXd e_vector_control = A2_control.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b2_control);
+	      
 	      // Error on epsilon diff smear
 	      Eigen::MatrixXd V_epsilon_control(1,1); 
 	      V_epsilon_control = (J_control.col(1).transpose()*(V_inv_sqrt_control*V_inv_sqrt_control)*J_control.col(1)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
@@ -870,6 +905,8 @@ int frame(){
 
 	      leg_entry = "Fit #varepsilon=" + to_string(n_e_a_vector_control(1)).substr(0, 6) + "#pm" + to_string(pow(V_epsilon_control(0,0),0.5)).substr(0, 6); // n_e_a_vector_control(1) is epsilon
 	      leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
+	      leg_entry = "Fit #varepsilon=" + to_string(e_vector_control(0)).substr(0, 6) + " if freezed #nu, #alpha"; // n_e_a_vector_control(1) is epsilon
+              leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
 	      leg_entry = "Fit #Delta#nu=" + to_string(n_e_a_vector_control(0)).substr(0, 6) + "#pm" + to_string(pow(V_nu_control(0,0),0.5)).substr(0, 6); // n_e_a_vector_control(0) is nu 
 	      leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
 	      leg_entry = "Fit #Delta#alpha=" + to_string(n_e_a_vector_control(2)).substr(0, 6) + "#pm" + to_string(pow(V_alpha_control(0,0),0.5)).substr(0, 6); // n_e_a_vector_control(2) is alpha
@@ -915,8 +952,7 @@ int frame(){
 	      
 	      // Draw corrected_diff_smear
 	      fitresult = fitHisto(corrected_diff_smear, 1, 1);
-	      std::cout<<"7th fit \n";
-
+	      
 	      // Save for pull distribution epsilon_control
 	      mean_corrected_diff_smear = fitresult[0];
 	      sigma_corrected_diff_smear = fitresult[1];
@@ -939,20 +975,27 @@ int frame(){
 	      // nu diff
 	      nu_control->SetBinError(nu_control->Fill(name.c_str(), (integral_diff_smear_epsilon_val - integral_mc - integral_mc*n_e_a_vector_control(0)) / integral_mc / pow(V_nu_control(0,0),0.5) ), 0.001);
 	      pull_nu_control->Fill( (integral_diff_smear_epsilon_val - integral_mc - integral_mc*n_e_a_vector_control(0)) / integral_mc / pow(V_nu_control(0,0),0.5) );
-
+	      
 	      // epsilon diff
-	      //epsilon_control->SetBinError(epsilon_control->Fill(name.c_str(), (mean_diff_smear_epsilon_val - mean_mc - n_e_a_vector_control(1)) ), 0.001);
-	      epsilon_control->SetBinError(epsilon_control->Fill(name.c_str(), (mean_diff_smear_epsilon_val - mean_mc - n_e_a_vector_control(1))/pow( pow(error_mean_diff_smear_epsilon_val,2)+pow(error_mean_mc,2)+V_epsilon_control(0,0) ,0.5)), 0.001);
-	      pull_epsilon_control->Fill( (mean_diff_smear_epsilon_val - mean_mc - n_e_a_vector_control(1))/pow( pow(error_mean_diff_smear_epsilon_val,2)+pow(error_mean_mc,2)+V_epsilon_control(0,0) ,0.5) );
-	      //pull_epsilon_control->Fill( (mean_diff_smear_epsilon_val - mean_mc - n_e_a_vector_control(1)));
+	      epsilon_control->SetBinError(epsilon_control->Fill(name.c_str(), (mean_diff_smear_epsilon_val - mean_mc - n_e_a_vector_control(1))/pow(V_epsilon_control(0,0),0.5) ), 0.001);
+	      pull_epsilon_control->Fill( (mean_diff_smear_epsilon_val - mean_mc - n_e_a_vector_control(1))/pow(V_epsilon_control(0,0),0.5) );
+	      
+	      pull_epsilon_control1->Fill( (mean_diff_smear_epsilon_val - mean_mc - e_a_vector_control(0))/pow(V_epsilon_control(0,0),0.5) );
+	      pull_epsilon_control2->Fill( (mean_diff_smear_epsilon_val - mean_mc - e_vector_control(0))/pow(V_epsilon_control(0,0),0.5) );
 
+	      epsilon_control2->SetBinError(epsilon_control2->Fill(name.c_str(),(mean_diff_smear_epsilon_val - mean_mc - e_vector_control(0))/pow(V_epsilon_control(0,0),0.5)), 0.001);
+
+	      // epsilon test
+	      epsilon_test1->SetBinError(epsilon_test1->Fill(name.c_str(), (mean_diff_smear_epsilon_val - mean_mc) / sigma_mc), 0.001);
+	      if ( abs((mean_diff_smear_epsilon_val - mean_mc) / sigma_mc) > 0.05 ){
+		epsilon_test2->Fill(abs((mean_diff_smear_epsilon_val - mean_mc) / sigma_mc), (mean_diff_smear_epsilon_val - mean_mc - n_e_a_vector_control(1))/pow(V_epsilon_control(0,0),0.5));
+	      }
+	      
 	      // alpha diff
-	      //alpha_control->SetBinError(alpha_control->Fill(name.c_str(), (sigma_diff_smear_epsilon_val - sigma_mc - sigma_mc*n_e_a_vector_control(2))), 0.001);
-
-	      alpha_control->SetBinError(alpha_control->Fill(name.c_str(), (sigma_diff_smear_epsilon_val - sigma_mc - sigma_mc*n_e_a_vector_control(2))/pow( pow(error_sigma_diff_smear_epsilon_val,2) + pow((1+n_e_a_vector_control(2))*error_sigma_mc,2) + pow(sigma_mc,2)*V_alpha_control(0,0) ,0.5)), 0.001);
-	      pull_alpha_control->Fill( (sigma_diff_smear_epsilon_val - sigma_mc - sigma_mc*n_e_a_vector_control(2))/pow( pow(error_sigma_diff_smear_epsilon_val,2) + pow((1+n_e_a_vector_control(2))*error_sigma_mc,2) + pow(sigma_mc,2)*V_alpha_control(0,0) ,0.5) );
-	      //pull_alpha_control->Fill( (sigma_diff_smear_epsilon_val - sigma_mc - sigma_mc*n_e_a_vector_control(2)));
-
+	      alpha_control->SetBinError(alpha_control->Fill(name.c_str(), (sigma_diff_smear_epsilon_val - sigma_mc - sigma_mc*n_e_a_vector_control(2))/pow(V_alpha_control(0,0),0.5) ), 0.001);
+	      pull_alpha_control->Fill( (sigma_diff_smear_epsilon_val - sigma_mc - sigma_mc*n_e_a_vector_control(2))/pow(V_alpha_control(0,0),0.5) );
+	      
+	      
 	    }
 	  }
 	  
@@ -998,6 +1041,8 @@ int frame(){
   std::cout<<"CHECKPOINT: "<<"Pull epsilon control distribution fitted mean: "<<fitresult[0]<<" +/- "<<fitresult[2]<<" and sigma "<<fitresult[1]<<" +/- "<<fitresult[3]<<"\n";
   f_control->WriteObject(pull_epsilon_control, "pull_epsilon_control");
 
+  f_control->WriteObject(epsilon_test1, "epsilon_test1");
+
   f_control->WriteObject(alpha_control, "alpha_control");
   fitresult = fitHisto(pull_alpha_control, 1, 1);
   std::cout<<"CHECKPOINT: "<<"Pull alpha control distribution fitted mean: "<<fitresult[0]<<" +/- "<<fitresult[2]<<" and sigma "<<fitresult[1]<<" +/- "<<fitresult[3]<<"\n";
@@ -1031,6 +1076,54 @@ int frame(){
   leg3->Draw("");
 
   f_control->WriteObject(c2, "mean_superimposed");
+
+  TCanvas *c3 = new TCanvas("c3","c3",800,600);
+  epsilon_test2->SetStats(0);
+  epsilon_test2->Draw("COLZ");
+  f_control->WriteObject(c3, "epsilon_test2");
+
+  TCanvas *c4 = new TCanvas("c4","c4",800,600);
+  auto leg4 = new TLegend(0.58, 0.68, 0.90, 0.90);
+
+  leg4->SetFillStyle(0);
+  leg4->SetBorderSize(0);
+  leg4->SetTextSize(0.035);
+  leg4->SetFillColor(10);
+  leg4->SetNColumns(1);
+  leg4->SetHeader("");
+
+  pull_epsilon_control->SetLineColor(kBlack);
+  pull_epsilon_control->Draw();
+  pull_epsilon_control1->SetLineColor(kRed);
+  pull_epsilon_control1->Draw("SAME");
+  pull_epsilon_control2->SetLineColor(kGreen);
+  pull_epsilon_control2->Draw("SAME");
+  
+  leg4->AddEntry(pull_epsilon_control, "freeze none", "l");
+  leg4->AddEntry(pull_epsilon_control1, "freeze nu", "l");
+  leg4->AddEntry(pull_epsilon_control2, "freeze nu, alpha", "l");
+  leg4->Draw("");
+  
+  f_control->WriteObject(c4, "pull_epsilon_many");
+  
+  TCanvas *c5 = new TCanvas("c5","c5",800,600);
+  auto leg5 = new TLegend(0.58, 0.68, 0.90, 0.90);
+
+  leg5->SetFillStyle(0);
+  leg5->SetBorderSize(0);
+  leg5->SetTextSize(0.035);
+  leg5->SetFillColor(10);
+  leg5->SetNColumns(1);
+  leg5->SetHeader("");
+
+  epsilon_control->Draw();
+  epsilon_control2->Draw("SAME");
+
+  leg5->AddEntry(epsilon_control, "freeze none", "l");
+  leg5->AddEntry(epsilon_control2, "freeze nu, alpha", "l");
+  leg5->Draw("");
+  
+  f_control->WriteObject(c5, "epsilon_many");
 
   gaus_integral->SetStats(0);
   gaus_integral->LabelsDeflate();
