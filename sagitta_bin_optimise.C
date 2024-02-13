@@ -123,9 +123,9 @@ int frame(){
 
   // Binning must match with 5D histogram
   double ptlow=25.0, pthigh=55.0;
-  int nbinsmll_diff=8, nbinsmll=8, nbinseta=24, nbinspt=5;
+  int nbinsmll_diff=16, nbinsmll=8, nbinseta=24, nbinspt=5;
   vector<double> etabinranges, mllbinranges, ptbinranges{25.0, 33.3584, 38.4562, 42.2942, 45.9469, 55.0};
-
+  
   std::cout<<"\n etabinranges = [";
   for (int i=0; i<=nbinseta; i++){etabinranges.push_back(-2.4 + i * 4.8/nbinseta); std::cout<<etabinranges[i]<<", ";}
   std::cout<<"] \n";
@@ -274,6 +274,10 @@ int frame(){
   TH1D *pull_epsilon_control2 = new TH1D("pull_epsilon_control2", " ((mean_yellow - mean_green) - epsilon) / error_epsilon (freeze nu, alpha) ", 6, -3.0, 3.0);
   pull_epsilon_control2->GetXaxis()->SetTitle("Pull");
   pull_epsilon_control2->GetYaxis()->SetTitle("Events");
+
+  TH1D *pull_epsilon_control3 = new TH1D("pull_epsilon_control3", " ((mean_yellow - mean_green) - epsilon) / error_epsilon (|d_nu|, |d_alpha| <0.02) ", 6, -3.0, 3.0);
+  pull_epsilon_control3->GetXaxis()->SetTitle("Pull");
+  pull_epsilon_control3->GetYaxis()->SetTitle("Events");
 
   TH1D *pull_alpha_control = new TH1D("pull_alpha_control", " ((sigma_yellow - sigma_green) - sigma_green*Delta_alpha) / error_alpha ", 6, -3.0, 3.0);
   pull_alpha_control->GetXaxis()->SetTitle("Pull");
@@ -512,9 +516,9 @@ int frame(){
 	      // Fit diff_smear_beta_val_easy
 	      fitresult = fitHisto(multi_hist_proj_diff_smear_beta_val_easy, 1, 51);
 	      
-	      if(max_hist_mll_diff < multi_hist_proj_diff_smear_beta_val_easy->GetBinContent(multi_hist_proj_diff_smear_beta_val_easy->GetMaximumBin())){
-		max_hist_mll_diff = multi_hist_proj_diff_smear_beta_val_easy->GetBinContent(multi_hist_proj_diff_smear_beta_val_easy->GetMaximumBin());
-              }
+	      //if(max_hist_mll_diff < multi_hist_proj_diff_smear_beta_val_easy->GetBinContent(multi_hist_proj_diff_smear_beta_val_easy->GetMaximumBin())){
+	      //max_hist_mll_diff = multi_hist_proj_diff_smear_beta_val_easy->GetBinContent(multi_hist_proj_diff_smear_beta_val_easy->GetMaximumBin());
+              //}
 	      
 	      //--------------------------------------------------------------------------
 	      // Start drawing mll_diff 
@@ -676,7 +680,7 @@ int frame(){
 		if ( find(good_indices_mll.begin(), good_indices_mll.end(), i) != good_indices_mll.end() ){
 		  h_smear_minus_smear_vector(position_to_fill) = multi_hist_proj_smear_beta_val->GetBinContent(i) - multi_hist_proj_smear->GetBinContent(i);
 		  J(position_to_fill,0) = multi_hist_proj_smear->GetBinContent(i); //J_control.col(0) is nu
-		  V_inv_sqrt(position_to_fill,position_to_fill) = 1 / multi_hist_proj_smear_beta_val->GetBinErrorLow(i);
+		  V_inv_sqrt(position_to_fill,position_to_fill) = 1 / multi_hist_proj_smear_beta_val->GetBinError(i);
 		  position_to_fill++;
 		}
 	      }
@@ -695,7 +699,7 @@ int frame(){
 		if( find(good_indices_mll_diff.begin(), good_indices_mll_diff.end(), i) != good_indices_mll_diff.end() ){
 		  h_smear_diff_minus_smear_diff_vector(position_to_fill) = multi_hist_proj_diff_smear_beta_val->GetBinContent(i) - multi_hist_proj_diff_smear->GetBinContent(i);
 		  J_control(position_to_fill,0) = multi_hist_proj_diff_smear->GetBinContent(i); //J_control.col(0) is nu
-		  V_inv_sqrt_control(position_to_fill,position_to_fill) = 1 / multi_hist_proj_diff_smear_beta_val->GetBinErrorLow(i);
+		  V_inv_sqrt_control(position_to_fill,position_to_fill) = 1 / multi_hist_proj_diff_smear_beta_val->GetBinError(i);
 		  integral_diff_smear_epsilon_val += multi_hist_proj_diff_smear_beta_val->GetBinContent(i);
 		  integral_mc += multi_hist_proj_diff_smear->GetBinContent(i);
 
@@ -745,10 +749,10 @@ int frame(){
 	      for(int i=1; i<=nbinsmll; i++){
 		// alpha mass smear
 		diff_squared = multi_hist_proj_jac_diff_squared_smear_mll->GetBinContent(i);
-		error_diff_squared = multi_hist_proj_jac_diff_squared_smear_mll->GetBinErrorLow(i);
+		error_diff_squared = multi_hist_proj_jac_diff_squared_smear_mll->GetBinError(i);
 		// epsilon mass smear
 		jac_e_weight = multi_hist_proj_jac_diff_smear_mll->GetBinContent(i);
-                error_jac_e_weight = multi_hist_proj_jac_diff_smear_mll->GetBinErrorLow(i);
+                error_jac_e_weight = multi_hist_proj_jac_diff_smear_mll->GetBinError(i);
 		
 		if ( find(good_indices_mll.begin(), good_indices_mll.end(), i) != good_indices_mll.end() ){
 		  
@@ -795,13 +799,13 @@ int frame(){
 		evts_in_bin = multi_hist_proj_diff_smear->GetBinContent(i);
 		// alpha diff_smear
 		diff_squared = multi_hist_proj_jac_diff_squared_smear_mll_diff->GetBinContent(i);
-                error_diff_squared = multi_hist_proj_jac_diff_squared_smear_mll_diff->GetBinErrorLow(i);
+                error_diff_squared = multi_hist_proj_jac_diff_squared_smear_mll_diff->GetBinError(i);
                 diff = multi_hist_proj_jac_diff_smear_mll_diff->GetBinContent(i);
-                error_diff = multi_hist_proj_jac_diff_smear_mll_diff->GetBinErrorLow(i);
+                error_diff = multi_hist_proj_jac_diff_smear_mll_diff->GetBinError(i);
 		// epsilon diff_smear
 		// TODO just use diff variable
                 jac_e_weight = multi_hist_proj_jac_diff_smear_mll_diff->GetBinContent(i);
-                error_jac_e_weight = multi_hist_proj_jac_diff_smear_mll_diff->GetBinErrorLow(i);
+                error_jac_e_weight = multi_hist_proj_jac_diff_smear_mll_diff->GetBinError(i);
                 
                 if ( find(good_indices_mll_diff.begin(), good_indices_mll_diff.end(), i) != good_indices_mll_diff.end() ){
 		  // alpha diff_smear
@@ -872,7 +876,7 @@ int frame(){
 	      Eigen::VectorXd e_a_vector_control = A1_control.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b1_control);
 
 	      // Solve for epsilon diff smear only
-	      Eigen::MatrixXd A2_control = V_inv_sqrt_control*J.col(1);
+	      Eigen::MatrixXd A2_control = V_inv_sqrt_control*J_control.col(1);
 	      Eigen::MatrixXd b2_control = V_inv_sqrt_control*h_smear_diff_minus_smear_diff_vector;
               // ATTENTION: e_vector_control contains epsilon
 	      Eigen::VectorXd e_vector_control = A2_control.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b2_control);
@@ -905,7 +909,7 @@ int frame(){
 
 	      leg_entry = "Fit #varepsilon=" + to_string(n_e_a_vector_control(1)).substr(0, 6) + "#pm" + to_string(pow(V_epsilon_control(0,0),0.5)).substr(0, 6); // n_e_a_vector_control(1) is epsilon
 	      leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
-	      leg_entry = "Fit #varepsilon=" + to_string(e_vector_control(0)).substr(0, 6) + " if freezed #nu, #alpha"; // n_e_a_vector_control(1) is epsilon
+	      leg_entry = "Fit #varepsilon=" + to_string(e_vector_control(0)).substr(0, 6) + " if freezed #nu, #alpha"; 
               leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
 	      leg_entry = "Fit #Delta#nu=" + to_string(n_e_a_vector_control(0)).substr(0, 6) + "#pm" + to_string(pow(V_nu_control(0,0),0.5)).substr(0, 6); // n_e_a_vector_control(0) is nu 
 	      leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
@@ -928,18 +932,18 @@ int frame(){
 		  //value_corrected = multi_hist_proj_diff_smear->GetBinContent(i) + n_e_a_vector_control(1)*J_control(position_to_fill,1) + n_e_a_vector_control(0)*J_control(position_to_fill,0); // need nu-1, which is n_e_a_vector_control(0)
 		  value_corrected = multi_hist_proj_diff_smear->GetBinContent(i) + n_e_a_vector_control(1)*J_control(position_to_fill,1) + n_e_a_vector_control(0)*J_control(position_to_fill,0) + n_e_a_vector_control(2)*J_control(position_to_fill,2);
 		  //error = pow( 
-		  //	      pow(multi_hist_proj_diff_smear->GetBinErrorLow(i),2) + 
-		  //	      pow(n_e_a_vector_control(1)*jac_epsilon_control->GetBinErrorLow(i),2) + 
+		  //	      pow(multi_hist_proj_diff_smear->GetBinError(i),2) + 
+		  //	      pow(n_e_a_vector_control(1)*jac_epsilon_control->GetBinError(i),2) + 
 		  //          pow(J_control(position_to_fill,1),2)*V_epsilon_control(0,0) + 
-		  //	      pow(n_e_a_vector_control(0)*multi_hist_proj_diff_smear->GetBinErrorLow(i),2) + 
+		  //	      pow(n_e_a_vector_control(0)*multi_hist_proj_diff_smear->GetBinError(i),2) + 
 		  //	      pow(J_control(position_to_fill,0),2)*V_nu_control(0,0),0.5);
 		  error = pow(
-		            pow(multi_hist_proj_diff_smear->GetBinErrorLow(i),2) +
-		            pow(n_e_a_vector_control(1)*jac_epsilon_control->GetBinErrorLow(i),2) +
+		            pow(multi_hist_proj_diff_smear->GetBinError(i),2) +
+		            pow(n_e_a_vector_control(1)*jac_epsilon_control->GetBinError(i),2) +
 		            pow(J_control(position_to_fill,1),2)*V_epsilon_control(0,0) +
-		            pow(n_e_a_vector_control(0)*multi_hist_proj_diff_smear->GetBinErrorLow(i),2) + 
+		            pow(n_e_a_vector_control(0)*multi_hist_proj_diff_smear->GetBinError(i),2) + 
 		            pow(J_control(position_to_fill,0),2)*V_nu_control(0,0) +
-		            pow(n_e_a_vector_control(2)*jac_control->GetBinErrorLow(i),2) + 
+		            pow(n_e_a_vector_control(2)*jac_control->GetBinError(i),2) + 
 		            pow(J_control(position_to_fill,2),2)*V_alpha_control(0,0) ,0.5);
 		  
 		  corrected_diff_smear->SetBinContent(i, value_corrected);
@@ -979,6 +983,10 @@ int frame(){
 	      // epsilon diff
 	      epsilon_control->SetBinError(epsilon_control->Fill(name.c_str(), (mean_diff_smear_epsilon_val - mean_mc - n_e_a_vector_control(1))/pow(V_epsilon_control(0,0),0.5) ), 0.001);
 	      pull_epsilon_control->Fill( (mean_diff_smear_epsilon_val - mean_mc - n_e_a_vector_control(1))/pow(V_epsilon_control(0,0),0.5) );
+	      
+	      if (abs(n_e_a_vector_control(0)) < 0.02 && abs(n_e_a_vector_control(2)) < 0.02){
+		pull_epsilon_control3->Fill( (mean_diff_smear_epsilon_val - mean_mc - n_e_a_vector_control(1))/pow(V_epsilon_control(0,0),0.5) );
+	      }
 	      
 	      pull_epsilon_control1->Fill( (mean_diff_smear_epsilon_val - mean_mc - e_a_vector_control(0))/pow(V_epsilon_control(0,0),0.5) );
 	      pull_epsilon_control2->Fill( (mean_diff_smear_epsilon_val - mean_mc - e_vector_control(0))/pow(V_epsilon_control(0,0),0.5) );
@@ -1082,30 +1090,48 @@ int frame(){
   epsilon_test2->Draw("COLZ");
   f_control->WriteObject(c3, "epsilon_test2");
 
+  //-----------------------------------------------------------
+  // pull_epsilon_many
+
   TCanvas *c4 = new TCanvas("c4","c4",800,600);
-  auto leg4 = new TLegend(0.58, 0.68, 0.90, 0.90);
+  auto leg4 = new TLegend(0.68, 0.78, 0.90, 0.90);
 
   leg4->SetFillStyle(0);
   leg4->SetBorderSize(0);
-  leg4->SetTextSize(0.035);
+  leg4->SetTextSize(0.025);
   leg4->SetFillColor(10);
   leg4->SetNColumns(1);
   leg4->SetHeader("");
 
+  fitresult = fitHisto(pull_epsilon_control, 1, 1);
+  leg_entry = "freeze none, #mu = " + to_string(fitresult[0]).substr(0, 6) + ", #sigma= " + to_string(fitresult[1]).substr(0, 6);
+  leg4->AddEntry(pull_epsilon_control, leg_entry.c_str(), "l");
   pull_epsilon_control->SetLineColor(kBlack);
   pull_epsilon_control->Draw();
+
+  fitresult = fitHisto(pull_epsilon_control1, 1, 2);
+  leg_entry = "freeze nu, #mu = " + to_string(fitresult[0]).substr(0, 6) + ", #sigma= " + to_string(fitresult[1]).substr(0, 6);
+  leg4->AddEntry(pull_epsilon_control1, leg_entry.c_str(), "l");
   pull_epsilon_control1->SetLineColor(kRed);
   pull_epsilon_control1->Draw("SAME");
+
+  fitresult = fitHisto(pull_epsilon_control2, 1, 3);
+  leg_entry = "freeze nu, alpha, #mu = " + to_string(fitresult[0]).substr(0, 6) + ", #sigma= " + to_string(fitresult[1]).substr(0, 6);
+  leg4->AddEntry(pull_epsilon_control2, leg_entry.c_str(), "l");
   pull_epsilon_control2->SetLineColor(kGreen);
   pull_epsilon_control2->Draw("SAME");
+
+  fitresult = fitHisto(pull_epsilon_control3, 1, 4);
+  leg_entry = "freeze none, |d_nu|, |d_alpha| <0.02, #mu = " + to_string(fitresult[0]).substr(0, 6) + ", #sigma= " + to_string(fitresult[1]).substr(0, 6);
+  leg4->AddEntry(pull_epsilon_control3, leg_entry.c_str(), "l");
+  pull_epsilon_control3->SetLineColor(kBlue);
+  pull_epsilon_control3->Draw("SAME");
   
-  leg4->AddEntry(pull_epsilon_control, "freeze none", "l");
-  leg4->AddEntry(pull_epsilon_control1, "freeze nu", "l");
-  leg4->AddEntry(pull_epsilon_control2, "freeze nu, alpha", "l");
   leg4->Draw("");
   
   f_control->WriteObject(c4, "pull_epsilon_many");
-  
+  //-----------------------------------------------------------
+
   TCanvas *c5 = new TCanvas("c5","c5",800,600);
   auto leg5 = new TLegend(0.58, 0.68, 0.90, 0.90);
 
