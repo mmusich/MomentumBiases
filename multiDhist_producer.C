@@ -213,7 +213,7 @@ int frame(){
   f3.Close();
   
   double ptlow=25.0, pthigh=55.0;
-  int nbinsmll_diff=16, nbinsmll=8, nbinseta=24, nbinspt=5;
+  int nbinsmll_diff=16, nbinsmll=32, nbinseta=24, nbinspt=5;
   vector<double> etabinranges, ptbinranges, mllbinranges;
   vector<double> mll_diffbinranges;
 
@@ -323,6 +323,24 @@ int frame(){
   auto mDh_diff_reco = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_reco", "multi_data_histo_diff_reco", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff_reco","weight"});
   f5->WriteObject(mDh_diff_reco.GetPtr(), "multi_data_histo_diff_reco");
   
+  //--------------------------------------------------------------------------------------
+  // Jacobian terms
+
+  // mll_reco weighted by jacobian_weight_mll_diff_squared_reco
+  auto mDh_jac_diff_squared_reco_mll = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_diff_squared_reco_mll", "multi_data_histo_jac_diff_squared_reco_mll", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_reco","jacobian_weight_mll_diff_squared_reco"});
+  f5->WriteObject(mDh_jac_diff_squared_reco_mll.GetPtr(), "multi_data_histo_jac_diff_squared_reco_mll");
+
+  // mll_reco weighted by jacobian_weight_mll_diff_reco
+  auto mDh_jac_diff_reco_mll = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_diff_reco_mll", "multi_data_histo_jac_diff_reco_mll", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_reco","jacobian_weight_mll_diff_reco"});
+  f5->WriteObject(mDh_jac_diff_reco_mll.GetPtr(), "multi_data_histo_jac_diff_reco_mll");
+
+  // mll_diff_reco weighted by jacobian_weight_mll_diff_squared_reco
+  auto mDh_jac_diff_squared_reco_mll_diff = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_diff_squared_reco_mll_diff", "multi_data_histo_jac_diff_squared_reco_mll_diff", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff_reco","jacobian_weight_mll_diff_squared_reco"});
+  f5->WriteObject(mDh_jac_diff_squared_reco_mll_diff.GetPtr(), "multi_data_histo_jac_diff_squared_reco_mll_diff");
+
+  // mll_diff_reco weighted by jacobian_weight_mll_diff_reco
+  auto mDh_jac_diff_reco_mll_diff = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_diff_reco_mll_diff", "multi_data_histo_jac_diff_reco_mll_diff", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff_reco","jacobian_weight_mll_diff_reco"});
+  f5->WriteObject(mDh_jac_diff_reco_mll_diff.GetPtr(), "multi_data_histo_jac_diff_reco_mll_diff");
   
   return 0;
 

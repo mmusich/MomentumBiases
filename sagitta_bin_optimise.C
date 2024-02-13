@@ -103,6 +103,16 @@ int frame(){
   std::unique_ptr<THnD> mDh_gen(myFile->Get<THnD>("multi_data_histo_gen"));
   std::unique_ptr<THnD> mDh_diff_reco(myFile->Get<THnD>("multi_data_histo_diff_reco")); // it's reco - gen
 
+  // Jacobian terms reco
+  std::unique_ptr<THnD> mDh_jac_diff_squared_reco_mll(myFile->Get<THnD>("multi_data_histo_jac_diff_squared_reco_mll")); // sum of mll_diff_squared in mll bin reco
+  std::unique_ptr<THnD> mDh_jac_diff_squared_reco_mll_diff(myFile->Get<THnD>("multi_data_histo_jac_diff_squared_reco_mll_diff")); // sum of mll_diff_squared in mll_diff bin reco
+  std::unique_ptr<THnD> mDh_jac_diff_reco_mll(myFile->Get<THnD>("multi_data_histo_jac_diff_reco_mll")); // sum of mll_diff in mll bin reco
+  std::unique_ptr<THnD> mDh_jac_diff_reco_mll_diff(myFile->Get<THnD>("multi_data_histo_jac_diff_reco_mll_diff")); // sum of mll_diff in mll_diff bin reco
+
+  // Data
+
+  //--------------------------------------------------------------------------------------
+
   // Smear
   std::unique_ptr<TFile> myFile2( TFile::Open("multiD_histo_smear.root") );
   std::unique_ptr<THnD> mDh_smear(myFile2->Get<THnD>("multi_data_histo_smear"));
@@ -111,7 +121,7 @@ int frame(){
   std::unique_ptr<THnD> mDh_smear_beta_val(myFile2->Get<THnD>("multi_data_histo_smear_beta_val"));
   std::unique_ptr<THnD> mDh_diff_smear_beta_val(myFile2->Get<THnD>("multi_data_histo_diff_smear_beta_val")); 
     
-  // Jacobian terms
+  // Jacobian terms smear
   std::unique_ptr<THnD> mDh_jac_diff_squared_smear_mll(myFile2->Get<THnD>("multi_data_histo_jac_diff_squared_smear_mll")); // sum of mll_diff_squared in mll bin smear
   std::unique_ptr<THnD> mDh_jac_diff_squared_smear_mll_diff(myFile2->Get<THnD>("multi_data_histo_jac_diff_squared_smear_mll_diff")); // sum of mll_diff_squared in mll_diff bin smear
   std::unique_ptr<THnD> mDh_jac_diff_smear_mll(myFile2->Get<THnD>("multi_data_histo_jac_diff_smear_mll")); // sum of mll_diff in mll bin smear
@@ -121,9 +131,11 @@ int frame(){
   std::unique_ptr<TFile> myFile3( TFile::Open("multiD_histo_smear_beta_val_easy.root") );
   std::unique_ptr<THnD> mDh_diff_smear_beta_val_easy(myFile3->Get<THnD>("multi_data_histo_diff_smear_beta_val_easy")); //it's smeared_beta_val_easy - gen  
 
+  //--------------------------------------------------------------------------------------
+
   // Binning must match with 5D histogram
   double ptlow=25.0, pthigh=55.0;
-  int nbinsmll_diff=16, nbinsmll=8, nbinseta=24, nbinspt=5;
+  int nbinsmll_diff=16, nbinsmll=32, nbinseta=24, nbinspt=5;
   vector<double> etabinranges, mllbinranges, ptbinranges{25.0, 33.3584, 38.4562, 42.2942, 45.9469, 55.0};
   
   std::cout<<"\n etabinranges = [";
@@ -538,16 +550,17 @@ int frame(){
 	      leg1->SetHeader(leg_entry.c_str(),"C");
               
 	      //leg1->AddEntry(multi_hist_proj_diff_reco, "reco-gen", "l");
-	      leg1->AddEntry(multi_hist_proj_diff_smear, "smeared-gen, #varepsilon_pT=0, #Delta#alpha=0", "l");
-	      leg1->AddEntry(multi_hist_proj_diff_smear_beta_val, "smeared-gen, #varepsilon_pT=-0.15, #Delta#alpha=0, by weight", "l");
+	      leg1->AddEntry(multi_hist_proj_diff_smear, "smeared-gen, #beta_pT=1, #alpha=1", "l");
+	      leg1->AddEntry(multi_hist_proj_diff_smear_beta_val, "smeared-gen, #beta_pT=0.999, #alpha=1, by weight", "l");
 	      //leg1->AddEntry(multi_hist_proj_diff_smear_beta_val_easy, "smeared-gen, #varepsilon_pT=-0.15, #Delta#alpha=0, by sampling", "l");
-	      leg_entry = "#varepsilon_pT=0: #mu=" + to_string(mean_mc).substr(0, 5) + ", #sigma=" + to_string(sigma_mc).substr(0, 5);
+	      leg_entry = "green fit: #mu=" + to_string(mean_mc).substr(0, 5) + ", #sigma=" + to_string(sigma_mc).substr(0, 5);
 	      leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
 	      //leg1->Draw("");
 	      
 	      //--------------------------------------------------------------------------
 	      // Prepare to draw mll panel
 
+	      c1->cd();
 	      c1->cd(2); 
 	      max_hist_mll = -1.0;
 	      	      
@@ -589,6 +602,7 @@ int frame(){
 	      // Project mass smear
 	      delete gROOT->FindObject("multi_data_histo_smear_proj_4");
 	      multi_hist_proj_smear = mDh_smear->Projection(4);
+	      multi_hist_proj_smear->SetTitle(("mll "+ stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
 	      multi_hist_proj_smear->GetXaxis()->SetTitle("mll [GeV]");
               multi_hist_proj_smear->GetYaxis()->SetTitle("Events");
 	      multi_hist_proj_smear->SetLineColor(kGreen);
@@ -624,8 +638,8 @@ int frame(){
 	      multi_hist_proj_gen->SetMaximum(max_hist_mll);
 
 	      //multi_hist_proj_reco->Draw();
-	      multi_hist_proj_gen->Draw();
-	      multi_hist_proj_smear->Draw("SAME");
+	      //multi_hist_proj_gen->Draw();
+	      multi_hist_proj_smear->Draw("");
 	      multi_hist_proj_smear_beta_val->Draw("SAME");
 
 	      // Legend 
@@ -634,10 +648,11 @@ int frame(){
 	      leg2->SetHeader(leg_entry.c_str(),"C"); 
 
 	      //leg2->AddEntry(multi_hist_proj_reco, "reco", "l");
-	      leg2->AddEntry(multi_hist_proj_gen, "gen", "l");
+	      //leg2->AddEntry(multi_hist_proj_gen, "gen", "l");
 	      leg2->AddEntry(multi_hist_proj_smear, "smeared, #beta=1", "l");
-	      leg2->AddEntry(multi_hist_proj_smear_beta_val, "smeared, #beta=0.999", "l"); //value of beta goes here !!!!!!
+	      leg2->AddEntry(multi_hist_proj_smear_beta_val, "smeared, #beta=0.999", "l"); // insert value of beta here
 	      
+	      c1->cd();
 	      
 	      //--------------------------------------------------------------------------
 	      // Fill vectors and variance for minimisation
@@ -649,7 +664,7 @@ int frame(){
 	      filled_bins_mll=0;
 	      vector<int> good_indices_mll;
 	      for(int i=1; i<=nbinsmll; i++){
-		if (multi_hist_proj_smear_beta_val->GetBinContent(i) > 10 && multi_hist_proj_smear->GetBinContent(i) > 10 && multi_hist_proj_gen->GetBinContent(i) > 0){
+		if ( multi_hist_proj_smear->GetBinContent(i) >= 10 && multi_hist_proj_smear_beta_val->GetBinContent(i) > 0 ){ //asking jacobian to be average over at least 10 events, TODO refine the other criterium
 		  good_indices_mll.push_back(i);
 		  filled_bins_mll++;
 		}
@@ -661,7 +676,7 @@ int frame(){
 	      filled_bins_mll_diff=0;
 	      vector<int> good_indices_mll_diff;
 	      for(int i=1; i<=nbinsmll_diff; i++){
-		if( multi_hist_proj_diff_smear->GetBinContent(i) >= 10 && multi_hist_proj_diff_smear_beta_val->GetBinContent(i) > 0 ){ //asking jacobian to be average over at least 10 events
+		if( multi_hist_proj_diff_smear->GetBinContent(i) >= 10 && multi_hist_proj_diff_smear_beta_val->GetBinContent(i) > 0 ){ //asking jacobian to be average over at least 10 events, TODO refine the other criterium
 		  good_indices_mll_diff.push_back(i);
 		  filled_bins_mll_diff++;
 		}
@@ -672,7 +687,7 @@ int frame(){
 	      // Declare mass vectors, jacobians and variance
 	      
 	      VectorXd h_smear_minus_smear_vector(filled_bins_mll);
-	      Eigen::MatrixXd V_inv_sqrt(filled_bins_mll, filled_bins_mll), J(filled_bins_mll, 2); //J.col(0) is nu, (1) is epsilon, (2) is alpha
+	      Eigen::MatrixXd V_inv_sqrt(filled_bins_mll, filled_bins_mll), J(filled_bins_mll, 3); //J.col(0) is nu, (1) is epsilon, (2) is alpha
 
               V_inv_sqrt=MatrixXd::Zero(filled_bins_mll, filled_bins_mll);
 	      position_to_fill=0;
@@ -760,16 +775,16 @@ int frame(){
 		  // alpha mass smear
 		  value =  diff_squared / (sigma_mc * sigma_mc) - evts_in_bin;
                   error = 1 / (sigma_mc*sigma_mc) * pow((4.0 * diff_squared*diff_squared * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_diff_squared*error_diff_squared) , 0.5);
-		  J(position_to_fill,1) = value;
+		  J(position_to_fill,2) = value;
 		  
 		  jac->SetBinContent(i, value);
 		  jac->SetBinError(i, error);
 		  jac_inclusive->Fill(mllbinranges[i-1], value);
 		  
 		  // epsilon mass smear
-		  value_epsilon = jac_e_weight / (evts_in_bin * sigma_mc * sigma_mc);
-		  error_epsilon = 1 / (evts_in_bin * sigma_mc*sigma_mc) * pow((4 * jac_e_weight*jac_e_weight * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_jac_e_weight*error_jac_e_weight) , 0.5);
-		  J(position_to_fill,0) = value_epsilon;
+		  value_epsilon = jac_e_weight / (sigma_mc * sigma_mc);
+		  error_epsilon = 1 / (sigma_mc*sigma_mc) * pow((4 * jac_e_weight*jac_e_weight * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_jac_e_weight*error_jac_e_weight) , 0.5);
+		  J(position_to_fill,1) = value_epsilon;
 		  
 		  jac_epsilon->SetBinContent(i, value_epsilon);
 		  jac_epsilon->SetBinError(i, error_epsilon);
@@ -849,18 +864,18 @@ int frame(){
 	      Eigen::MatrixXd b = V_inv_sqrt*h_smear_minus_smear_vector;
 	      // ATTENTION: n_e_a_vector contains nu, epsilon, alpha
 	      Eigen::VectorXd n_e_a_vector = A.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
-	      // Write alpha
-	      // alpha->SetBinError(alpha->Fill(name.c_str(), n_e_a_vector(2)), 0.01); 	      
-	      // TODO is this still true? ->  Attention beta_vector contains beta-1, not beta !!!
-
+	      	      
 	      // Error on nu, epsilon, alpha mass smear 
-	      Eigen::MatrixXd V_epsilon = (J.col(1).transpose()*(V_inv_sqrt*V_inv_sqrt)*J.col(1)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
 	      Eigen::MatrixXd V_nu = (J.col(0).transpose()*(V_inv_sqrt*V_inv_sqrt)*J.col(0)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
+	      Eigen::MatrixXd V_epsilon = (J.col(1).transpose()*(V_inv_sqrt*V_inv_sqrt)*J.col(1)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
 	      fit_epsilon_error = pow(V_epsilon(0,0),0.5); // save for closure test
-	      // Write epsilon mass smear
-	      epsilon->SetBinError(epsilon->Fill(name.c_str(), n_e_a_vector(1)), fit_epsilon_error); 
-	      nu->SetBinError(nu->Fill(name.c_str(), n_e_a_vector(0)), pow(V_nu(0,0),0.5)); 
+	      Eigen::MatrixXd V_alpha = (J.col(2).transpose()*(V_inv_sqrt*V_inv_sqrt)*J.col(2)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
 	      
+	      // Write nu, epsilon, alpha mass smear
+	      nu->SetBinError(nu->Fill(name.c_str(), n_e_a_vector(0)), pow(V_nu(0,0),0.5)); 
+	      epsilon->SetBinError(epsilon->Fill(name.c_str(), n_e_a_vector(1)), pow(V_epsilon(0,0),0.5));
+	      alpha->SetBinError(alpha->Fill(name.c_str(), n_e_a_vector(2)), pow(V_alpha(0,0),0.5));
+
 	      //--------------------------------------------------------------------------
 
 	      // Solve for nu, epsilon, alpha diff smear simultaneously
@@ -896,12 +911,13 @@ int frame(){
 	      //--------------------------------------------------------------------------
               // Add fitted parameters to mass fit panel 
 
-	      leg_entry = "Fit #epsilon=" + to_string(n_e_a_vector(1)).substr(0, 6) + "#pm" + to_string(fit_epsilon_error).substr(0, 6); 
+	      c1->cd(2);
+	      leg_entry = "Fit #varepsilon=" + to_string(n_e_a_vector(1)).substr(0, 6) + "#pm" + to_string(pow(V_epsilon(0,0),0.5)).substr(0, 6); 
 	      leg2->AddEntry((TObject*)0, leg_entry.c_str(), "");
-	      leg_entry = "Fit #nu=" + to_string(n_e_a_vector(0)).substr(0, 6) + "#pm" + to_string(pow(V_nu(0,0),0.5)).substr(0, 6); 
+	      leg_entry = "Fit #Delta#nu=" + to_string(n_e_a_vector(0)).substr(0, 6) + "#pm" + to_string(pow(V_nu(0,0),0.5)).substr(0, 6); 
 	      leg2->AddEntry((TObject*)0, leg_entry.c_str(), "");
-
-	      leg2->Draw("");
+	      leg_entry = "Fit #Delta#alpha=" + to_string(n_e_a_vector(2)).substr(0, 6) + "#pm" + to_string(pow(V_alpha(0,0),0.5)).substr(0, 6);
+              leg2->AddEntry((TObject*)0, leg_entry.c_str(), "");
 
 	      // Add fitted parameters to diff fit panel 
               c1->cd();
@@ -919,6 +935,45 @@ int frame(){
 	      //--------------------------------------------------------------------------
               // Apply fitted epsilon and nu and alpha correction
 
+	      //--------------------------------------------------------------------------
+	      // Define corrected_smear histogram
+	      delete gROOT->FindObject("corrected_smear");
+              TH1D *corrected_smear = new TH1D("corrected_smear", "corrected_smear", nbinsmll, 75.0, 105.0);
+              corrected_smear->SetTitle(("mll " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
+	      corrected_smear->GetXaxis()->SetTitle("mll [GeV]");
+              corrected_smear->GetYaxis()->SetTitle("Events");
+	      
+	      position_to_fill = 0;
+              for(int i=1; i<=nbinsmll; i++){
+                if ( find(good_indices_mll.begin(), good_indices_mll.end(), i) != good_indices_mll.end() ){
+		  value_corrected = multi_hist_proj_smear->GetBinContent(i) + n_e_a_vector(1)*J(position_to_fill,1) + n_e_a_vector(0)*J(position_to_fill,0) + n_e_a_vector(2)*J(position_to_fill,2);
+		  error = pow(
+			      pow(multi_hist_proj_smear->GetBinError(i),2) +
+			      pow(n_e_a_vector(1)*jac_epsilon->GetBinError(i),2) +
+			      pow(J(position_to_fill,1),2)*V_epsilon(0,0) +
+			      pow(n_e_a_vector(0)*multi_hist_proj_smear->GetBinError(i),2) +
+			      pow(J(position_to_fill,0),2)*V_nu(0,0) +
+			      pow(n_e_a_vector(2)*jac->GetBinError(i),2) +
+			      pow(J(position_to_fill,2),2)*V_alpha(0,0)
+			      ,0.5);
+		  
+                  corrected_smear->SetBinContent(i, value_corrected);
+                  corrected_smear->SetBinError(i, error);
+
+                  position_to_fill++;
+                }
+              }
+              if (position_to_fill != filled_bins_mll){ std::cout<<"PROBLEM: counting corrected_smear bins \n"; }
+
+	      // Draw corrected_smear in mass fit panel
+              c1->cd();
+              c1->cd(2);
+              corrected_smear->Draw("SAME");
+
+	      leg2->AddEntry(corrected_smear, "corrected smeared-gen", "l");
+	      leg2->Draw("");
+
+	      //--------------------------------------------------------------------------
 	      // Define corrected_diff_smear histogram
 	      delete gROOT->FindObject("corrected_diff_smear");
 	      TH1D *corrected_diff_smear = new TH1D("corrected_diff_smear", "corrected_diff_smear", nbinsmll_diff, -5.0, 5.0);
@@ -929,14 +984,7 @@ int frame(){
 	      position_to_fill = 0;
               for(int i=1; i<=nbinsmll_diff; i++){
 		if ( find(good_indices_mll_diff.begin(), good_indices_mll_diff.end(), i) != good_indices_mll_diff.end() ){
-		  //value_corrected = multi_hist_proj_diff_smear->GetBinContent(i) + n_e_a_vector_control(1)*J_control(position_to_fill,1) + n_e_a_vector_control(0)*J_control(position_to_fill,0); // need nu-1, which is n_e_a_vector_control(0)
 		  value_corrected = multi_hist_proj_diff_smear->GetBinContent(i) + n_e_a_vector_control(1)*J_control(position_to_fill,1) + n_e_a_vector_control(0)*J_control(position_to_fill,0) + n_e_a_vector_control(2)*J_control(position_to_fill,2);
-		  //error = pow( 
-		  //	      pow(multi_hist_proj_diff_smear->GetBinError(i),2) + 
-		  //	      pow(n_e_a_vector_control(1)*jac_epsilon_control->GetBinError(i),2) + 
-		  //          pow(J_control(position_to_fill,1),2)*V_epsilon_control(0,0) + 
-		  //	      pow(n_e_a_vector_control(0)*multi_hist_proj_diff_smear->GetBinError(i),2) + 
-		  //	      pow(J_control(position_to_fill,0),2)*V_nu_control(0,0),0.5);
 		  error = pow(
 		            pow(multi_hist_proj_diff_smear->GetBinError(i),2) +
 		            pow(n_e_a_vector_control(1)*jac_epsilon_control->GetBinError(i),2) +
@@ -944,7 +992,8 @@ int frame(){
 		            pow(n_e_a_vector_control(0)*multi_hist_proj_diff_smear->GetBinError(i),2) + 
 		            pow(J_control(position_to_fill,0),2)*V_nu_control(0,0) +
 		            pow(n_e_a_vector_control(2)*jac_control->GetBinError(i),2) + 
-		            pow(J_control(position_to_fill,2),2)*V_alpha_control(0,0) ,0.5);
+		            pow(J_control(position_to_fill,2),2)*V_alpha_control(0,0)
+			    ,0.5);
 		  
 		  corrected_diff_smear->SetBinContent(i, value_corrected);
 		  corrected_diff_smear->SetBinError(i, error);
@@ -954,7 +1003,10 @@ int frame(){
 	      }
 	      if (position_to_fill != filled_bins_mll_diff){ std::cout<<"PROBLEM: counting corrected_diff_smear bins \n"; }
 	      
-	      // Draw corrected_diff_smear
+	      // Draw corrected_diff_smear in diff fit panel
+              c1->cd();
+              c1->cd(1);
+              
 	      fitresult = fitHisto(corrected_diff_smear, 1, 1);
 	      
 	      // Save for pull distribution epsilon_control
@@ -967,7 +1019,7 @@ int frame(){
 
 	      //--------------------------------------------------------------------------
 	      // Finish drawing diff panel
-	      leg1->AddEntry(corrected_diff_smear, "corrected smeared-gen, #varepsilon_pT from 0 to -0.15", "l");
+	      leg1->AddEntry(corrected_diff_smear, "corrected smeared-gen", "l");
 	      leg1->Draw("");
 	      
 	      c1->cd();
@@ -1103,6 +1155,8 @@ int frame(){
   leg4->SetNColumns(1);
   leg4->SetHeader("");
 
+  pull_epsilon_control->SetMaximum( pull_epsilon_control->GetBinContent(pull_epsilon_control->GetMaximumBin())*1.3 );
+  pull_epsilon_control->SetStats(0);
   fitresult = fitHisto(pull_epsilon_control, 1, 1);
   leg_entry = "freeze none, #mu = " + to_string(fitresult[0]).substr(0, 6) + ", #sigma= " + to_string(fitresult[1]).substr(0, 6);
   leg4->AddEntry(pull_epsilon_control, leg_entry.c_str(), "l");
