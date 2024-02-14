@@ -19,6 +19,8 @@ RVecB MuonisGood(RVecF Muon_pt, RVecF Muon_eta, RVecB Muon_isGlobal, RVecB Muon_
   for(int i=0;i<Muon_pt.size();i++){
     if (Muon_pt[i] > 10 && abs(Muon_eta[i]) < 2.4 && Muon_isGlobal[i] && Muon_mediumId[i] && Muon_pfRelIso04_all[i] < 0.15 && Muon_genPartFlav[i]==1 && dxy_significance[i] < 4){
       muonisgood.push_back(1);
+    } else {
+      muonisgood.push_back(0);
     }
   }
   return muonisgood;
@@ -86,7 +88,7 @@ int frame(){
 	      bool firstGenMatched = false, secondGenMatched = false;
 	      for (int k=0;k<GenPart_eta.size();k++){
 		if (GenPart_status[k]==1 && abs(GenPart_pdgId[k])==13 && GenPart_pdgId[GenPart_genPartIdxMother[k]]==23){ // mu(-) has PDGID 13
-		  if(pow(pow(GenPart_eta[k]-Muon_eta[i],2) + pow(GenPart_phi[k]-Muon_phi[i],2),0.5)<0.3){
+		  if(pow(pow(GenPart_eta[k]-Muon_eta[i],2) + pow(TVector2::Phi_mpi_pi(GenPart_phi[k]-Muon_phi[i]),2),0.5)<0.3){
 		    firstGenTrack.SetPtEtaPhiM(GenPart_pt[k], GenPart_eta[k], GenPart_phi[k], rest_mass);
 		    firstPt_gen = GenPart_pt[k];
 		    
@@ -101,7 +103,7 @@ int frame(){
 		    		    
 		    firstGenMatched = true;
 		    if(secondGenMatched == true){break;}
-		  } else if(pow(pow(GenPart_eta[k]-Muon_eta[j],2) + pow(GenPart_phi[k]-Muon_phi[j],2),0.5)<0.3){
+		  } else if(pow(pow(GenPart_eta[k]-Muon_eta[j],2) + pow(TVector2::Phi_mpi_pi(GenPart_phi[k]-Muon_phi[j]),2),0.5)<0.3){
 		    secondGenTrack.SetPtEtaPhiM(GenPart_pt[k], GenPart_eta[k], GenPart_phi[k], rest_mass);
 		    secondPt_gen = GenPart_pt[k];
 		    
