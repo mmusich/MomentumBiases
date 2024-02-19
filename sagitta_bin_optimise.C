@@ -122,10 +122,15 @@ int frame(){
   std::unique_ptr<THnD> mDh_diff_smear_beta_val(myFile2->Get<THnD>("multi_data_histo_diff_smear_beta_val")); 
     
   // Jacobian terms smear
+  // analytical jacobians
   std::unique_ptr<THnD> mDh_jac_diff_squared_smear_mll(myFile2->Get<THnD>("multi_data_histo_jac_diff_squared_smear_mll")); // sum of mll_diff_squared in mll bin smear
   std::unique_ptr<THnD> mDh_jac_diff_squared_smear_mll_diff(myFile2->Get<THnD>("multi_data_histo_jac_diff_squared_smear_mll_diff")); // sum of mll_diff_squared in mll_diff bin smear
   std::unique_ptr<THnD> mDh_jac_diff_smear_mll(myFile2->Get<THnD>("multi_data_histo_jac_diff_smear_mll")); // sum of mll_diff in mll bin smear
   std::unique_ptr<THnD> mDh_jac_diff_smear_mll_diff(myFile2->Get<THnD>("multi_data_histo_jac_diff_smear_mll_diff")); // sum of mll_diff in mll_diff bin smear
+  // numerical jacobians
+  std::unique_ptr<THnD> mDh_diff_smear_plus_offset(myFile2->Get<THnD>("multi_data_histo_diff_smear_plus_offset")); 
+  std::unique_ptr<THnD> mDh_diff_smear_minus_offset(myFile2->Get<THnD>("multi_data_histo_diff_smear_minus_offset"));
+  float mll_offset = -0.1;
 
   // Smear easy way
   std::unique_ptr<TFile> myFile3( TFile::Open("multiD_histo_smear_beta_val_easy.root") );
@@ -135,7 +140,7 @@ int frame(){
 
   // Binning must match with 5D histogram
   double ptlow=25.0, pthigh=55.0;
-  int nbinsmll_diff=16, nbinsmll=32, nbinseta=24, nbinspt=5;
+  int nbinsmll_diff=8, nbinsmll=32, nbinseta=24, nbinspt=5;
   vector<double> etabinranges, mllbinranges, ptbinranges{25.0, 33.3584, 38.4562, 42.2942, 45.9469, 55.0};
   
   std::cout<<"\n etabinranges = [";
@@ -271,27 +276,28 @@ int frame(){
 
   // Histograms for pull distributions
 
-  TH1D *pull_nu_control = new TH1D("pull_nu_control", " ((integral_yellow - integral_green) - integral_green*Delta_nu) / error_nu ", 6, -3.0, 3.0);
+  TH1D *pull_nu_control = new TH1D("pull_nu_control", " ((integral_yellow - integral_green) - integral_green*Delta_nu) / error_nu ", 30, -5.0, 5.0);
   pull_nu_control->GetXaxis()->SetTitle("Pull");
   pull_nu_control->GetYaxis()->SetTitle("Events");
 
-  TH1D *pull_epsilon_control = new TH1D("pull_epsilon_control", " ((mean_yellow - mean_green) - epsilon) / error_epsilon ", 6, -3.0, 3.0);
+  string title_offset = " (input epsilon(=" + to_string(mll_offset) + ") - fitted epsilon) / error_fitted_epsilon (smear mass additively) ";
+  TH1D *pull_epsilon_control = new TH1D("pull_epsilon_control", title_offset.c_str(), 30, -5.0, 5.0);
   pull_epsilon_control->GetXaxis()->SetTitle("Pull");
   pull_epsilon_control->GetYaxis()->SetTitle("Events");
 
-  TH1D *pull_epsilon_control1 = new TH1D("pull_epsilon_control1", " ((mean_yellow - mean_green) - epsilon) / error_epsilon (freeze nu) ", 6, -3.0, 3.0);
+  TH1D *pull_epsilon_control1 = new TH1D("pull_epsilon_control1", " ((mean_yellow - mean_green) - epsilon) / error_epsilon (freeze nu) ", 30, -5.0, 5.0);
   pull_epsilon_control1->GetXaxis()->SetTitle("Pull");
   pull_epsilon_control1->GetYaxis()->SetTitle("Events");
 
-  TH1D *pull_epsilon_control2 = new TH1D("pull_epsilon_control2", " ((mean_yellow - mean_green) - epsilon) / error_epsilon (freeze nu, alpha) ", 6, -3.0, 3.0);
+  TH1D *pull_epsilon_control2 = new TH1D("pull_epsilon_control2", " ((mean_yellow - mean_green) - epsilon) / error_epsilon (freeze nu, alpha) ", 30, -5.0, 5.0);
   pull_epsilon_control2->GetXaxis()->SetTitle("Pull");
   pull_epsilon_control2->GetYaxis()->SetTitle("Events");
 
-  TH1D *pull_epsilon_control3 = new TH1D("pull_epsilon_control3", " ((mean_yellow - mean_green) - epsilon) / error_epsilon (|d_nu|, |d_alpha| <0.02) ", 6, -3.0, 3.0);
+  TH1D *pull_epsilon_control3 = new TH1D("pull_epsilon_control3", " ((mean_yellow - mean_green) - epsilon) / error_epsilon (|d_nu|, |d_alpha| <0.02) ", 30, -5.0, 5.0);
   pull_epsilon_control3->GetXaxis()->SetTitle("Pull");
   pull_epsilon_control3->GetYaxis()->SetTitle("Events");
 
-  TH1D *pull_alpha_control = new TH1D("pull_alpha_control", " ((sigma_yellow - sigma_green) - sigma_green*Delta_alpha) / error_alpha ", 6, -3.0, 3.0);
+  TH1D *pull_alpha_control = new TH1D("pull_alpha_control", " ((sigma_yellow - sigma_green) - sigma_green*Delta_alpha) / error_alpha ", 30, -5.0, 5.0);
   pull_alpha_control->GetXaxis()->SetTitle("Pull");
   pull_alpha_control->GetYaxis()->SetTitle("Events");
 
@@ -309,7 +315,8 @@ int frame(){
   auto multi_hist_proj_smear_beta_val = mDh_smear_beta_val->Projection(4);
   auto multi_hist_proj_diff_smear_beta_val = mDh_diff_smear_beta_val->Projection(4);
   auto multi_hist_proj_diff_smear_beta_val_easy = mDh_diff_smear_beta_val_easy->Projection(4);
-  
+  auto multi_hist_proj_diff_smear_plus_offset = mDh_diff_smear_plus_offset->Projection(4);
+  auto multi_hist_proj_diff_smear_minus_offset = mDh_diff_smear_minus_offset->Projection(4);
 
   //--------------------------------------------------------------------------------------
 
@@ -368,6 +375,8 @@ int frame(){
     mDh_smear_beta_val->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_diff_smear_beta_val->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_diff_smear_beta_val_easy->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+    mDh_diff_smear_plus_offset->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+    mDh_diff_smear_minus_offset->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     
     for (int pos_pt_bin=1; pos_pt_bin<=nbinspt; pos_pt_bin++){   
       mDh_diff_reco->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
@@ -382,6 +391,8 @@ int frame(){
       mDh_smear_beta_val->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_diff_smear_beta_val->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_diff_smear_beta_val_easy->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+      mDh_diff_smear_plus_offset->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+      mDh_diff_smear_minus_offset->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
     
       for (int neg_eta_bin=1; neg_eta_bin<=nbinseta; neg_eta_bin++){
 	mDh_diff_reco->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
@@ -396,6 +407,8 @@ int frame(){
 	mDh_smear_beta_val->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	mDh_diff_smear_beta_val->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	mDh_diff_smear_beta_val_easy->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+	mDh_diff_smear_plus_offset->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+	mDh_diff_smear_minus_offset->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	
 	for (int neg_pt_bin=1; neg_pt_bin<=nbinspt; neg_pt_bin++){
 	  mDh_diff_reco->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
@@ -444,8 +457,9 @@ int frame(){
 	      mDh_smear_beta_val->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	      mDh_diff_smear_beta_val->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	      mDh_diff_smear_beta_val_easy->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	      mDh_diff_smear_plus_offset->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	      mDh_diff_smear_minus_offset->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	      
-
 	      //--------------------------------------------------------------------------
 	      // diff_reco histogram
 
@@ -463,7 +477,7 @@ int frame(){
 	      // Prepare to draw mll_diff panel
 	      c1->cd(1); 
 	      max_hist_mll_diff = -1.0;	      
-	      max_hist_mll_diff = multi_hist_proj_diff_reco->GetBinContent(multi_hist_proj_diff_reco->GetMaximumBin());
+	      //max_hist_mll_diff = multi_hist_proj_diff_reco->GetBinContent(multi_hist_proj_diff_reco->GetMaximumBin());
 	      
 	      //--------------------------------------------------------------------------
 	      // diff_smear histogram
@@ -523,15 +537,45 @@ int frame(){
 	      multi_hist_proj_diff_smear_beta_val_easy = mDh_diff_smear_beta_val_easy->Projection(4);
 	      multi_hist_proj_diff_smear_beta_val_easy->GetXaxis()->SetTitle("mll_diff [GeV]");
               multi_hist_proj_diff_smear_beta_val_easy->GetYaxis()->SetTitle("Events");
-	      multi_hist_proj_diff_smear_beta_val_easy->SetLineColor(kViolet);
+	      multi_hist_proj_diff_smear_beta_val_easy->SetLineColor(kPink);
 	      
 	      // Fit diff_smear_beta_val_easy
-	      fitresult = fitHisto(multi_hist_proj_diff_smear_beta_val_easy, 1, 51);
+	      fitresult = fitHisto(multi_hist_proj_diff_smear_beta_val_easy, 1, 6);
 	      
 	      //if(max_hist_mll_diff < multi_hist_proj_diff_smear_beta_val_easy->GetBinContent(multi_hist_proj_diff_smear_beta_val_easy->GetMaximumBin())){
 	      //max_hist_mll_diff = multi_hist_proj_diff_smear_beta_val_easy->GetBinContent(multi_hist_proj_diff_smear_beta_val_easy->GetMaximumBin());
               //}
-	      
+
+	      //--------------------------------------------------------------------------
+	      // diff_smear_plus_offset histogram
+
+              // Project diff_smear_plus_offset
+              delete gROOT->FindObject("multi_data_histo_diff_smear_plus_offset_proj_4");
+              multi_hist_proj_diff_smear_plus_offset = mDh_diff_smear_plus_offset->Projection(4);
+	      multi_hist_proj_diff_smear_plus_offset->SetLineColor(kRed);
+
+              // Fit diff_smear_plus_offset
+              fitresult = fitHisto(multi_hist_proj_diff_smear_plus_offset, 1, 2);
+
+              if(max_hist_mll_diff < multi_hist_proj_diff_smear_plus_offset->GetBinContent(multi_hist_proj_diff_smear_plus_offset->GetMaximumBin())){
+              max_hist_mll_diff = multi_hist_proj_diff_smear_plus_offset->GetBinContent(multi_hist_proj_diff_smear_plus_offset->GetMaximumBin());
+              }
+
+	      //--------------------------------------------------------------------------
+              // diff_smear_minus_offset histogram
+
+              // Project diff_smear_minus_offset
+              delete gROOT->FindObject("multi_data_histo_diff_smear_minus_offset_proj_4");
+              multi_hist_proj_diff_smear_minus_offset = mDh_diff_smear_minus_offset->Projection(4);
+              multi_hist_proj_diff_smear_minus_offset->SetLineColor(kBlue);
+
+              // Fit diff_smear_minus_offset
+              fitresult = fitHisto(multi_hist_proj_diff_smear_minus_offset, 1, 4);
+
+              if(max_hist_mll_diff < multi_hist_proj_diff_smear_minus_offset->GetBinContent(multi_hist_proj_diff_smear_minus_offset->GetMaximumBin())){
+		max_hist_mll_diff = multi_hist_proj_diff_smear_minus_offset->GetBinContent(multi_hist_proj_diff_smear_minus_offset->GetMaximumBin());
+              }
+
 	      //--------------------------------------------------------------------------
 	      // Start drawing mll_diff 
 	      	      
@@ -540,6 +584,8 @@ int frame(){
 	      multi_hist_proj_diff_smear->SetTitle(("mll diff " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
 	      multi_hist_proj_diff_smear->Draw();
 	      multi_hist_proj_diff_smear_beta_val->Draw("SAME");
+	      multi_hist_proj_diff_smear_plus_offset->Draw("SAME");
+	      multi_hist_proj_diff_smear_minus_offset->Draw("SAME");
 	      //multi_hist_proj_diff_smear_beta_val_easy->Draw("SAME");
 	      //multi_hist_proj_diff_reco->Draw("SAME");
 
@@ -553,6 +599,8 @@ int frame(){
 	      leg1->AddEntry(multi_hist_proj_diff_smear, "smeared-gen, #beta_pT=1, #alpha=1", "l");
 	      leg1->AddEntry(multi_hist_proj_diff_smear_beta_val, "smeared-gen, #beta_pT=0.999, #alpha=1, by weight", "l");
 	      //leg1->AddEntry(multi_hist_proj_diff_smear_beta_val_easy, "smeared-gen, #varepsilon_pT=-0.15, #Delta#alpha=0, by sampling", "l");
+	      leg1->AddEntry(multi_hist_proj_diff_smear_plus_offset, "diff_smear_plus_offset", "l");
+	      leg1->AddEntry(multi_hist_proj_diff_smear_minus_offset, "diff_smear_minus_offset", "l");
 	      leg_entry = "green fit: #mu=" + to_string(mean_mc).substr(0, 5) + ", #sigma=" + to_string(sigma_mc).substr(0, 5);
 	      leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
 	      //leg1->Draw("");
@@ -664,6 +712,7 @@ int frame(){
 	      filled_bins_mll=0;
 	      vector<int> good_indices_mll;
 	      for(int i=1; i<=nbinsmll; i++){
+		// TODO the requirement for >10 evts in jac might need to be different for numerical jac due to bin migration
 		if ( multi_hist_proj_smear->GetBinContent(i) >= 10 && multi_hist_proj_smear_beta_val->GetBinContent(i) > 0 ){ //asking jacobian to be average over at least 10 events, TODO refine the other criterium
 		  good_indices_mll.push_back(i);
 		  filled_bins_mll++;
@@ -676,6 +725,7 @@ int frame(){
 	      filled_bins_mll_diff=0;
 	      vector<int> good_indices_mll_diff;
 	      for(int i=1; i<=nbinsmll_diff; i++){
+		// TODO the requirement for >10 evts in jac might need to be different for numerical jac due to bin migration
 		if( multi_hist_proj_diff_smear->GetBinContent(i) >= 10 && multi_hist_proj_diff_smear_beta_val->GetBinContent(i) > 0 ){ //asking jacobian to be average over at least 10 events, TODO refine the other criterium
 		  good_indices_mll_diff.push_back(i);
 		  filled_bins_mll_diff++;
@@ -687,26 +737,29 @@ int frame(){
 	      // Declare mass vectors, jacobians and variance
 	      
 	      VectorXd h_smear_minus_smear_vector(filled_bins_mll);
-	      Eigen::MatrixXd V_inv_sqrt(filled_bins_mll, filled_bins_mll), J(filled_bins_mll, 3); //J.col(0) is nu, (1) is epsilon, (2) is alpha
+	      Eigen::MatrixXd V_sqrt(filled_bins_mll, filled_bins_mll), V_inv_sqrt(filled_bins_mll, filled_bins_mll), J(filled_bins_mll, 3); //J.col(0) is nu, (1) is epsilon, (2) is alpha
 
-              V_inv_sqrt=MatrixXd::Zero(filled_bins_mll, filled_bins_mll);
+	      V_sqrt = MatrixXd::Zero(filled_bins_mll, filled_bins_mll); 
 	      position_to_fill=0;
               for(int i=1; i<=nbinsmll; i++){
 		if ( find(good_indices_mll.begin(), good_indices_mll.end(), i) != good_indices_mll.end() ){
 		  h_smear_minus_smear_vector(position_to_fill) = multi_hist_proj_smear_beta_val->GetBinContent(i) - multi_hist_proj_smear->GetBinContent(i);
 		  J(position_to_fill,0) = multi_hist_proj_smear->GetBinContent(i); //J_control.col(0) is nu
-		  V_inv_sqrt(position_to_fill,position_to_fill) = 1 / multi_hist_proj_smear_beta_val->GetBinError(i);
+		  V_sqrt(position_to_fill,position_to_fill) = pow(pow(multi_hist_proj_smear_beta_val->GetBinError(i),2) + pow(multi_hist_proj_smear->GetBinError(i),2), 0.5); // sqrt(data_stat**2 + mc_stat**2) 
+		  //V_inv_sqrt(position_to_fill,position_to_fill) = 1 / multi_hist_proj_smear_beta_val->GetBinError(i);
 		  position_to_fill++;
 		}
 	      }
 	      if (position_to_fill != filled_bins_mll){ std::cout<<"problem counting vector size \n"; }
-              
+	      // solve for V_inv_sqrt
+	      V_inv_sqrt = V_sqrt.completeOrthogonalDecomposition().solve(MatrixXd::Identity(filled_bins_mll,filled_bins_mll));
+
 	      // Declare mll_diff vectors, jacobians and variance
               VectorXd h_smear_diff_minus_smear_diff_vector(filled_bins_mll_diff);
-	      Eigen::MatrixXd V_inv_sqrt_control(filled_bins_mll_diff, filled_bins_mll_diff), J_control(filled_bins_mll_diff, 3); //J_control.col(0) is nu, (1) is epsilon, (2) is alpha 
+	      Eigen::MatrixXd V_sqrt_control(filled_bins_mll_diff, filled_bins_mll_diff), V_inv_sqrt_control(filled_bins_mll_diff, filled_bins_mll_diff), J_control(filled_bins_mll_diff, 3); //J_control.col(0) is nu, (1) is epsilon, (2) is alpha 
 
-	      V_inv_sqrt_control=MatrixXd::Zero(filled_bins_mll_diff, filled_bins_mll_diff);
-	      position_to_fill=0;
+	      V_sqrt_control = MatrixXd::Zero(filled_bins_mll_diff, filled_bins_mll_diff);
+	      position_to_fill = 0;
 	      integral_diff_smear_epsilon_val = 0.0;
 	      integral_mc = 0.0;
 
@@ -714,7 +767,8 @@ int frame(){
 		if( find(good_indices_mll_diff.begin(), good_indices_mll_diff.end(), i) != good_indices_mll_diff.end() ){
 		  h_smear_diff_minus_smear_diff_vector(position_to_fill) = multi_hist_proj_diff_smear_beta_val->GetBinContent(i) - multi_hist_proj_diff_smear->GetBinContent(i);
 		  J_control(position_to_fill,0) = multi_hist_proj_diff_smear->GetBinContent(i); //J_control.col(0) is nu
-		  V_inv_sqrt_control(position_to_fill,position_to_fill) = 1 / multi_hist_proj_diff_smear_beta_val->GetBinError(i);
+		  V_sqrt_control(position_to_fill,position_to_fill) = pow(pow(multi_hist_proj_diff_smear_beta_val->GetBinError(i),2) + pow(multi_hist_proj_diff_smear->GetBinError(i),2), 0.5); // sqrt(data_stat**2 + mc_stat**2)
+		  //V_inv_sqrt_control(position_to_fill,position_to_fill) = 1 / multi_hist_proj_diff_smear_beta_val->GetBinError(i);
 		  integral_diff_smear_epsilon_val += multi_hist_proj_diff_smear_beta_val->GetBinContent(i);
 		  integral_mc += multi_hist_proj_diff_smear->GetBinContent(i);
 
@@ -722,6 +776,8 @@ int frame(){
 		}
 	      }
 	      if (position_to_fill != filled_bins_mll_diff){ std::cout<<"problem counting vector size \n"; }
+	      // solve for V_inv_sqrt_control
+	      V_inv_sqrt_control = V_sqrt_control.completeOrthogonalDecomposition().solve(MatrixXd::Identity(filled_bins_mll_diff,filled_bins_mll_diff));
 
 	      //--------------------------------------------------------------------------
 	      // Define jacobian histograms
@@ -749,7 +805,17 @@ int frame(){
 	      TH1D *jac_epsilon_control = new TH1D("jacobian_epsilon_control", "jacobian epsilon", nbinsmll_diff, -5.0, 5.0);
               jac_epsilon_control->GetXaxis()->SetTitle("mll_smear(#epsilon=0) - mll_gen [GeV]");
               jac_epsilon_control->GetYaxis()->SetTitle("GeV");
-	      
+
+	      // Jacobian numerical histogram epsilon diff_smear
+	      delete gROOT->FindObject("jacobian_epsilon_control_num_plus");
+	      delete gROOT->FindObject("jacobian_epsilon_control_num_minus");
+	      delete gROOT->FindObject("jacobian_epsilon_control_num");
+	      //TH1D *jac_epsilon_control_num_plus = new TH1D("jacobian_epsilon_control_num_plus", "jacobian epsilon_num_plus", nbinsmll_diff, -5.0, 5.0);
+	      //TH1D *jac_epsilon_control_num_minus = new TH1D("jacobian_epsilon_control_num_minus", "jacobian epsilon_num_minus", nbinsmll_diff, -5.0, 5.0);
+	      TH1D *jac_epsilon_control_num = new TH1D("jacobian_epsilon_control_num", "jacobian epsilon_num", nbinsmll_diff, -5.0, 5.0);
+	      jac_epsilon_control_num->GetXaxis()->SetTitle("mll_smear(#epsilon=0) - mll_gen [GeV]");
+              jac_epsilon_control_num->GetYaxis()->SetTitle("GeV");
+
 	      //--------------------------------------------------------------------------
               // Compute jacobians mass smear
 
@@ -808,7 +874,12 @@ int frame(){
 	      // Needed for jacobian epsilon diff_smear
 	      delete gROOT->FindObject("multi_data_histo_jac_diff_smear_mll_diff_proj_4");
 	      multi_hist_proj_jac_diff_smear_mll_diff = mDh_jac_diff_smear_mll_diff->Projection(4);
-	     
+	      // Needed for jacobian numerical epsilon diff_smear
+	      //delete gROOT->FindObject("multi_data_histo_diff_smear_plus_offset_proj_4");
+	      //multi_hist_proj_diff_smear_plus_offset = mDh_diff_smear_plus_offset->Projection(4);
+	      //delete gROOT->FindObject("multi_data_histo_diff_smear_minus_offset_proj_4");
+              //multi_hist_proj_diff_smear_minus_offset = mDh_diff_smear_minus_offset->Projection(4);
+
 	      position_to_fill = 0;
               for(int i=1; i<=nbinsmll_diff; i++){
 		evts_in_bin = multi_hist_proj_diff_smear->GetBinContent(i);
@@ -840,6 +911,18 @@ int frame(){
 		  jac_epsilon_control->SetBinContent(i, value_epsilon);
 		  jac_epsilon_control->SetBinError(i, error_epsilon);
 
+		  // epsilon diff_smear numerical
+		  value_epsilon = (multi_hist_proj_diff_smear_plus_offset->GetBinContent(i) - multi_hist_proj_diff_smear_minus_offset->GetBinContent(i)) / (mll_offset * 2.0);
+		  error_epsilon = pow((pow(multi_hist_proj_diff_smear_plus_offset->GetBinError(i),2) + pow(multi_hist_proj_diff_smear_minus_offset->GetBinError(i),2)) / pow(mll_offset*2.0, 2), 0.5);
+		  //---------------------------------------------//
+		  //---------------------------------------------//
+		  // ATTENTION OVERWRITING J_control for the moment
+		  J_control(position_to_fill,1) = value_epsilon;
+		  //---------------------------------------------//
+		  //---------------------------------------------//
+		  jac_epsilon_control_num->SetBinContent(i, value_epsilon);
+                  jac_epsilon_control_num->SetBinError(i, error_epsilon);
+
                   position_to_fill++;
 
                 } 
@@ -854,6 +937,7 @@ int frame(){
 	      f_fits->WriteObject(jac_control, ("jac_alpha_control" + name).c_str());
 	      f_fits->WriteObject(jac_epsilon, ("jac_epsilon" + name).c_str());
 	      f_fits->WriteObject(jac_epsilon_control, ("jac_epsilon_control" + name).c_str());
+	      f_fits->WriteObject(jac_epsilon_control_num, ("jac_epsilon_control_num" + name).c_str());
 		      
 	      //--------------------------------------------------------------------------
               // Solve for alpha, epsilon, nu
@@ -1034,14 +1118,15 @@ int frame(){
 	      
 	      // epsilon diff
 	      epsilon_control->SetBinError(epsilon_control->Fill(name.c_str(), (mean_diff_smear_epsilon_val - mean_mc - n_e_a_vector_control(1))/pow(V_epsilon_control(0,0),0.5) ), 0.001);
-	      pull_epsilon_control->Fill( (mean_diff_smear_epsilon_val - mean_mc - n_e_a_vector_control(1))/pow(V_epsilon_control(0,0),0.5) );
+	      //pull_epsilon_control->Fill( (mean_diff_smear_epsilon_val - mean_mc - n_e_a_vector_control(1))/pow(V_epsilon_control(0,0),0.5) );
+	      pull_epsilon_control->Fill( (mll_offset - n_e_a_vector_control(1))/pow(V_epsilon_control(0,0),0.5) );
 	      
 	      if (abs(n_e_a_vector_control(0)) < 0.02 && abs(n_e_a_vector_control(2)) < 0.02){
-		pull_epsilon_control3->Fill( (mean_diff_smear_epsilon_val - mean_mc - n_e_a_vector_control(1))/pow(V_epsilon_control(0,0),0.5) );
+		pull_epsilon_control3->Fill( (mll_offset - n_e_a_vector_control(1))/pow(V_epsilon_control(0,0),0.5) );
 	      }
 	      
-	      pull_epsilon_control1->Fill( (mean_diff_smear_epsilon_val - mean_mc - e_a_vector_control(0))/pow(V_epsilon_control(0,0),0.5) );
-	      pull_epsilon_control2->Fill( (mean_diff_smear_epsilon_val - mean_mc - e_vector_control(0))/pow(V_epsilon_control(0,0),0.5) );
+	      pull_epsilon_control1->Fill( (mll_offset - e_a_vector_control(0))/pow(V_epsilon_control(0,0),0.5) );
+	      pull_epsilon_control2->Fill( (mll_offset - e_vector_control(0))/pow(V_epsilon_control(0,0),0.5) );
 
 	      epsilon_control2->SetBinError(epsilon_control2->Fill(name.c_str(),(mean_diff_smear_epsilon_val - mean_mc - e_vector_control(0))/pow(V_epsilon_control(0,0),0.5)), 0.001);
 
