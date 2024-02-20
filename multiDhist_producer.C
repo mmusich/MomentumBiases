@@ -132,8 +132,8 @@ int frame(){
               
 	      // ATTENTION OVERWRITING smear
               // smear mass directly
-              mll_smear = rans[nslot]->Gaus(mll_gen, 0.02*mll_gen);
-              smear_beta_weight = TMath::Gaus(mll_smear, mll_gen-0.1, 0.02*mll_gen) / TMath::Gaus(mll_smear, mll_gen, 0.02*mll_gen);
+              //mll_smear = rans[nslot]->Gaus(mll_gen, 0.02*mll_gen);
+              //smear_beta_weight = TMath::Gaus(mll_smear, mll_gen*(1-0.001), 0.02*mll_gen) / TMath::Gaus(mll_smear, mll_gen, 0.02*mll_gen);
               
 	      //--------------------------------------------------------------------------------
 	      float mll_diff_reco = mll_reco - mll_gen;
@@ -190,8 +190,8 @@ int frame(){
     .Define("posPtSmear","return get<7>(pairs);")
     .Define("negPtSmear","return get<8>(pairs);")
     .Define("mll_diff_smear","return get<9>(pairs);")
-    .Define("mll_diff_smear_plus_offset","float offset = -0.1; return get<9>(pairs) + offset;") // offset goes here
-    .Define("mll_diff_smear_minus_offset","float offset = -0.1; return get<9>(pairs) - offset;") // offset goes here
+    .Define("mll_diff_smear_plus_offset","float offset = 0.1; return get<9>(pairs) + offset;") // offset goes here
+    .Define("mll_diff_smear_minus_offset","float offset = 0.1; return get<9>(pairs) - offset;") // offset goes here
     .Define("jacobian_weight_mll_diff_smear", "return get<9>(pairs)*std::copysign(1.0, genWeight);")
     .Define("mll_gen","return get<10>(pairs);")
     .Define("posPtGen","return get<11>(pairs);")
@@ -224,7 +224,7 @@ int frame(){
   f3.Close();
   
   double ptlow=25.0, pthigh=55.0;
-  int nbinsmll_diff=8, nbinsmll=32, nbinseta=24, nbinspt=5;
+  int nbinsmll_diff=16, nbinsmll=32, nbinseta=24, nbinspt=5;
   vector<double> etabinranges, ptbinranges, mllbinranges;
   vector<double> mll_diffbinranges;
 
