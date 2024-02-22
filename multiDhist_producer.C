@@ -192,6 +192,8 @@ int frame(){
     .Define("mll_diff_smear","return get<9>(pairs);")
     .Define("mll_diff_smear_plus_offset","float offset = 0.1; return get<9>(pairs) + offset;") // offset goes here
     .Define("mll_diff_smear_minus_offset","float offset = 0.1; return get<9>(pairs) - offset;") // offset goes here
+    .Define("mll_diff_reco_plus_offset","float offset = 0.1; return get<5>(pairs) + offset;") // offset goes here
+    .Define("mll_diff_reco_minus_offset","float offset = 0.1; return get<5>(pairs) - offset;") // offset goes here
     .Define("jacobian_weight_mll_diff_smear", "return get<9>(pairs)*std::copysign(1.0, genWeight);")
     .Define("mll_gen","return get<10>(pairs);")
     .Define("posPtGen","return get<11>(pairs);")
@@ -282,8 +284,8 @@ int frame(){
   // Mass and mll_diff distributions
   
   // mll_smear
-  auto mDh_smear = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_smear", "multi_data_histo_smear", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_smear","weight"});
-  f6->WriteObject(mDh_smear.GetPtr(), "multi_data_histo_smear");
+  auto mDh_smear = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_mll_smear", "multi_data_histo_mll_smear", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_smear","weight"});
+  f6->WriteObject(mDh_smear.GetPtr(), "multi_data_histo_mll_smear");
   
   // mll_diff_smear
   auto mDh_diff_smear = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_smear", "multi_data_histo_diff_smear", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_diff_smear","weight"});
@@ -320,8 +322,8 @@ int frame(){
   // Weights to shift mass or mll_diff
   
   // mll_smear weighted by smear_beta_weight
-  auto mDh_smear_beta_val = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_smear_beta_val", "multi_data_histo_smear_beta_val", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_smear","smear_beta_weight"});
-  f6->WriteObject(mDh_smear_beta_val.GetPtr(), "multi_data_histo_smear_beta_val");
+  auto mDh_smear_beta_val = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_mll_smear_beta_val", "multi_data_histo_mll_smear_beta_val", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_smear","smear_beta_weight"});
+  f6->WriteObject(mDh_smear_beta_val.GetPtr(), "multi_data_histo_mll_smear_beta_val");
   
   // mll_diff_smear weighted by smear_beta_weight
   auto mDh_diff_smear_beta_val = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_smear_beta_val", "multi_data_histo_diff_smear_beta_val", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_diff_smear","smear_beta_weight"});
@@ -333,14 +335,22 @@ int frame(){
   
   std::unique_ptr<TFile> f5( TFile::Open("multiD_histo_reco.root", "RECREATE") );
   
-  auto mDh_reco = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_reco", "multi_data_histo_reco", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_reco","weight"});
-  f5->WriteObject(mDh_reco.GetPtr(), "multi_data_histo_reco");
+  auto mDh_reco = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_mll_reco", "multi_data_histo_mll_reco", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_reco","weight"});
+  f5->WriteObject(mDh_reco.GetPtr(), "multi_data_histo_mll_reco");
   
-  auto mDh_gen = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_gen", "multi_data_histo_gen", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges,ptbinranges, mllbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_gen","weight"});
-  f5->WriteObject(mDh_gen.GetPtr(), "multi_data_histo_gen");
+  //auto mDh_gen = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_gen", "multi_data_histo_gen", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges,ptbinranges, mllbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_gen","weight"});
+  //f5->WriteObject(mDh_gen.GetPtr(), "multi_data_histo_gen");
   
   auto mDh_diff_reco = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_reco", "multi_data_histo_diff_reco", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff_reco","weight"});
   f5->WriteObject(mDh_diff_reco.GetPtr(), "multi_data_histo_diff_reco");
+
+  // mll_diff_reco_plus_offset
+  auto mDh_diff_reco_plus_offset = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_reco_plus_offset", "multi_data_histo_diff_reco_plus_offset", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff_reco_plus_offset","weight"});
+  f5->WriteObject(mDh_diff_reco_plus_offset.GetPtr(), "multi_data_histo_diff_reco_plus_offset");
+
+  // mll_diff_reco_minus_offset
+  auto mDh_diff_reco_minus_offset = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_reco_minus_offset", "multi_data_histo_diff_reco_minus_offset", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff_reco_minus_offset","weight"});
+  f5->WriteObject(mDh_diff_reco_minus_offset.GetPtr(), "multi_data_histo_diff_reco_minus_offset");
   
   //--------------------------------------------------------------------------------------
   // Jacobian terms
