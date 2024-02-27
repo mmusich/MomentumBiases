@@ -16,12 +16,12 @@ with open('passed_regions_edit.txt', 'w') as fout:
             lines_good.append(line[1].replace('\n', ''))
             print(line[1].replace('\n', ''), file=fout)
 
-#generate the IDs for all regions e.g 1_1, 1_2 etc. and check if there are any IDs that do not appear twice
+#generate the IDs for all regions e.g 0_0, 0_1 etc. and check if there are any IDs that do not appear twice
 nbinseta = 24
 nbinspt = 5
 missing_regions = 0
-for eta_idx in range(1, nbinseta+1):
-    for pt_idx in range(1, nbinspt+1):
+for eta_idx in range(0, nbinseta):
+    for pt_idx in range(0, nbinspt):
         string_tbc = str(eta_idx) + "_" + str(pt_idx)
         local_counter = 0
         for line in enumerate(lines_good):
