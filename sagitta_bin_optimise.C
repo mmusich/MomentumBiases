@@ -100,12 +100,12 @@ int frame(){
   //--------------------------------------------------------------------------------------
 
   // Choose validation/analysis mode
-  string mode_option("analysis"), mc_name_root, data_name_root;
+  string mode_option("validation"), mc_name_root, data_name_root;
   
   // Input files 
   if (mode_option.compare("analysis") == 0) {
-    mc_name_root = "smear";//mc_name_root = "reco";
-    data_name_root = "smear_beta_val";//data_name_root = "data2016";
+    mc_name_root = "reco";
+    data_name_root = "data2016";
   } else if (mode_option.compare("validation") == 0){
     mc_name_root = "smear";
     data_name_root = "smear_beta_val";
