@@ -1,158 +1,258 @@
-#include "Math/Minimizer.h"
-#include "Math/Factory.h"
-#include "Math/Functor.h"
-#include "TRandom3.h"
-#include "Math/IntegratorMultiDim.h"
+#define _USE_MATH_DEFINES
+ 
+#include "TMath.h"
 
-std::unique_ptr<TFile> inputFile( TFile::Open("mass_fits_control_histos_smear_beta_val.root") );
-std::unique_ptr<TH1D> scale(inputFile->Get<TH1D>("epsilon"));
+#include "Minuit2/FunctionMinimum.h"
+#include "Minuit2/MnMinimize.h"
+#include "Minuit2/MnMigrad.h"
+#include "Minuit2/MnUserParameterState.h"
+#include "Minuit2/FCNGradientBase.h"
 
-const int number_4D_bins = 6; // TODO scale->GetEntries();
-const int n_eta_bins = 2, n_pt_bins = 5;
-const int n_parameters = n_eta_bins*3; // for A,e,M model
-//pT binning must match the one used to make the histos
-const double pt_binning[n_pt_bins+1] = {0.5, 0.6, 0.7, 0.8, 0.9, 1.0}; // TODO after debugging, scaling {25.0, 33.3584, 38.4562, 42.2942, 45.9469, 55.0};
+//#include <vector>
+//#include <iostream>
+//#include <cassert>
+//#include <limits>
 
-//-----------------------------------------------
-// Function to get average k from pT bin index
+#include <sys/time.h>
 
-double getK(int index){
-  // TODO what about errors on k?
-  // TODO could add the pT histo per eta,pt,eta,pt to get more accurate average pT
-  return 2.0 / (pt_binning[index] + pt_binning[index+1]); // k = 1 / avg_pT
-}
+using namespace ROOT::Minuit2;
+//TODO use namespace std;
+
+class TheoryFcn : public FCNGradientBase {
+
+public:
+
+  TheoryFcn(const std::vector<double> &meas, const std::vector<double> &err, const std::vector<std::string> &bin_labels, unsigned int nbins) : scaleSquared(meas),scaleSquaredError(err),binLabels(bin_labels),nBins(nbins), errorDef(1.0) {}
+  //TODO do I need Nbins for minuit to accept this?
+  ~TheoryFcn() {}
+
+  virtual double Up() const {return errorDef;}
+  virtual double operator()(const std::vector<double>&) const;
+  virtual std::vector<double> Gradient(const std::vector<double>& ) const;
+  virtual bool CheckGradient() const {return true;}
+  //mycomm: figure out from documentatiosn which functions i want to overwrite 
+
+  std::vector<int> getIndices(std::string bin_label) const; // Function to get bin index from label name
+  double getK(const int pT_index) const;
+
+  const std::vector<double> pT_binning {38.0, 39.3584, 40.4562, 41.2942, 42.9469, 43.0}; //{25.0, 33.3584, 38.4562, 42.2942, 45.9469, 55.0}; //TODO am I allowed to use const here? //TODO change pT after debugging
+  static constexpr double scaling_A = 0.001, scaling_e = 0.001 * 40.0, scaling_M = 0.001 / 40.0;
+  static const int n_eta_bins = 2; //TODO automatize this from size of bin labels
+
+  //TODO can I remove these?
+  //std::vector<double> Measurements() const {return tMeasurements;} 
+  //void SetErrorDef(double def) {tErrorDef = def;} //mycomm: do I need this?
+
+private:
+
+  std::vector<double> scaleSquared;
+  std::vector<double> scaleSquaredError;
+  std::vector<std::string> binLabels;
+  unsigned int nBins; //TODO write method to get nBins, minuit shouldn't mind
+  double errorDef;
+};
 
 //-----------------------------------------------
 // Function to get bin index from label name
 
-vector<int> getIndices(string s){
-  vector<int> indices;
+std::vector<int> TheoryFcn::getIndices(std::string bin_label) const{
+  std::vector<int> indices;
   int pos = 0;
-  while(pos < s.size()){
-    pos = s.find("_");
-    indices.push_back(stoi(s.substr(0,pos))); 
-    s.erase(0,pos+1); // 1 is the length of the delimiter, "_"
+  while(pos < bin_label.size()){
+    pos = bin_label.find("_");
+    indices.push_back(stoi(bin_label.substr(0,pos)));
+    bin_label.erase(0,pos+1); // 1 is the length of the delimiter, "_"
   }
   return indices;
 }
 
 //-----------------------------------------------
-// Function to get parameter name (A0, e1, etc.) from index in parameters array
+// Function to get average k from pT bin index
 
-string getParameterName(int index){
-  
-  int whole = index / n_eta_bins; 
-  int rest = index % n_eta_bins;
-  
-  string name;
-  if (whole == 0) { name = "A" + to_string(rest); }
-  else if (whole == 1) { name = "e" + to_string(rest); }
-  else if (whole == 2) { name = "M" + to_string(rest); }
-  else { std::cout<<"\n"<<"ERROR counting parameters"<<"\n"; }
-  
-  return name; 
+double TheoryFcn::getK(const int pT_index) const{
+  // TODO what about errors on k?
+  // TODO could add the pT histo per eta,pt,eta,pt to get more accurate average pT
+  return 2.0 / (pT_binning[pT_index] + pT_binning[pT_index+1]); // k = 1 / avg_pT
 }
 
-
 //-----------------------------------------------
+//mycomm: function to build chi2 
 
-float k_plus_values[number_4D_bins] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
-TVectorF k_plus_test(number_4D_bins, k_plus_values);
+double TheoryFcn::operator()(const std::vector<double>& par) const {
+  // par has size n_parameters = 3*number_eta_bins, idices from 0 to n-1 contain A, from n to 2n-1 epsilon, from 2n to 3n-1 M
 
-float k_minus_values[number_4D_bins] = {1.1, 1.1, 1.1, 1.1, 1.1, 1.1};
-TVectorF k_minus_test(number_4D_bins, k_minus_values);
+  assert(par.size() == 3*n_eta_bins); 
 
-double scale_squared_values[number_4D_bins] = {0.9, 0.9, 0.9, 0.9, 0.9, 0.9};
-TVectorD scale_squared(number_4D_bins, scale_squared_values);
+  double chi2(0.0);
+  double diff(0.0);
 
-double scale_squared_error_values[number_4D_bins] = {0.1, 0.1, 0.1, 0.1, 0.1, 0.1}; 
-TVectorD scale_squared_error(number_4D_bins, scale_squared_error_values); //here the scale is squared, not the error
+  double k_plus, k_minus, term_pos, term_neg;
+  double my_func;
+  int eta_pos_index, eta_neg_index;
+  std::vector<int> bin_indices(4); // for 4D binning
 
-string labels[number_4D_bins] = {"0_0_1_0", "0_0_1_0", "0_0_1_0", "0_0_1_0", "0_0_1_0", "0_0_1_0"};  
-
-//-----------------------------------------------
-// Define chi2 function to minimise
-
-double chi2(const double *parameters){
-  TVectorD params(n_parameters, parameters);
-  // params is a 1D array of size n_parameters = 3*number_eta_bins, idices from 0 to n-1 contain A, from n to 2n-1 epsilon, from 2n to 3n-1 M
-
-  double k_plus, k_minus, val_i, val_i_squared, val = 0.0;
-  int eta_pos_index, pt_pos_index, eta_neg_index, pt_neg_index, index_A_plus, index_e_plus, index_M_plus, index_A_minus, index_e_minus, index_M_minus;
-  vector<int> bin_indices(4); // for 4D binning
-  
-  for (int i=0; i<number_4D_bins; i++){
-    val_i = 0.0;
-
-    bin_indices = getIndices(labels[i]);
+  for(unsigned int n(0); n < scaleSquared.size() ; n++) {
+    bin_indices = getIndices(binLabels[n]); //TODO I hope overwriting this vector is ok
     eta_pos_index = bin_indices[0];
     eta_neg_index = bin_indices[2];
 
     // get k value and TODO error from pT bin index
-    //k_plus = getK(bin_indices[1]);
-    //k_minus = getK(bin_indices[3]);
-    k_plus = k_plus_test[i];
-    k_minus = k_minus_test[i];
+    k_plus = getK(bin_indices[1]); 
+    k_minus = getK(bin_indices[3]);
 
-    // (1 + A(+) - e(+)k + M(+)/k)(1 + A(-) - e(-)k - M(-)/k)
-    val_i = ( (1. + params[eta_pos_index] - params[eta_pos_index + n_eta_bins]*k_plus + params[eta_pos_index + 2*n_eta_bins]/k_plus)*(1. + params[eta_neg_index] - params[eta_neg_index + n_eta_bins]*k_minus - params[eta_neg_index + 2*n_eta_bins]/k_minus) - scale_squared[i] ) / scale_squared_error[i];
-    val_i_squared = val_i*val_i;
- 
-    val += val_i_squared;
+    // (1 + A(+) - e(+)k + M(+)/k)(1 + A(-) - e(-)k - M(-)/k) and scaling of e,M
+    term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e*par[eta_pos_index + n_eta_bins]*k_plus +  scaling_M*par[eta_pos_index + 2*n_eta_bins]/k_plus);
+    term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e*par[eta_neg_index + n_eta_bins]*k_minus - scaling_M*par[eta_neg_index + 2*n_eta_bins]/k_minus);
+    
+    my_func = term_pos*term_neg;
+    
+    diff = my_func - scaleSquared[n]; 
+    chi2 += diff*diff/(scaleSquaredError[n]*scaleSquaredError[n]);
   }
 
-  return val;
+  return chi2;
 }
 
 //-----------------------------------------------
-// Minimizer
+//mycomm: function to build gradient of chi2 analytically 
+std::vector<double> TheoryFcn::Gradient(const std::vector<double> &par ) const {
 
-void constants_fitter(const char * minName = "Minuit", const char *algoName = "Migrad"){
+  assert(par.size() == 3*n_eta_bins);
 
-  // Get data
-  //int j = 0, k = 1; //for testing
-  //for(int i=0; i<number_4D_bins; i++){
-  //scale_squared_values[i] = (1.+ (scale->GetBinContent(i+1)))*(1. + (scale->GetBinContent(i+1))); // TODO that 1.+ needs changed
-  // scale_squared_error_values[i] = 2*abs(scale->GetBinContent(i+1))*(scale->GetBinError(i+1));
-    //for testing
-    //scale_squared_error_values[i] = 1.;
-    //labels[i] = scale->GetXaxis()->GetLabels()->At(i)->GetName();
-    //for testing
-    //labels[i] = "0_"+to_string(j)+"_0_"+to_string(k);
-    //j++;
-  // k++;
-  //if (j == n_pt_bins || k == n_pt_bins){ k = 0; j = 1;}
-  //std::cout << "\n" << labels[i] << " scale_squared_values " << scale_squared_values[i] << " scale_squared_error_values " << scale_squared_error_values[i] << "\n";
-  //}
+  std::vector<double> grad(par.size(),0.0);
 
-  // Initiate the minimizer
-  ROOT::Math::Minimizer* minimum = ROOT::Math::Factory::CreateMinimizer(minName, algoName);
-  minimum->SetMaxFunctionCalls(1000000); 
-  minimum->SetTolerance(0.001);
-  minimum->SetPrintLevel(1);
+  double temp(0.0), local_func(0.0), local_grad(0.0);
 
-  // TODO analytical gradient to improve performance
+  double k_plus, k_minus, term_pos, term_neg;
+  int eta_pos_index, eta_neg_index;
+  std::vector<int> bin_indices(4); // for 4D binning
+  
+  for(unsigned int n(0); n < scaleSquared.size() ; n++) { // loops over measurements
+    // TODO I need everything from the chi2 function, maybe better to have operator() to return a tuple with the function and the grad vector
+    bin_indices = getIndices(binLabels[n]); //TODO I hope overwriting this vector is ok
+    eta_pos_index = bin_indices[0];
+    eta_neg_index = bin_indices[2];
 
-  // Set up function and variables
-  ROOT::Math::Functor f( &chi2, n_parameters);
-  minimum->SetFunction(f);
+    // get k value and TODO error from pT bin index
+    k_plus = getK(bin_indices[1]); 
+    k_minus = getK(bin_indices[3]);
 
-  double step[n_parameters] = {};
-  for(unsigned int i=0 ; i<n_parameters; ++i) step[i] += 0.01;
-  double start[n_parameters] = {}; // initial values of parameters to fit, all are set to 0.
-  for(unsigned int i=0 ; i<n_parameters; ++i){
-    minimum->SetVariable(i, Form("param%d",i), start[i], step[i]);
+    // (1 + A(+) - e(+)k + M(+)/k)(1 + A(-) - e(-)k - M(-)/k) and scaling of e,M
+    term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e*par[eta_pos_index + n_eta_bins]*k_plus +  scaling_M*par[eta_pos_index + 2*n_eta_bins]/k_plus);
+    term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e*par[eta_neg_index + n_eta_bins]*k_minus - scaling_M*par[eta_neg_index + 2*n_eta_bins]/k_minus);
+    
+    local_func = term_pos*term_neg;
+    
+    temp=2.0*(local_func - scaleSquared[n])/(scaleSquaredError[n]*scaleSquaredError[n]); 
+    
+    for (unsigned int i : {eta_pos_index, eta_pos_index + n_eta_bins, eta_pos_index + 2*n_eta_bins, eta_neg_index, eta_neg_index + n_eta_bins, eta_neg_index + 2*n_eta_bins}) { // loops over parameters for A,e,M model
+      if (i == eta_pos_index) { // mycomm: derivative wrt A(+), which is fpar[eta_pos_index] for this bin label
+	local_grad = scaling_A*term_neg;
+      } else if (i == eta_pos_index + n_eta_bins) { // derivative wrt e(+)
+      	local_grad = -scaling_e*k_plus*term_neg;
+      } else if (i == eta_pos_index + 2*n_eta_bins) { // derivative wrt M(+)
+	local_grad = scaling_M/k_plus*term_neg;
+      } else if (i == eta_neg_index){ // derivative wrt A(-)
+	local_grad = scaling_A*term_pos;
+      } else if (i == eta_neg_index + n_eta_bins) { // derivative wrt e(-)
+	local_grad = -scaling_e*k_minus*term_pos;
+      } else if (i == eta_neg_index + 2*n_eta_bins){ // derivative wrt M(-)
+	local_grad = -scaling_M/k_minus*term_pos;
+      } else {
+	std::cout<<"\n"<<"ERROR: indices in grad don't match"<<"\n"; //TOOD raise a proper error
+      }
+      
+      grad[i] += temp*local_grad; // grad has size 3*n_eta_bins
+    }
+  }
+  // mycomm: returns vector size nparam with derivatives of chi2 wrt to each parameter
+  return grad;
+}
+
+//-----------------------------------------------
+// Function to get parameter name (A0, e1, etc.) from index in parameters array
+
+std::tuple<string,double> getParameterNameAndScaling(int index){
+
+  int whole = index / TheoryFcn::n_eta_bins;
+  int rest = index % TheoryFcn::n_eta_bins;
+  double scaling;
+
+  string name;
+  if (whole == 0) {
+    name = "A" + to_string(rest);
+    scaling = TheoryFcn::scaling_A;
+  }
+  else if (whole == 1) {
+    name = "e" + to_string(rest);
+    scaling = TheoryFcn::scaling_e;
+  }
+  else if (whole == 2) {
+    name = "M" + to_string(rest);
+    scaling = TheoryFcn::scaling_M;
+  }
+  else {
+    std::cout<<"\n"<<"ERROR counting parameters"<<"\n";
   }
 
-  // Minimization starts
-  minimum->Minimize();
-
-  const double *parameters_fitted = minimum->X();
-  
-  std::cout << std::endl << "Fitted A,e,M parameters: " << std::endl;
-  for(unsigned int i=0 ; i<n_parameters; ++i) std::cout << getParameterName(i) <<": " << parameters_fitted[i] << ", ";
-
-  std::cout << std::endl << "minimum chi2: " << minimum->MinValue() << std::endl;
-
-  return;
+  return make_tuple(name, scaling);
 }
+
+int main() {
+
+  // dummy data
+  unsigned int noOfBins = 12;
+  unsigned int n_parameters = 6; //TODO refine after debugging 
+
+  std::vector<double> data{0.993*0.993, 0.996*0.996, 0.992*0.992, 0.996*0.996, 0.998*0.998, 0.990*0.990, 0.992*0.992, 0.995*0.995, 0.994*0.994, 0.998*0.998, 0.996*0.996, 0.990*0.990};
+  std::vector<double> error{2*0.993*0.0005, 2*0.996*0.0005, 2*0.992*0.0005, 2*0.996*0.0005, 2*0.998*0.0005, 2*0.990*0.0005, 2*0.992*0.0005, 2*0.995*0.0005, 2*0.994*0.0005, 2*0.998*0.0005, 2*0.996*0.0005, 2*0.990*0.0005};
+  std::vector<std::string> labels{"0_0_1_1", "0_0_1_2", "0_0_1_3", "0_0_1_4", "0_1_1_0", "0_1_1_2", "0_1_1_3", "0_1_1_4", "0_2_1_0", "0_2_1_1", "0_2_1_3", "0_2_1_4"};
+
+  TheoryFcn fFCN(data,error,labels,noOfBins);
+
+  // create parameters with initial starting values
+  std::vector<double> step(n_parameters, 0.1);
+  std::vector<double> start(n_parameters, 0.0);
+
+  MnUserParameters upar;
+  for(unsigned int i=0 ; i<n_parameters; ++i){
+    upar.Add(Form("param%d",i), start[i]); // TODO: bool ROOT::Minuit2::MnUserParameters::Add(const std::string & name, double val,double err,double low,double up )
+    //TODO how do I set step? 
+  }
+
+  for (unsigned int i=0; i<upar.Params().size(); i++) {
+    std::cout <<"par[" << i << "]: " << upar.Params()[i] << std::endl;
+  }
+
+  // create Migrad minimizer
+
+  MnMigrad minimize(fFCN, upar, 1); //TODO strategy is 1, check others too
+
+  // ... and Minimize
+
+  unsigned int maxfcn(std::numeric_limits<unsigned int>::max());
+  double tolerance(0.1);
+
+  double t1(0.);
+  // get start time
+  struct timeval tv_start, tv_stop;
+  gettimeofday(&tv_start, 0);
+
+  FunctionMinimum min = minimize(maxfcn, tolerance);
+
+  gettimeofday(&tv_stop, 0);
+  t1 = (tv_stop.tv_sec - tv_start.tv_sec)*1000.0 + (tv_stop.tv_usec - tv_start.tv_usec)/1000.0;
+
+  std::cout << "# Calculation time: " << t1 << " ms" << std::endl;
+
+  std::cout << "CHI^2: " << min.Fval() << std::endl << std::endl;
+
+  std::cout << std::endl << "Fitted A,e,M parameters: " << std::endl;
+  for (unsigned int i(0); i<upar.Params().size(); i++) {
+    std::cout <<"par[" << i << "]: " << get<0>(getParameterNameAndScaling(i)) << " fitted to: "<< min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i)) << std::endl;
+  }
+
+  return 0;
+}
+
+
