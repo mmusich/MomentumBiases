@@ -32,15 +32,14 @@ public:
   
   const vector<double> pT_binning {25.0, 33.3584, 38.4562, 42.2942, 45.9469, 55.0}; // pT binning goes here
   static constexpr double scaling_A = 0.001, scaling_e = 0.001 * 40.0, scaling_M = 0.001 / 40.0; // this scaling makes fitter parameters of order 1 TODO diff scaling for diff pt bin?
-  static const int n_eta_bins = 2; //TODO automatize this from size of bin labels and use the code that checks if we have enough data points for set of parameter
   
-  vector<string> binLabels;
+  vector<string> binLabels; // made public for the closure test
+  static const int n_eta_bins = 24; //TODO automatise, so don't input by hand!!!
 
 private:
 
   vector<double> scaleSquared;
   vector<double> scaleSquaredError;
-  //vector<string> binLabels; //TODO move to private after debugging
   double errorDef;
 };
 
@@ -52,7 +51,7 @@ public:
   TheoryFcn2(const vector<double> &meas, const vector<double> &err, const vector<string> &bin_labels) : TheoryFcn(meas, err, bin_labels) {}
   ~TheoryFcn2() {}
 
-  vector<vector<double>> DummyData(const int n_data_points, const double width) const; //TODO  vector<vector<double>> might be slow
+  vector<vector<double>> DummyData(const vector<double> &dummy_par_val, const int n_data_points, const double width) const; //TODO  vector<vector<double>> might be slow
   
 };
 
@@ -182,7 +181,7 @@ vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
 //-----------------------------------------------
 // Function to generate dummy data for closure test
 
-vector<vector<double>> TheoryFcn2::DummyData(const int n_data_points, const double width) const {
+vector<vector<double>> TheoryFcn2::DummyData(const vector<double> &dummy_par_val, const int n_data_points, const double width) const {
   // par has size n_parameters = 3*number_eta_bins, idices from 0 to n-1 contain A, from n to 2n-1 epsilon, from 2n to 3n-1 M
   
   vector<vector<double>> res(2);
@@ -190,19 +189,10 @@ vector<vector<double>> TheoryFcn2::DummyData(const int n_data_points, const doub
   double k_plus, k_minus, mean, width_rand, term_pos, term_neg;
   TRandom3 random = TRandom3(4357); 
   int eta_pos_index, eta_neg_index;
+  vector<double> DummyParVal(dummy_par_val);
 
   vector<int> bin_indices(4); // for 4D binning
-  vector<double> dummy_par_val{0.0003, 0.0002, 0.001, 0.002, -0.00001, -0.00002}; //TODO automatise
-
-  /* // Parameter values used for dummy data
-      par[0]: A0 0.0003
-      par[1]: A1 0.0002
-      par[2]: e0 0.001
-      par[3]: e1 0.002
-      par[4]: M0 -0.00001
-      par[5]: M1 -0.00002
-  */
-
+  
   for(unsigned int n(0); n <n_data_points ; n++) {
     bin_indices = getIndices(binLabels[n]); //TODO I hope overwriting this vector is ok
     eta_pos_index = bin_indices[0];
@@ -213,8 +203,8 @@ vector<vector<double>> TheoryFcn2::DummyData(const int n_data_points, const doub
     k_minus = getK(bin_indices[3]);
   
     // (1 + A(+) - e(+)k + M(+)/k)(1 + A(-) - e(-)k - M(-)/k) and scaling of e,M
-    term_pos = (1. + dummy_par_val[eta_pos_index] - dummy_par_val[eta_pos_index + n_eta_bins]*k_plus +  dummy_par_val[eta_pos_index + 2*n_eta_bins]/k_plus);
-    term_neg = (1. + dummy_par_val[eta_neg_index] - dummy_par_val[eta_neg_index + n_eta_bins]*k_minus - dummy_par_val[eta_neg_index + 2*n_eta_bins]/k_minus);
+    term_pos = (1. + DummyParVal[eta_pos_index] - DummyParVal[eta_pos_index + n_eta_bins]*k_plus +  DummyParVal[eta_pos_index + 2*n_eta_bins]/k_plus);
+    term_neg = (1. + DummyParVal[eta_neg_index] - DummyParVal[eta_neg_index + n_eta_bins]*k_minus - DummyParVal[eta_neg_index + 2*n_eta_bins]/k_minus);
 
     mean = term_pos*term_neg;
     width_rand = random.Gaus(width, width/10.0);
@@ -259,6 +249,46 @@ tuple<string,double> getParameterNameAndScaling(int index){
 }
 
 //-----------------------------------------------
+// Function to generate dummy labels for closure test
+
+vector<string> generateLabels (const int n_eta_bins, const int n_pt_bins){
+  
+  vector<string> labels(n_eta_bins*n_eta_bins*n_pt_bins*n_pt_bins);
+  int m = 0; 
+
+  for (int i=0; i<n_eta_bins; i++){
+    for (int j=0; j<n_pt_bins; j++){
+      for (int k=0; k<n_eta_bins; k++){
+	for (int l=0; l<n_pt_bins; l++){
+	  labels[m] = to_string(i) + "_" + to_string(j) + "_" + to_string(k) + "_" + to_string(l);
+	  m ++;
+	}
+      }
+    }
+  }
+  
+  return labels;
+}
+
+//-----------------------------------------------
+// Function to generate dummy parameters for closure test
+
+vector<double> generateParameters (const int n_parameters){ //TODO might be slow to pass the vector by value
+
+  vector<double> res(n_parameters); // has size n_parameters = 3*number_eta_bins, idices from 0 to n-1 contain A, from n to 2n-1 epsilon, from 2n to 3n-1 M 
+  for (int i=0; i<n_parameters/3; i++){ // A from -0.0002 to 0.0005 and back
+    res[i] = (-7.0*36.0/n_parameters/n_parameters*(i - n_parameters/6)*(i - n_parameters/6) + 5)*0.0001;
+  }
+  for (int i=n_parameters/3; i<2*n_parameters/3; i++){ // e from 0.01 to 0.001 and back
+    res[i] = (9.0*36.0/n_parameters/n_parameters*((i-n_parameters/3) - n_parameters/6)*((i-n_parameters/3) - n_parameters/6) + 1)*0.001;  
+  }
+  for (int i=2*n_parameters/3; i<n_parameters; i++){ // M from 4*10^-5 to -2*10^-5 and back
+    res[i] = ( 6.0*36.0/n_parameters/n_parameters*((i-2*n_parameters/3) - n_parameters/6)*((i-2*n_parameters/3) - n_parameters/6) - 2)*0.00001;
+  }
+  return res;
+}
+
+//-----------------------------------------------
 // Overload << operator
 
 template <typename S>
@@ -275,35 +305,44 @@ ostream& operator<<(ostream& os,
 
 int main() {
 
-  // dummy data
-  unsigned int n_parameters = 6; //TODO refine after debugging 
-  unsigned int n_data_points = 50; //TODO refine after debugging
+  //-----------------------------------------------
+  // Get dummy data
+
+  int n_eta_bins=24, n_pt_bins=5; //TODO refine after debugging, use variable_counter.py to get how many eta regions are not constrained
+  vector<string> labels = generateLabels(n_eta_bins,n_pt_bins);
+  //cout << labels;
+
+  unsigned int n_data_points = labels.size(); //TODO refine after debugging
+  unsigned int n_parameters = 3*n_eta_bins; // 3 for A,e,M model  
   
   vector<double> empty_data(n_data_points, 0.0), empty_error(n_data_points, 0.0); // for closure test
   double error_start = 0.001;
-  vector<string> labels{"0_0_1_0","0_0_1_1","0_0_1_2","0_0_1_3","0_0_1_4","0_1_1_0","0_1_1_1","0_1_1_2","0_1_1_3","0_1_1_4","0_2_1_0","0_2_1_1","0_2_1_2","0_2_1_3","0_2_1_4", "0_3_1_0","0_3_1_1","0_3_1_2","0_3_1_3","0_3_1_4", "0_4_1_0","0_4_1_1","0_4_1_2","0_4_1_3","0_4_1_4","1_0_0_0","1_0_0_1","1_0_0_2","1_0_0_3","1_0_0_4","1_1_0_0","1_1_0_1","1_1_0_2","1_1_0_3","1_1_0_4","1_2_0_0","1_2_0_1","1_2_0_2","1_2_0_3","1_2_0_4", "1_3_0_0","1_3_0_1","1_3_0_2","1_3_0_3","1_3_0_4", "1_4_0_0","1_4_0_1","1_4_0_2","1_4_0_3","1_4_0_4"}; //TODO automatise
+  vector<double> dummy_parameters = generateParameters(n_parameters);
+  cout<<dummy_parameters;
 
   // Generate dummy data
   TheoryFcn2 f_dummy(empty_data, empty_error, labels);
-  vector<vector<double>> dummy_call = f_dummy.DummyData(n_data_points, error_start);
+  vector<vector<double>> dummy_call = f_dummy.DummyData(dummy_parameters, n_data_points, error_start);
   vector<double> data = dummy_call[0];
   vector<double> error = dummy_call[1];
-  cout << data << "\n" << error << "\n";
+  //cout << data << "\n" << error << "\n";
+
+  //-------------------------------------------------
+  // Use data
 
   TheoryFcn fFCN(data,error,labels);
 
   // Create parameters with initial starting values
-  vector<double> par_error(n_parameters, 1.0); // Will store error on parameter before taking scaling into account
-  vector<double> start(n_parameters, 0.0); // TODO if these are consts for every parameter, no need to make this a vector, but if we want to iterate fit is good, does minuit not do it anyway?
 
+  double start=0.0, par_error=0.1; // Will store error on parameter before taking scaling into account
   MnUserParameters upar;
-  for(unsigned int i=0 ; i<n_parameters; ++i){
-    upar.Add(Form("param%d",i), start[i], par_error[i]);
-  }
 
-  for (unsigned int i=0; i<upar.Params().size(); i++) {
-    cout <<"par[" << i << "]: " << upar.Params()[i] << "\n";
+  for(unsigned int i=0 ; i<n_parameters; ++i){
+    upar.Add(Form("param%d",i), start, par_error);
   }
+  //for (unsigned int i=0; i<upar.Params().size(); i++) {
+  //  cout <<"par[" << i << "]: " << upar.Params()[i] << "\n";
+  //}
 
   // create Migrad minimizer
 
@@ -341,10 +380,99 @@ int main() {
 
   cout << min << "\n";
 
+  /*
   cout << "\n" << "Fitted A [ ], e [GeV], M [GeV^-1] parameters: " << "\n";
   for (unsigned int i(0); i<upar.Params().size(); i++) {
     cout <<"par[" << i << "]: " << get<0>(getParameterNameAndScaling(i)) << " fitted to: "<< min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i)) << " +/- " << min.UserState().Error(i) * abs(get<1>(getParameterNameAndScaling(i))) << "\n";
   }
+  */
+
+  // Histogram with dummy parameters and fitted parameters
+  TH1D *dummy_pars_A = new TH1D("dummy_pars_A", "A", n_eta_bins, 0, n_eta_bins);
+  TH1D *dummy_pars_e = new TH1D("dummy_pars_e", "e", n_eta_bins, 0, n_eta_bins);
+  TH1D *dummy_pars_M = new TH1D("dummy_pars_M", "M", n_eta_bins, 0, n_eta_bins);
+  TH1D *fitted_pars_A = new TH1D("fitted_pars_A", "A", n_eta_bins, 0, n_eta_bins);
+  TH1D *fitted_pars_e = new TH1D("fitted_pars_e", "e", n_eta_bins, 0, n_eta_bins);
+  TH1D *fitted_pars_M = new TH1D("fitted_pars_M", "M", n_eta_bins, 0, n_eta_bins);
+
+  for (int i=1; i<=n_eta_bins; i++){
+    dummy_pars_A->SetBinContent(i, dummy_parameters[i-1]);
+    dummy_pars_A->SetBinError(i, 1e-10);
+    fitted_pars_A->SetBinContent(i, min.UserState().Value(i-1) * get<1>(getParameterNameAndScaling(i-1)));
+    fitted_pars_A->SetBinError(i, min.UserState().Error(i-1) * abs(get<1>(getParameterNameAndScaling(i-1))));
+
+    dummy_pars_e->SetBinContent(i, dummy_parameters[i-1+n_eta_bins]);
+    dummy_pars_e->SetBinError(i, 1e-10);
+    fitted_pars_e->SetBinContent(i, min.UserState().Value(i-1+n_eta_bins) * get<1>(getParameterNameAndScaling(i-1+n_eta_bins)));
+    fitted_pars_e->SetBinError(i, min.UserState().Error(i-1+n_eta_bins) * abs(get<1>(getParameterNameAndScaling(i-1+n_eta_bins))));
+    
+    dummy_pars_M->SetBinContent(i, dummy_parameters[i-1+2*n_eta_bins]);
+    dummy_pars_M->SetBinError(i, 1e-10);
+    fitted_pars_M->SetBinContent(i, min.UserState().Value(i-1+2*n_eta_bins) * get<1>(getParameterNameAndScaling(i-1+2*n_eta_bins)));
+    fitted_pars_M->SetBinError(i, min.UserState().Error(i-1+2*n_eta_bins) * abs(get<1>(getParameterNameAndScaling(i-1+2*n_eta_bins))));
+  }
+
+  unique_ptr<TFile> f_control( TFile::Open("constants_fitted.root", "RECREATE") ); 
+
+  TCanvas *c1 = new TCanvas("c1","c1",800,600);
+
+  auto leg1 = new TLegend(0.68, 0.78, 0.90, 0.90);
+    
+  leg1->SetFillStyle(0);
+  leg1->SetBorderSize(0);
+  leg1->SetTextSize(0.025);
+  leg1->SetFillColor(10);
+  leg1->SetNColumns(1);
+  leg1->SetHeader("");
+  
+  dummy_pars_A->SetMinimum(-0.00025);
+  dummy_pars_A->SetMaximum(0.00055);
+  dummy_pars_A->SetStats(0);
+  dummy_pars_A->SetMarkerStyle(kPlus);
+  dummy_pars_A->SetMarkerColor(kRed);
+  dummy_pars_A->SetLineColor(kRed);
+  dummy_pars_A->Draw("");
+  fitted_pars_A->Draw("SAME");
+
+  leg1->AddEntry(dummy_pars_A, "input par", "l");
+  leg1->AddEntry(fitted_pars_A, "fitted par", "l");
+  leg1->Draw("SAME");
+  leg1->Clear();
+
+  TCanvas *c2 = new TCanvas("c2","c2",800,600);
+
+  dummy_pars_e->SetMinimum(0.0005);
+  dummy_pars_e->SetMaximum(0.015);
+  dummy_pars_e->SetStats(0);
+  dummy_pars_e->SetMarkerStyle(kPlus);
+  dummy_pars_e->SetMarkerColor(kRed);
+  dummy_pars_e->SetLineColor(kRed);
+  dummy_pars_e->Draw("");
+  fitted_pars_e->Draw("SAME");
+
+  leg1->AddEntry(dummy_pars_e, "input par", "l");
+  leg1->AddEntry(fitted_pars_e, "fitted par", "l");
+  leg1->Draw("SAME");
+  leg1->Clear();
+  
+  TCanvas *c3 = new TCanvas("c3","c3",800,600);
+  
+  dummy_pars_M->SetMinimum(-2.5e-5);
+  dummy_pars_M->SetMaximum(4.5e-5);
+  dummy_pars_M->SetStats(0);
+  dummy_pars_M->SetMarkerStyle(kPlus);
+  dummy_pars_M->SetMarkerColor(kRed);
+  dummy_pars_M->SetLineColor(kRed);
+  dummy_pars_M->Draw("");
+  fitted_pars_M->Draw("SAME");
+
+  leg1->AddEntry(dummy_pars_M, "input par", "l");
+  leg1->AddEntry(fitted_pars_M, "fitted par", "l");
+  leg1->Draw("SAME");
+  
+  f_control->WriteObject(c1, "A");
+  f_control->WriteObject(c2, "e");
+  f_control->WriteObject(c3, "M");
 
   return 0;
 }
