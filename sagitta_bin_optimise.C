@@ -111,15 +111,15 @@ int frame(){
     data_name_root = "smear_beta_val";
   }
      
-  // MC
+  // MC 
   std::unique_ptr<TFile> myFile( TFile::Open( ("multiD_histo_"+ mc_name_root +".root").c_str() ) );
   std::unique_ptr<THnD> mDh_mll_mc(myFile->Get<THnD>( ("multi_data_histo_mll_" + mc_name_root).c_str() ) ); 
   std::unique_ptr<THnD> mDh_diff_mc(myFile->Get<THnD>( ("multi_data_histo_diff_" + mc_name_root).c_str() ) ); // reco-gen or smear-gen
   
-  // Analytical jacobian terms
+  // Analytical jacobian terms 
   std::unique_ptr<THnD> mDh_jac_diff_squared_mll(myFile->Get<THnD>( ("multi_data_histo_jac_diff_squared_" + mc_name_root + "_mll").c_str() ) ); // sum of mll_diff_squared in mll bin
   std::unique_ptr<THnD> mDh_jac_diff_squared_mll_diff(myFile->Get<THnD>( ("multi_data_histo_jac_diff_squared_" + mc_name_root + "_mll_diff").c_str() ) ); // sum of mll_diff_squared in mll_diff bin
-  std::unique_ptr<THnD> mDh_jac_diff_mll(myFile->Get<THnD>( ("multi_data_histo_jac_diff_" + mc_name_root + "_mll").c_str() ) ); // sum of mll_diff in mll bin
+  std::unique_ptr<THnD> mDh_jac_diff_mll(myFile->Get<THnD>( ("multi_data_histo_jac_diff_times_gen_" + mc_name_root + "_mll").c_str() ) ); // sum of mll_diff*m_gen in mll bin //TODO make changed in var name too
   std::unique_ptr<THnD> mDh_jac_diff_mll_diff(myFile->Get<THnD>( ("multi_data_histo_jac_diff_" + mc_name_root + "_mll_diff").c_str() ) ); // sum of mll_diff in mll_diff bin
  
   // Numerical jacobian terms

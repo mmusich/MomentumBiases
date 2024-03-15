@@ -60,10 +60,10 @@ int frame(){
   }
 
   //Pairs
-  auto pairs = [&](unsigned int nslot, RVecF Muon_pt, RVecI Muon_charge, RVecF Muon_eta, RVecF Muon_phi, RVecB MuonisGood, RVecF Muon_dxy, RVecF Muon_dz, RVecI GenPart_status, RVecI GenPart_pdgId, RVecI GenPart_genPartIdxMother, RVecF GenPart_pt, RVecF GenPart_eta, RVecF GenPart_phi)->std::tuple<int,int,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float>{
+  auto pairs = [&](unsigned int nslot, RVecF Muon_pt, RVecI Muon_charge, RVecF Muon_eta, RVecF Muon_phi, RVecB MuonisGood, RVecF Muon_dxy, RVecF Muon_dz, RVecI GenPart_status, RVecI GenPart_pdgId, RVecI GenPart_genPartIdxMother, RVecF GenPart_pt, RVecF GenPart_eta, RVecF GenPart_phi)->std::tuple<int,int,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float>{
 
-    RVec<std::tuple<int,int,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float>> pairs; // <pos_muon_index, neg_muon_index, mll_reco, posPt_reco, negPt_reco, mll_diff_reco, mll_smear, posPt_smear, negPt_smear, mll_diff_smear, mll_gen, posPt_gen, negPt_gen, mll_diff_squared_smear, smear_beta_weight, posPt_smear_beta_val, negPt_smear_beta_val, mll_diff_squared_reco>
-    std::tuple<int,int,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float> temp, pair_to_return;
+    RVec<std::tuple<int,int,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float>> pairs; // <pos_muon_index, neg_muon_index, mll_reco, posPt_reco, negPt_reco, mll_diff_reco, mll_smear, posPt_smear, negPt_smear, mll_diff_smear, mll_gen, posPt_gen, negPt_gen, mll_diff_squared_smear, smear_beta_weight, posPt_smear_beta_val, negPt_smear_beta_val, mll_diff_squared_reco, mll_diff_times_gen_reco, mll_diff_times_gen_smear>
+    std::tuple<int,int,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float> temp, pair_to_return;
     float rest_mass = 0.105658; // muMass = 0.105658 GeV
     float firstPt_reco, secondPt_reco, mll_reco, firstPt_smear, secondPt_smear, mll_smear, firstPt_gen, secondPt_gen, mll_gen, firstPt_smear_beta_val, secondPt_smear_beta_val, smear_beta_weight;
     float smear_pt, mean, width, beta=0.999, smear_beta_weight_first_term, smear_beta_weight_second_term;
@@ -140,12 +140,14 @@ int frame(){
 	      float mll_diff_smear = mll_smear - mll_gen;
 	      // save for jacobians
 	      float mll_diff_squared_smear = (mll_smear - mll_gen)*(mll_smear - mll_gen);
+	      float mll_diff_times_gen_smear = (mll_smear - mll_gen)*mll_gen;
 	      float mll_diff_squared_reco = (mll_reco - mll_gen)*(mll_reco - mll_gen);
+	      float mll_diff_times_gen_reco = (mll_reco - mll_gen)*mll_gen;
                     
 	      if(Muon_charge[i]==1){
-		temp=make_tuple(i,j,mll_reco,firstPt_reco,secondPt_reco,mll_diff_reco,mll_smear,firstPt_smear,secondPt_smear,mll_diff_smear,mll_gen,firstPt_gen,secondPt_gen,mll_diff_squared_smear,smear_beta_weight,firstPt_smear_beta_val,secondPt_smear_beta_val, mll_diff_squared_reco);
+		temp=make_tuple(i,j,mll_reco,firstPt_reco,secondPt_reco,mll_diff_reco,mll_smear,firstPt_smear,secondPt_smear,mll_diff_smear,mll_gen,firstPt_gen,secondPt_gen,mll_diff_squared_smear,smear_beta_weight,firstPt_smear_beta_val,secondPt_smear_beta_val, mll_diff_squared_reco, mll_diff_times_gen_reco, mll_diff_times_gen_smear);
 	      } else {
-		temp=make_tuple(j,i,mll_reco,secondPt_reco,firstPt_reco,mll_diff_reco,mll_smear,secondPt_smear,firstPt_smear,mll_diff_smear,mll_gen,secondPt_gen,firstPt_gen,mll_diff_squared_smear,smear_beta_weight,secondPt_smear_beta_val,firstPt_smear_beta_val, mll_diff_squared_reco);
+		temp=make_tuple(j,i,mll_reco,secondPt_reco,firstPt_reco,mll_diff_reco,mll_smear,secondPt_smear,firstPt_smear,mll_diff_smear,mll_gen,secondPt_gen,firstPt_gen,mll_diff_squared_smear,smear_beta_weight,secondPt_smear_beta_val,firstPt_smear_beta_val, mll_diff_squared_reco, mll_diff_times_gen_reco, mll_diff_times_gen_smear);
 	      }
 	      pairs.push_back(temp);
 	    }
@@ -167,7 +169,7 @@ int frame(){
       }
       pair_to_return=pairs.at(best);
     } else {
-      pair_to_return=make_tuple(0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
+      pair_to_return=make_tuple(0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
     }
     return pair_to_return;
   };
@@ -180,12 +182,13 @@ int frame(){
   // This below works because actually we kept only one pair per event
   // Accessing properties through the idices of pairs ensures the muons passed MuonisGood
   
-  //  <0 pos_muon_index, 1 neg_muon_index, 2 mll_reco, 3 posPt_reco, 4 negPt_reco, 5 mll_diff_reco, 6 mll_smear, 7 posPt_smear, 8 negPt_smear, 9 mll_diff_smear, 10 mll_gen, 11 posPt_gen, 12 negPt_gen, 13 mll_diff_squared_smear, 14 smear_beta_weight, 15 posPt_smear_beta_val, 16 negPt_smear_beta_val, 17 mll_diff_squared_reco>
+  //  <0 pos_muon_index, 1 neg_muon_index, 2 mll_reco, 3 posPt_reco, 4 negPt_reco, 5 mll_diff_reco, 6 mll_smear, 7 posPt_smear, 8 negPt_smear, 9 mll_diff_smear, 10 mll_gen, 11 posPt_gen, 12 negPt_gen, 13 mll_diff_squared_smear, 14 smear_beta_weight, 15 posPt_smear_beta_val, 16 negPt_smear_beta_val, 17 mll_diff_squared_reco, 18 mll_diff_times_gen_reco, 19 mll_diff_times_gen_smear>
 
   auto d4 = d3.Define("posTrackPt","return get<3>(pairs);")
     .Define("negTrackPt","return get<4>(pairs);")
     .Define("mll_diff_reco","return get<5>(pairs);")
     .Define("jacobian_weight_mll_diff_reco","return get<5>(pairs)*std::copysign(1.0, genWeight);")
+    .Define("jacobian_weight_mll_diff_times_gen_reco","return get<18>(pairs)*std::copysign(1.0, genWeight);") 
     .Define("mll_smear","return get<6>(pairs);")
     .Define("posPtSmear","return get<7>(pairs);")
     .Define("negPtSmear","return get<8>(pairs);")
@@ -203,6 +206,7 @@ int frame(){
     .Define("posPtSmearBetaVal","return get<15>(pairs);")
     .Define("negPtSmearBetaVal","return get<16>(pairs);")
     .Define("jacobian_weight_mll_diff_squared_reco","return get<17>(pairs)*std::copysign(1.0, genWeight);")
+    .Define("jacobian_weight_mll_diff_times_gen_smear","return get<19>(pairs)*std::copysign(1.0, genWeight);")
     .Define("weight", "std::copysign(1.0, genWeight)")
     .Define("posTrackEta","return Muon_eta[get<0>(pairs)];")
     .Define("negTrackEta","return Muon_eta[get<1>(pairs)];");
@@ -306,9 +310,9 @@ int frame(){
   auto mDh_jac_diff_squared_smear_mll = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_diff_squared_smear_mll", "multi_data_histo_jac_diff_squared_smear_mll", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_smear","jacobian_weight_mll_diff_squared_smear"});
   f6->WriteObject(mDh_jac_diff_squared_smear_mll.GetPtr(), "multi_data_histo_jac_diff_squared_smear_mll");
   
-  // mll_smear weighted by jacobian_weight_mll_diff_smear
-  auto mDh_jac_diff_smear_mll = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_diff_smear_mll", "multi_data_histo_jac_diff_smear_mll", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_smear","jacobian_weight_mll_diff_smear"});
-  f6->WriteObject(mDh_jac_diff_smear_mll.GetPtr(), "multi_data_histo_jac_diff_smear_mll");
+  // mll_smear weighted by jacobian_weight_mll_diff_times_gen_smear
+  auto mDh_jac_diff_times_gen_smear_mll = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_diff_times_gen_smear_mll", "multi_data_histo_jac_diff_times_gen_smear_mll", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_smear","jacobian_weight_mll_diff_times_gen_smear"});
+  f6->WriteObject(mDh_jac_diff_times_gen_smear_mll.GetPtr(), "multi_data_histo_jac_diff_times_gen_smear_mll");
   
   // mll_diff_smear weighted by jacobian_weight_mll_diff_squared_smear
   auto mDh_jac_diff_squared_smear_mll_diff = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_diff_squared_smear_mll_diff", "multi_data_histo_jac_diff_squared_smear_mll_diff", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_diff_smear","jacobian_weight_mll_diff_squared_smear"});
@@ -355,18 +359,22 @@ int frame(){
   //--------------------------------------------------------------------------------------
   // Jacobian terms
 
+  // needed for mll resolution jacobian
   // mll_reco weighted by jacobian_weight_mll_diff_squared_reco
   auto mDh_jac_diff_squared_reco_mll = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_diff_squared_reco_mll", "multi_data_histo_jac_diff_squared_reco_mll", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_reco","jacobian_weight_mll_diff_squared_reco"});
   f5->WriteObject(mDh_jac_diff_squared_reco_mll.GetPtr(), "multi_data_histo_jac_diff_squared_reco_mll");
 
-  // mll_reco weighted by jacobian_weight_mll_diff_reco
-  auto mDh_jac_diff_reco_mll = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_diff_reco_mll", "multi_data_histo_jac_diff_reco_mll", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_reco","jacobian_weight_mll_diff_reco"});
-  f5->WriteObject(mDh_jac_diff_reco_mll.GetPtr(), "multi_data_histo_jac_diff_reco_mll");
+  // needed for mll scale jacobian, it's (mll_reco - mll_gen)*mll_gen
+  // mll_reco weighted by jacobian_weight_mll_diff_times_gen_reco, reco in the label refers to the fact that the difference is wrt reco as opposed to smear
+  auto mDh_jac_diff_times_gen_reco_mll = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_diff_times_gen_reco_mll", "multi_data_histo_jac_diff_times_gen_reco_mll", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_reco","jacobian_weight_mll_diff_times_gen_reco"});
+  f5->WriteObject(mDh_jac_diff_times_gen_reco_mll.GetPtr(), "multi_data_histo_jac_diff_times_gen_reco_mll");
 
+  // needed for mll_diff resolution jacobian
   // mll_diff_reco weighted by jacobian_weight_mll_diff_squared_reco
   auto mDh_jac_diff_squared_reco_mll_diff = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_diff_squared_reco_mll_diff", "multi_data_histo_jac_diff_squared_reco_mll_diff", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff_reco","jacobian_weight_mll_diff_squared_reco"});
   f5->WriteObject(mDh_jac_diff_squared_reco_mll_diff.GetPtr(), "multi_data_histo_jac_diff_squared_reco_mll_diff");
 
+  // needed for mll_diff scale and resolution jacobians
   // mll_diff_reco weighted by jacobian_weight_mll_diff_reco
   auto mDh_jac_diff_reco_mll_diff = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_diff_reco_mll_diff", "multi_data_histo_jac_diff_reco_mll_diff", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff_reco","jacobian_weight_mll_diff_reco"});
   f5->WriteObject(mDh_jac_diff_reco_mll_diff.GetPtr(), "multi_data_histo_jac_diff_reco_mll_diff");
