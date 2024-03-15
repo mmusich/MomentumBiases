@@ -24,7 +24,7 @@ public:
 
   virtual double operator()(const vector<double>&) const;
   virtual vector<double> Gradient(const vector<double>& ) const;
-  virtual bool CheckGradient() const {return true;}
+  virtual bool CheckGradient() const {return true;} // TODO true means it compares analytic grad to numerical, but what does it do based on the answer? 
   // virtual std::vector< double > ROOT::Minuit2::FCNGradientBase::Hessian(const std::vector< double > & )const -> allows to do Hessian analytically? 
 
   vector<int> getIndices(string bin_label) const; 
@@ -305,32 +305,62 @@ ostream& operator<<(ostream& os,
 
 int main() {
 
-  //-----------------------------------------------
-  // Get dummy data
+  // Choose closure_test/analysis mode
+  string mode_option("closure_test"); //TODO pass as command line argument
 
-  int n_eta_bins=24, n_pt_bins=5; //TODO refine after debugging, use variable_counter.py to get how many eta regions are not constrained
-  vector<string> labels = generateLabels(n_eta_bins,n_pt_bins);
-  //cout << labels;
+  int n_eta_bins = 0;
+  unsigned int n_data_points, n_parameters;
+  vector<string> labels;
+  vector<double> dummy_parameters;
+  vector<double> scale_squared_values, scale_squared_error_values;
 
-  unsigned int n_data_points = labels.size(); //TODO refine after debugging
-  unsigned int n_parameters = 3*n_eta_bins; // 3 for A,e,M model  
+  if (mode_option.compare("closure_test") == 0) {
+
+    //-----------------------------------------------
+    // Get dummy data for closure test
+
+    n_eta_bins = 24;
+    int n_pt_bins = 5; 
+    labels = generateLabels(n_eta_bins,n_pt_bins);
+    
+    n_data_points = labels.size(); 
+    n_parameters = 3*n_eta_bins; // 3 for A,e,M model  
+    
+    vector<double> empty_data(n_data_points, 0.0), empty_error(n_data_points, 0.0); 
+    double error_start = 0.001;
+    dummy_parameters = generateParameters(n_parameters);
+    
+    TheoryFcn2 f_dummy(empty_data, empty_error, labels);
+    vector<vector<double>> dummy_call = f_dummy.DummyData(dummy_parameters, n_data_points, error_start);
+    scale_squared_values = dummy_call[0];
+    scale_squared_error_values = dummy_call[1];
+    
+  } else if (mode_option.compare("analysis") == 0){
+    
+    //-----------------------------------------------
+    // Get data
+    
+    std::unique_ptr<TFile> inputFile( TFile::Open("mass_fits_control_histos_smear_beta_val.root") );
+    std::unique_ptr<TH1D> scale(inputFile->Get<TH1D>("epsilon")); //TODO change to beta
+    
+    n_data_points = 12; // TODO scale->GetEntries();
+    
+    for(int i=0; i<n_data_points; i++){
+      scale_squared_values[i] = (scale->GetBinContent(i+1))*(scale->GetBinContent(i+1)); // TODO change that we fit for beta in mass
+      scale_squared_error_values[i] = 2*abs(scale->GetBinContent(i+1))*(scale->GetBinError(i+1));
+      labels[i] = scale->GetXaxis()->GetLabels()->At(i)->GetName();
+      std::cout << "\n" << labels[i] << " scale_squared_values " << scale_squared_values[i] << " scale_squared_error_values " << scale_squared_error_values[i] << "\n";
+    }
+    
+    n_eta_bins = 7; //TODO work out from labels variable counter script
+    n_parameters = 3*n_eta_bins; // 3 for A,e,M model
   
-  vector<double> empty_data(n_data_points, 0.0), empty_error(n_data_points, 0.0); // for closure test
-  double error_start = 0.001;
-  vector<double> dummy_parameters = generateParameters(n_parameters);
-  cout<<dummy_parameters;
-
-  // Generate dummy data
-  TheoryFcn2 f_dummy(empty_data, empty_error, labels);
-  vector<vector<double>> dummy_call = f_dummy.DummyData(dummy_parameters, n_data_points, error_start);
-  vector<double> data = dummy_call[0];
-  vector<double> error = dummy_call[1];
-  //cout << data << "\n" << error << "\n";
+  }
 
   //-------------------------------------------------
   // Use data
 
-  TheoryFcn fFCN(data,error,labels);
+  TheoryFcn fFCN(scale_squared_values,scale_squared_error_values,labels);
 
   // Create parameters with initial starting values
 
@@ -388,29 +418,34 @@ int main() {
   */
 
   // Histogram with dummy parameters and fitted parameters
-  TH1D *dummy_pars_A = new TH1D("dummy_pars_A", "A", n_eta_bins, 0, n_eta_bins);
-  TH1D *dummy_pars_e = new TH1D("dummy_pars_e", "e", n_eta_bins, 0, n_eta_bins);
-  TH1D *dummy_pars_M = new TH1D("dummy_pars_M", "M", n_eta_bins, 0, n_eta_bins);
-  TH1D *fitted_pars_A = new TH1D("fitted_pars_A", "A", n_eta_bins, 0, n_eta_bins);
-  TH1D *fitted_pars_e = new TH1D("fitted_pars_e", "e", n_eta_bins, 0, n_eta_bins);
-  TH1D *fitted_pars_M = new TH1D("fitted_pars_M", "M", n_eta_bins, 0, n_eta_bins);
+
+  TH1D *dummy_pars_A = new TH1D("dummy_pars_A", "A", n_eta_bins, -2.4, 2.4);
+  TH1D *dummy_pars_e = new TH1D("dummy_pars_e", "e", n_eta_bins, -2.4, 2.4);
+  TH1D *dummy_pars_M = new TH1D("dummy_pars_M", "M", n_eta_bins, -2.4, 2.4);
+  
+  TH1D *fitted_pars_A = new TH1D("fitted_pars_A", "A", n_eta_bins, -2.4, 2.4);
+  TH1D *fitted_pars_e = new TH1D("fitted_pars_e", "e", n_eta_bins, -2.4, 2.4);
+  TH1D *fitted_pars_M = new TH1D("fitted_pars_M", "M", n_eta_bins, -2.4, 2.4);
 
   for (int i=1; i<=n_eta_bins; i++){
-    dummy_pars_A->SetBinContent(i, dummy_parameters[i-1]);
-    dummy_pars_A->SetBinError(i, 1e-10);
     fitted_pars_A->SetBinContent(i, min.UserState().Value(i-1) * get<1>(getParameterNameAndScaling(i-1)));
     fitted_pars_A->SetBinError(i, min.UserState().Error(i-1) * abs(get<1>(getParameterNameAndScaling(i-1))));
 
-    dummy_pars_e->SetBinContent(i, dummy_parameters[i-1+n_eta_bins]);
-    dummy_pars_e->SetBinError(i, 1e-10);
     fitted_pars_e->SetBinContent(i, min.UserState().Value(i-1+n_eta_bins) * get<1>(getParameterNameAndScaling(i-1+n_eta_bins)));
     fitted_pars_e->SetBinError(i, min.UserState().Error(i-1+n_eta_bins) * abs(get<1>(getParameterNameAndScaling(i-1+n_eta_bins))));
     
-    dummy_pars_M->SetBinContent(i, dummy_parameters[i-1+2*n_eta_bins]);
-    dummy_pars_M->SetBinError(i, 1e-10);
     fitted_pars_M->SetBinContent(i, min.UserState().Value(i-1+2*n_eta_bins) * get<1>(getParameterNameAndScaling(i-1+2*n_eta_bins)));
     fitted_pars_M->SetBinError(i, min.UserState().Error(i-1+2*n_eta_bins) * abs(get<1>(getParameterNameAndScaling(i-1+2*n_eta_bins))));
-  }
+
+    if (mode_option.compare("closure_test") == 0) { 
+      dummy_pars_A->SetBinContent(i, dummy_parameters[i-1]);
+      dummy_pars_A->SetBinError(i, 1e-10);
+      dummy_pars_e->SetBinContent(i, dummy_parameters[i-1+n_eta_bins]);
+      dummy_pars_e->SetBinError(i, 1e-10);
+      dummy_pars_M->SetBinContent(i, dummy_parameters[i-1+2*n_eta_bins]);
+      dummy_pars_M->SetBinError(i, 1e-10);
+    }
+}
 
   unique_ptr<TFile> f_control( TFile::Open("constants_fitted.root", "RECREATE") ); 
 
@@ -425,48 +460,68 @@ int main() {
   leg1->SetNColumns(1);
   leg1->SetHeader("");
   
-  dummy_pars_A->SetMinimum(-0.00025);
-  dummy_pars_A->SetMaximum(0.00055);
-  dummy_pars_A->SetStats(0);
-  dummy_pars_A->SetMarkerStyle(kPlus);
-  dummy_pars_A->SetMarkerColor(kRed);
-  dummy_pars_A->SetLineColor(kRed);
-  dummy_pars_A->Draw("");
-  fitted_pars_A->Draw("SAME");
-
-  leg1->AddEntry(dummy_pars_A, "input par", "l");
+  fitted_pars_A->SetMinimum(-0.00025);
+  fitted_pars_A->SetMaximum(0.0007);
+  fitted_pars_A->GetYaxis()->SetNoExponent();
+  fitted_pars_A->SetStats(0);
+  fitted_pars_A->GetXaxis()->SetTitle("#eta");
+  fitted_pars_A->GetYaxis()->SetTitle("Magnetic field correction");
+  fitted_pars_A->Draw("");
+  
+  if (mode_option.compare("closure_test") == 0) {
+    dummy_pars_A->SetLineColor(kRed);
+    dummy_pars_A->SetMarkerStyle(kPlus);
+    dummy_pars_A->SetMarkerColor(kRed);
+    dummy_pars_A->Draw("SAME");
+    
+    leg1->AddEntry(dummy_pars_A, "input par", "l");
+  }
+  
   leg1->AddEntry(fitted_pars_A, "fitted par", "l");
   leg1->Draw("SAME");
   leg1->Clear();
 
   TCanvas *c2 = new TCanvas("c2","c2",800,600);
 
-  dummy_pars_e->SetMinimum(0.0005);
-  dummy_pars_e->SetMaximum(0.015);
-  dummy_pars_e->SetStats(0);
-  dummy_pars_e->SetMarkerStyle(kPlus);
-  dummy_pars_e->SetMarkerColor(kRed);
-  dummy_pars_e->SetLineColor(kRed);
-  dummy_pars_e->Draw("");
-  fitted_pars_e->Draw("SAME");
+  fitted_pars_e->SetMinimum(-0.001);
+  fitted_pars_e->SetMaximum(0.017);
+  fitted_pars_e->GetYaxis()->SetNoExponent();
+  fitted_pars_e->SetStats(0);
+  fitted_pars_e->GetXaxis()->SetTitle("#eta");
+  fitted_pars_e->GetYaxis()->SetTitle("Material correction (GeV)");
+  fitted_pars_e->Draw("");
 
-  leg1->AddEntry(dummy_pars_e, "input par", "l");
+  if (mode_option.compare("closure_test") == 0) {
+    dummy_pars_e->SetLineColor(kRed);
+    dummy_pars_e->SetMarkerStyle(kPlus);
+    dummy_pars_e->SetMarkerColor(kRed);
+    dummy_pars_e->Draw("SAME");
+
+    leg1->AddEntry(dummy_pars_e, "input par", "l");
+  }
+
   leg1->AddEntry(fitted_pars_e, "fitted par", "l");
   leg1->Draw("SAME");
   leg1->Clear();
   
   TCanvas *c3 = new TCanvas("c3","c3",800,600);
-  
-  dummy_pars_M->SetMinimum(-2.5e-5);
-  dummy_pars_M->SetMaximum(4.5e-5);
-  dummy_pars_M->SetStats(0);
-  dummy_pars_M->SetMarkerStyle(kPlus);
-  dummy_pars_M->SetMarkerColor(kRed);
-  dummy_pars_M->SetLineColor(kRed);
-  dummy_pars_M->Draw("");
-  fitted_pars_M->Draw("SAME");
 
-  leg1->AddEntry(dummy_pars_M, "input par", "l");
+  fitted_pars_M->SetMinimum(-3e-5);
+  fitted_pars_M->SetMaximum(4.5e-5);
+  fitted_pars_M->SetStats(0);
+  fitted_pars_M->GetXaxis()->SetTitle("#eta");
+  fitted_pars_M->GetYaxis()->SetTitle("Misalignment correction (GeV^{-1})");
+  fitted_pars_M->Draw("");
+
+  if (mode_option.compare("closure_test") == 0) {
+    dummy_pars_M->SetLineColor(kRed);
+    dummy_pars_M->SetMarkerStyle(kPlus);
+    dummy_pars_M->SetMarkerColor(kRed);
+    dummy_pars_M->Draw("SAME");
+
+    leg1->AddEntry(dummy_pars_M, "input par", "l");
+  }
+
   leg1->AddEntry(fitted_pars_M, "fitted par", "l");
   leg1->Draw("SAME");
   
