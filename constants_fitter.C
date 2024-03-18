@@ -89,11 +89,7 @@ double TheoryFcn::operator()(const vector<double>& par) const {
   double chi2(0.0);
   double diff(0.0);
 
-  double k_plus, k_minus, term_pos, term_neg;
-  // TODO for debugging
-  //double k_plus_values[12] = {1.0/38.5, 1.0/45.2, 1.0/40.5, 1.0/44.2, 1.0/39.8, 1.0/37.4, 1.0/33.9, 1.0/46.2, 1.0/34.9, 1.0/45.9, 1.0/34.2, 1.0/38.4};
-  //double k_minus_values[12] = {1.0/35.9, 1.0/39.6, 1.0/42.0, 1.0/44.8, 1.0/41.0, 1.0/45.2, 1.0/39.1, 1.0/38.2, 1.0/35.0, 1.0/40.2, 1.0/46.9, 1.0/34.8};
-  
+  double k_plus, k_minus, term_pos, term_neg;  
   double my_func;
   int eta_pos_index, eta_neg_index;
   vector<int> bin_indices(4); // for 4D binning
@@ -111,13 +107,17 @@ double TheoryFcn::operator()(const vector<double>& par) const {
     term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e*par[eta_pos_index + n_eta_bins]*k_plus +  scaling_M*par[eta_pos_index + 2*n_eta_bins]/k_plus);
     term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e*par[eta_neg_index + n_eta_bins]*k_minus - scaling_M*par[eta_neg_index + 2*n_eta_bins]/k_minus);
     
-    my_func = term_pos*term_neg;
+    my_func = term_pos*term_neg; 
     
     diff = my_func - scaleSquared[n]; 
     chi2 += diff*diff/(scaleSquaredError[n]*scaleSquaredError[n]);
+    //chi2 += diff*diff/(scaleSquaredError[n]*scaleSquaredError[n]) - (1. - scaleSquared[n])*(1. - scaleSquared[n])/(scaleSquaredError[n]*scaleSquaredError[n]); //TODO normalise to be 0 for initial guess params
   }
-
-  return chi2;
+ 
+  int ndof = scaleSquared.size() - par.size();
+ 
+  return chi2/ndof; // minimise reduced chi2 directly 
+  //return chi2;
 }
 
 //-----------------------------------------------
@@ -136,6 +136,8 @@ vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
   int eta_pos_index, eta_neg_index;
   vector<int> bin_indices(4); // for 4D binning
   
+  int ndof = scaleSquared.size() - par.size();
+
   for(unsigned int n(0); n < scaleSquared.size() ; n++) { // loops over measurements
     // TODO I need everything from the chi2 function, maybe better solution to this
     bin_indices = getIndices(binLabels[n]); // TODO is overwriting a vector like this safe?
@@ -152,7 +154,7 @@ vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
     
     local_func = term_pos*term_neg;
     
-    temp=2.0*(local_func - scaleSquared[n])/(scaleSquaredError[n]*scaleSquaredError[n]); 
+    temp=2.0*(local_func - scaleSquared[n])/(scaleSquaredError[n]*scaleSquaredError[n])/ndof; 
     
     //TODO not calculate terms before checking if needed, ahm, not needed
     for (unsigned int i : {eta_pos_index, eta_pos_index + n_eta_bins, eta_pos_index + 2*n_eta_bins, eta_neg_index, eta_neg_index + n_eta_bins, eta_neg_index + 2*n_eta_bins}) { // loops over parameters
@@ -284,8 +286,8 @@ vector<double> generateParameters (const int n_parameters){ //TODO might be slow
     res[i] = 0.0; // e set to 0 for debugging
   }
   for (int i=2*n_parameters/3; i<n_parameters; i++){ // M from 4*10^-5 to -2*10^-5 and back
-    //res[i] = ( 6.0*36.0/n_parameters/n_parameters*((i-2*n_parameters/3) - n_parameters/6)*((i-2*n_parameters/3) - n_parameters/6) - 2)*0.00001;
-    res[i] = 0.0; // M set to 0 for debugging
+    res[i] = ( 6.0*36.0/n_parameters/n_parameters*((i-2*n_parameters/3) - n_parameters/6)*((i-2*n_parameters/3) - n_parameters/6) - 2)*0.00001;
+    //res[i] = 0.0; // M set to 0 for debugging 
   }
   return res;
 }
@@ -307,11 +309,8 @@ ostream& operator<<(ostream& os,
 
 int main() {
 
-  int verbosity =3; 
+  int verbosity = 2; 
   ROOT::Minuit2::MnPrint::SetGlobalLevel(verbosity);
-
-  //auto val = ROOT::Minuit2::MnPrint::Level();
-  //std::cout<<"\n"<<"Print Level: "<<val<<"\n";
   
   // Choose closure_test/analysis mode
   string mode_option("closure_test"); //TODO pass as command line argument
@@ -319,7 +318,7 @@ int main() {
   int n_eta_bins = 0;
   unsigned int n_data_points, n_parameters;
   vector<string> labels;
-  vector<double> dummy_parameters;
+  vector<double> dummy_parameters(0.0);
   vector<double> scale_squared_values, scale_squared_error_values;
 
   if (mode_option.compare("closure_test") == 0) {
@@ -335,7 +334,7 @@ int main() {
     n_parameters = 3*n_eta_bins; // 3 for A,e,M model  
     
     vector<double> empty_data(n_data_points, 0.0), empty_error(n_data_points, 0.0); 
-    double error_start = 0.001;
+    double error_start = 1.0;
     dummy_parameters = generateParameters(n_parameters);
     
     TheoryFcn2 f_dummy(empty_data, empty_error, labels);
@@ -369,6 +368,7 @@ int main() {
   // Use data
 
   TheoryFcn fFCN(scale_squared_values,scale_squared_error_values,labels);
+  fFCN.SetErrorDef(1.0/(n_data_points - n_parameters)); // new error definition when minimising reduced chi2
 
   // Create parameters with initial starting values
 
@@ -380,13 +380,13 @@ int main() {
   //}
 
   for (int i=0; i<n_parameters/3; i++){ // A 
-    upar.Add(Form("param%d",i), start, par_error);
+    upar.Add(Form("param%d",i), dummy_parameters[i], par_error); //TODO won't work in analysis mode  dummy_parameters[i] 
   }
   for (int i=n_parameters/3; i<2*n_parameters/3; i++){ // e
     upar.Add(Form("param%d",i), start); // all e fixed to 0.0
   }
   for (int i=2*n_parameters/3; i<n_parameters; i++){ // M 
-    upar.Add(Form("param%d",i), start); // all M fixed to 0.0
+    upar.Add(Form("param%d",i), dummy_parameters[i], par_error); //TODO won't work in analysis mode
   }
 
   for (unsigned int i=0; i<upar.Params().size(); i++) {
@@ -414,7 +414,8 @@ int main() {
 
   cout << "# Calculation time: " << t1 << " ms" << "\n";
 
-  cout << "CHI^2: " << min.Fval() << " , chi^2/ndf: " << min.Fval()/(n_data_points - n_parameters) << "\n" << "\n";
+  //cout << "CHI^2: " << min.Fval() << " , chi^2/ndf: " << min.Fval()/(n_data_points - n_parameters) << "\n" << "\n";
+  cout << "chi^2/ndf: " << min.Fval() << "\n" << "\n";
 
   cout << "min is valid: " << min.IsValid() << std::endl;
   cout << "HesseFailed: " << min.HesseFailed() << std::endl;
