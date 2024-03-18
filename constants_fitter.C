@@ -280,10 +280,12 @@ vector<double> generateParameters (const int n_parameters){ //TODO might be slow
     res[i] = (-7.0*36.0/n_parameters/n_parameters*(i - n_parameters/6)*(i - n_parameters/6) + 5)*0.0001;
   }
   for (int i=n_parameters/3; i<2*n_parameters/3; i++){ // e from 0.01 to 0.001 and back
-    res[i] = (9.0*36.0/n_parameters/n_parameters*((i-n_parameters/3) - n_parameters/6)*((i-n_parameters/3) - n_parameters/6) + 1)*0.001;  
+    //res[i] = (9.0*36.0/n_parameters/n_parameters*((i-n_parameters/3) - n_parameters/6)*((i-n_parameters/3) - n_parameters/6) + 1)*0.001;  
+    res[i] = 0.0; // e set to 0 for debugging
   }
   for (int i=2*n_parameters/3; i<n_parameters; i++){ // M from 4*10^-5 to -2*10^-5 and back
-    res[i] = ( 6.0*36.0/n_parameters/n_parameters*((i-2*n_parameters/3) - n_parameters/6)*((i-2*n_parameters/3) - n_parameters/6) - 2)*0.00001;
+    //res[i] = ( 6.0*36.0/n_parameters/n_parameters*((i-2*n_parameters/3) - n_parameters/6)*((i-2*n_parameters/3) - n_parameters/6) - 2)*0.00001;
+    res[i] = 0.0; // M set to 0 for debugging
   }
   return res;
 }
@@ -305,6 +307,12 @@ ostream& operator<<(ostream& os,
 
 int main() {
 
+  int verbosity =3; 
+  ROOT::Minuit2::MnPrint::SetGlobalLevel(verbosity);
+
+  //auto val = ROOT::Minuit2::MnPrint::Level();
+  //std::cout<<"\n"<<"Print Level: "<<val<<"\n";
+  
   // Choose closure_test/analysis mode
   string mode_option("closure_test"); //TODO pass as command line argument
 
@@ -367,12 +375,23 @@ int main() {
   double start=0.0, par_error=0.1; // Will store error on parameter before taking scaling into account
   MnUserParameters upar;
 
-  for(unsigned int i=0 ; i<n_parameters; ++i){
+  //  for(unsigned int i=0 ; i<n_parameters; ++i){
+  //  upar.Add(Form("param%d",i), start, par_error);
+  //}
+
+  for (int i=0; i<n_parameters/3; i++){ // A 
     upar.Add(Form("param%d",i), start, par_error);
   }
-  //for (unsigned int i=0; i<upar.Params().size(); i++) {
-  //  cout <<"par[" << i << "]: " << upar.Params()[i] << "\n";
-  //}
+  for (int i=n_parameters/3; i<2*n_parameters/3; i++){ // e
+    upar.Add(Form("param%d",i), start); // all e fixed to 0.0
+  }
+  for (int i=2*n_parameters/3; i<n_parameters; i++){ // M 
+    upar.Add(Form("param%d",i), start); // all M fixed to 0.0
+  }
+
+  for (unsigned int i=0; i<upar.Params().size(); i++) {
+    cout <<"par[" << i << "] = " << get<0>(getParameterNameAndScaling(i)) << ": " << upar.Params()[i] << "\n";
+  }
 
   // create Migrad minimizer
 
@@ -410,12 +429,12 @@ int main() {
 
   cout << min << "\n";
 
-  /*
+  
   cout << "\n" << "Fitted A [ ], e [GeV], M [GeV^-1] parameters: " << "\n";
   for (unsigned int i(0); i<upar.Params().size(); i++) {
     cout <<"par[" << i << "]: " << get<0>(getParameterNameAndScaling(i)) << " fitted to: "<< min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i)) << " +/- " << min.UserState().Error(i) * abs(get<1>(getParameterNameAndScaling(i))) << "\n";
   }
-  */
+  
 
   // Histogram with dummy parameters and fitted parameters
 
