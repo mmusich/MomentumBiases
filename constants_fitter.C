@@ -51,7 +51,7 @@ public:
   TheoryFcn2(const vector<double> &meas, const vector<double> &err, const vector<string> &bin_labels) : TheoryFcn(meas, err, bin_labels) {}
   ~TheoryFcn2() {}
 
-  vector<vector<double>> DummyData(const vector<double> &dummy_par_val, const int n_data_points, const double width) const; //TODO  vector<vector<double>> might be slow
+  vector<vector<double>> DummyData(const vector<double> &dummy_par_val, const int n_data_points, const double width, TRandom3 random) const; //TODO  vector<vector<double>> might be slow
   
 };
 
@@ -80,7 +80,7 @@ double TheoryFcn::getK(const int pT_index) const{
 }
 
 //-----------------------------------------------
-// Function to build chi2 
+// Function to build reduced chi2 
 
 double TheoryFcn::operator()(const vector<double>& par) const {
   // par has size n_parameters = 3*number_eta_bins, idices from 0 to n-1 contain A, from n to 2n-1 epsilon, from 2n to 3n-1 M
@@ -111,17 +111,17 @@ double TheoryFcn::operator()(const vector<double>& par) const {
     
     diff = my_func - scaleSquared[n]; 
     chi2 += diff*diff/(scaleSquaredError[n]*scaleSquaredError[n]);
-    //chi2 += diff*diff/(scaleSquaredError[n]*scaleSquaredError[n]) - (1. - scaleSquared[n])*(1. - scaleSquared[n])/(scaleSquaredError[n]*scaleSquaredError[n]); //TODO normalise to be 0 for initial guess params
+
   }
  
   int ndof = scaleSquared.size() - par.size();
  
   return chi2/ndof; // minimise reduced chi2 directly 
-  //return chi2;
+
 }
 
 //-----------------------------------------------
-// Function to build gradient of chi2 analytically 
+// Function to build gradient of reduced chi2 analytically 
 
 vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
 
@@ -183,13 +183,12 @@ vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
 //-----------------------------------------------
 // Function to generate dummy data for closure test
 
-vector<vector<double>> TheoryFcn2::DummyData(const vector<double> &dummy_par_val, const int n_data_points, const double width) const {
+vector<vector<double>> TheoryFcn2::DummyData(const vector<double> &dummy_par_val, const int n_data_points, const double width, TRandom3 random) const {
   // par has size n_parameters = 3*number_eta_bins, idices from 0 to n-1 contain A, from n to 2n-1 epsilon, from 2n to 3n-1 M
   
   vector<vector<double>> res(2);
   vector<double> test_data(n_data_points, 0.0), test_error(n_data_points, 0.0);
   double k_plus, k_minus, mean, width_rand, term_pos, term_neg;
-  TRandom3 random = TRandom3(4357); 
   int eta_pos_index, eta_neg_index;
   vector<double> DummyParVal(dummy_par_val);
 
@@ -309,7 +308,12 @@ ostream& operator<<(ostream& os,
 
 int main() {
 
-  int verbosity = 2; 
+  int n_tries = 100;
+  TH1D *track_chi2 = new TH1D("track_chi2", "track_chi2", 30, 0.92, 1.08);
+  
+  for(int z = 0; z<n_tries; z++){
+  TRandom3 iter_random = TRandom3(4357 + z); 
+  int verbosity = 0; 
   ROOT::Minuit2::MnPrint::SetGlobalLevel(verbosity);
   
   // Choose closure_test/analysis mode
@@ -338,7 +342,7 @@ int main() {
     dummy_parameters = generateParameters(n_parameters);
     
     TheoryFcn2 f_dummy(empty_data, empty_error, labels);
-    vector<vector<double>> dummy_call = f_dummy.DummyData(dummy_parameters, n_data_points, error_start);
+    vector<vector<double>> dummy_call = f_dummy.DummyData(dummy_parameters, n_data_points, error_start, iter_random);
     scale_squared_values = dummy_call[0];
     scale_squared_error_values = dummy_call[1];
     
@@ -372,7 +376,7 @@ int main() {
 
   // Create parameters with initial starting values
 
-  double start=0.0, par_error=0.1; // Will store error on parameter before taking scaling into account
+  double start=0.0, par_error=0.001; // Will store error on parameter before taking scaling into account
   MnUserParameters upar;
 
   //  for(unsigned int i=0 ; i<n_parameters; ++i){
@@ -380,19 +384,21 @@ int main() {
   //}
 
   for (int i=0; i<n_parameters/3; i++){ // A 
-    upar.Add(Form("param%d",i), dummy_parameters[i], par_error); //TODO won't work in analysis mode  dummy_parameters[i] 
+    upar.Add(Form("param%d",i), start, par_error); //TODO in closure mode can use dummy_parameters[i] for start value 
   }
   for (int i=n_parameters/3; i<2*n_parameters/3; i++){ // e
     upar.Add(Form("param%d",i), start); // all e fixed to 0.0
   }
   for (int i=2*n_parameters/3; i<n_parameters; i++){ // M 
-    upar.Add(Form("param%d",i), dummy_parameters[i], par_error); //TODO won't work in analysis mode
+    upar.Add(Form("param%d",i), start, par_error); 
   }
 
-  for (unsigned int i=0; i<upar.Params().size(); i++) {
-    cout <<"par[" << i << "] = " << get<0>(getParameterNameAndScaling(i)) << ": " << upar.Params()[i] << "\n";
-  }
+  //for (unsigned int i=0; i<upar.Params().size(); i++) {
+  //cout <<"par[" << i << "] = " << get<0>(getParameterNameAndScaling(i)) << ": " << upar.Params()[i] << "\n";
+  //}
 
+  // TODO Look at Hessian
+ 
   // create Migrad minimizer
 
   MnMigrad minimize(fFCN, upar, 1); //TODO strategy is 1, check others too
@@ -407,14 +413,22 @@ int main() {
   struct timeval tv_start, tv_stop;
   gettimeofday(&tv_start, 0);
 
-  FunctionMinimum min = minimize(maxfcn, tolerance);  
+  FunctionMinimum min = minimize(maxfcn, tolerance);
 
+  track_chi2->Fill(min.Fval());
+  cout<<"iter "<<z<<": "<<min.Fval()<<"\n";
+
+  }
+
+  std::unique_ptr<TFile> f_control( TFile::Open("track_chi2.root", "RECREATE") ); 
+  f_control->WriteObject(track_chi2, "track_chi2");
+
+  /*
   gettimeofday(&tv_stop, 0);
   t1 = (tv_stop.tv_sec - tv_start.tv_sec)*1000.0 + (tv_stop.tv_usec - tv_start.tv_usec)/1000.0;
 
   cout << "# Calculation time: " << t1 << " ms" << "\n";
 
-  //cout << "CHI^2: " << min.Fval() << " , chi^2/ndf: " << min.Fval()/(n_data_points - n_parameters) << "\n" << "\n";
   cout << "chi^2/ndf: " << min.Fval() << "\n" << "\n";
 
   cout << "min is valid: " << min.IsValid() << std::endl;
@@ -429,7 +443,6 @@ int main() {
   cout << "HasMadePosDefCovar : " << min.HasMadePosDefCovar() << std::endl;
 
   cout << min << "\n";
-
   
   cout << "\n" << "Fitted A [ ], e [GeV], M [GeV^-1] parameters: " << "\n";
   for (unsigned int i(0); i<upar.Params().size(); i++) {
@@ -548,7 +561,7 @@ int main() {
   f_control->WriteObject(c1, "A");
   f_control->WriteObject(c2, "e");
   f_control->WriteObject(c3, "M");
-
+  */
   return 0;
 }
 
