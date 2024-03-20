@@ -309,7 +309,24 @@ ostream& operator<<(ostream& os,
 int main() {
 
   int n_tries = 100;
-  TH1D *track_chi2 = new TH1D("track_chi2", "track_chi2", 30, 0.92, 1.08);
+
+  auto track_tree = std::make_unique<TTree>("track_tree", "track_tree");
+
+  double red_chi2, edm;
+  double* red_chi2_ptr = &red_chi2;
+  double* edm_ptr = &edm;
+
+  int n_eta_bins_tmp = 24; // TODO must match n_eta_bins in for loop
+  vector<double> params_tmp(3*n_eta_bins_tmp); // 3 for A,e,M model
+
+  track_tree->Branch("red_chi2", red_chi2_ptr);
+  track_tree->Branch("edm", edm_ptr);
+  for(int w = 0; w<3*n_eta_bins_tmp; w++){ // 3 for A,e,M model
+    int rest_tmp = w % n_eta_bins_tmp;
+    if( w / n_eta_bins_tmp == 0) track_tree->Branch(Form("pull_A%d",rest_tmp), &params_tmp[w]);
+    //if( w / n_eta_bins_tmp == 1) track_tree->Branch(Form("e%d",w), &params_tmp[w]);
+    if( w / n_eta_bins_tmp == 2) track_tree->Branch(Form("pull_M%d",rest_tmp), &params_tmp[w]);
+  }
   
   for(int z = 0; z<n_tries; z++){
   TRandom3 iter_random = TRandom3(4357 + z); 
@@ -338,7 +355,7 @@ int main() {
     n_parameters = 3*n_eta_bins; // 3 for A,e,M model  
     
     vector<double> empty_data(n_data_points, 0.0), empty_error(n_data_points, 0.0); 
-    double error_start = 1.0;
+    double error_start = 0.001;
     dummy_parameters = generateParameters(n_parameters);
     
     TheoryFcn2 f_dummy(empty_data, empty_error, labels);
@@ -415,13 +432,20 @@ int main() {
 
   FunctionMinimum min = minimize(maxfcn, tolerance);
 
-  track_chi2->Fill(min.Fval());
-  cout<<"iter "<<z<<": "<<min.Fval()<<"\n";
+  red_chi2 = min.Fval();
+  edm = min.Edm();
+  for (int i=0; i<n_parameters; i++){
+    if(i / n_eta_bins == 0 || i / n_eta_bins == 2) params_tmp[i] = (min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i)) - dummy_parameters[i]) / min.UserState().Error(i) * abs(get<1>(getParameterNameAndScaling(i))); // NOTE fit only A,M for now
+  }
+
+  track_tree->Fill();
+
+  cout<<"iter "<<z<<": "<<red_chi2<<" ; edm: "<< edm <<"\n";
 
   }
 
-  std::unique_ptr<TFile> f_control( TFile::Open("track_chi2.root", "RECREATE") ); 
-  f_control->WriteObject(track_chi2, "track_chi2");
+  std::unique_ptr<TFile> f_control( TFile::Open("track_params.root", "RECREATE") );
+  track_tree->Write();
 
   /*
   gettimeofday(&tv_stop, 0);
