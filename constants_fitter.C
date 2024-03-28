@@ -31,8 +31,8 @@ public:
   double getK(const int pT_index) const;
   
   const vector<double> pT_binning {25.0, 33.3584, 38.4562, 42.2942, 45.9469, 55.0}; // pT binning goes here
-  static constexpr double scaling_A = 0.001, scaling_e = 0.001 * 40.0, scaling_M = 0.001 / 40.0; // this scaling makes fitter parameters of order 1 TODO diff scaling for diff pt bin?
-  
+  static constexpr double scaling_A = 0.001, scaling_e = 0.001 * 40.0, scaling_M = 0.001 / 40.0; // this scaling makes fitter parameters of order 1 
+
   vector<string> binLabels; // made public for the closure test
   static const int n_eta_bins = 24; //TODO automatise, so don't input by hand!!!
 
@@ -278,14 +278,15 @@ vector<double> generateParameters (const int n_parameters){ //TODO might be slow
 
   vector<double> res(n_parameters); // has size n_parameters = 3*number_eta_bins, idices from 0 to n-1 contain A, from n to 2n-1 epsilon, from 2n to 3n-1 M 
   for (int i=0; i<n_parameters/3; i++){ // A from -0.0002 to 0.0005 and back
-    res[i] = (-7.0*36.0/n_parameters/n_parameters*(i - n_parameters/6)*(i - n_parameters/6) + 5)*0.0001;
+    res[i] = (-7.0*36.0/n_parameters/n_parameters*(i - n_parameters/6)*(i - n_parameters/6) + 5.0)*0.0001;
+    //res[i] = 0.0; // A set to 0 for debugging
   }
   for (int i=n_parameters/3; i<2*n_parameters/3; i++){ // e from 0.01 to 0.001 and back
-    //res[i] = (9.0*36.0/n_parameters/n_parameters*((i-n_parameters/3) - n_parameters/6)*((i-n_parameters/3) - n_parameters/6) + 1)*0.001;  
+    //res[i] = (9.0*36.0/n_parameters/n_parameters*((i-n_parameters/3) - n_parameters/6)*((i-n_parameters/3) - n_parameters/6) + 1.0)*0.001;  
     res[i] = 0.0; // e set to 0 for debugging
   }
   for (int i=2*n_parameters/3; i<n_parameters; i++){ // M from 4*10^-5 to -2*10^-5 and back
-    res[i] = ( 6.0*36.0/n_parameters/n_parameters*((i-2*n_parameters/3) - n_parameters/6)*((i-2*n_parameters/3) - n_parameters/6) - 2)*0.00001;
+    res[i] = ( 6.0*36.0/n_parameters/n_parameters*((i-2*n_parameters/3) - n_parameters/6)*((i-2*n_parameters/3) - n_parameters/6) - 2.0)*0.00001;
     //res[i] = 0.0; // M set to 0 for debugging 
   }
   return res;
@@ -306,9 +307,14 @@ ostream& operator<<(ostream& os,
 
 //-----------------------------------------------
 
-int main() {
+int constants_fitter() {
+  
+  double t1(0.);
+  // Get start time
+  struct timeval tv_start, tv_stop;
+  gettimeofday(&tv_start, 0);
 
-  int n_tries = 100;
+  int n_tries = 1;
 
   auto track_tree = std::make_unique<TTree>("track_tree", "track_tree");
 
@@ -328,8 +334,9 @@ int main() {
     if( w / n_eta_bins_tmp == 2) track_tree->Branch(Form("pull_M%d",rest_tmp), &params_tmp[w]);
   }
   
-  for(int z = 0; z<n_tries; z++){
-  TRandom3 iter_random = TRandom3(4357 + z); 
+  int z=0;
+  //for(int z = 0; z<n_tries; z++){
+  TRandom3 iter_random = TRandom3(4357 + z); //TRandom3(4357 + z) was before when i ran 1000 toys, now i am running toys on top of those 1000 
   int verbosity = 0; 
   ROOT::Minuit2::MnPrint::SetGlobalLevel(verbosity);
   
@@ -380,7 +387,7 @@ int main() {
       std::cout << "\n" << labels[i] << " scale_squared_values " << scale_squared_values[i] << " scale_squared_error_values " << scale_squared_error_values[i] << "\n";
     }
     
-    n_eta_bins = 7; //TODO work out from labels variable counter script
+    n_eta_bins = 24; //TODO work out from labels variable counter script
     n_parameters = 3*n_eta_bins; // 3 for A,e,M model
   
   }
@@ -395,13 +402,15 @@ int main() {
 
   double start=0.0, par_error=0.001; // Will store error on parameter before taking scaling into account
   MnUserParameters upar;
+  //cout << "Precision: " << upar.Precision() << "\n";
+  //upar.SetPrecision(8.881784197e-16);
 
   //  for(unsigned int i=0 ; i<n_parameters; ++i){
   //  upar.Add(Form("param%d",i), start, par_error);
   //}
 
   for (int i=0; i<n_parameters/3; i++){ // A 
-    upar.Add(Form("param%d",i), start, par_error); //TODO in closure mode can use dummy_parameters[i] for start value 
+    upar.Add(Form("param%d",i), start, par_error); //TODO in closure mode can use dummy_parameters[i] for start value
   }
   for (int i=n_parameters/3; i<2*n_parameters/3; i++){ // e
     upar.Add(Form("param%d",i), start); // all e fixed to 0.0
@@ -414,45 +423,47 @@ int main() {
   //cout <<"par[" << i << "] = " << get<0>(getParameterNameAndScaling(i)) << ": " << upar.Params()[i] << "\n";
   //}
 
-  // TODO Look at Hessian
- 
   // create Migrad minimizer
 
   MnMigrad minimize(fFCN, upar, 1); //TODO strategy is 1, check others too
 
   // ... and Minimize
 
-  unsigned int maxfcn(1000000); //(numeric_limits<unsigned int>::max());
-  double tolerance(0.001); //MIGRAD will stop iterating when edm (expected distance from minimum) will be: edm < tolerance * 10**-3
-
-  double t1(0.);
+  unsigned int maxfcn(numeric_limits<unsigned int>::max());
+  double tolerance(0.001); //MIGRAD will stop iterating when edm : 0.002 * tolerance * UPERROR
+  //fFCN.SetErrorDef(1.0/(n_data_points - n_parameters)); 
+  //3829.158
+  
+  //double t1(0.);
   // Get start time
-  struct timeval tv_start, tv_stop;
-  gettimeofday(&tv_start, 0);
+  //struct timeval tv_start, tv_stop;
+  //gettimeofday(&tv_start, 0);
 
   FunctionMinimum min = minimize(maxfcn, tolerance);
-
+  
   red_chi2 = min.Fval();
   edm = min.Edm();
   for (int i=0; i<n_parameters; i++){
-    if(i / n_eta_bins == 0 || i / n_eta_bins == 2) params_tmp[i] = (min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i)) - dummy_parameters[i]) / min.UserState().Error(i) * abs(get<1>(getParameterNameAndScaling(i))); // NOTE fit only A,M for now
-  }
+    if(i / n_eta_bins == 0 || i / n_eta_bins == 2) params_tmp[i] = (min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i)) - dummy_parameters[i]) / (min.UserState().Error(i) * abs(get<1>(getParameterNameAndScaling(i)))); // NOTE fit only A,M for now
+  } 
 
   track_tree->Fill();
 
-  cout<<"iter "<<z<<": "<<red_chi2<<" ; edm: "<< edm <<"\n";
+  //cout<<"iter "<<z<<": "<<red_chi2<<" ; edm: "<< edm <<"\n";
 
-  }
+  //} //comment this bracket for loop over n_tries
 
-  std::unique_ptr<TFile> f_control( TFile::Open("track_params.root", "RECREATE") );
+  std::unique_ptr<TFile> f_control_iter( TFile::Open("track_params.root", "RECREATE") );
   track_tree->Write();
+  cout<<"\n"<<"done"<<"\n";
+  f_control_iter->Close();
 
-  /*
   gettimeofday(&tv_stop, 0);
   t1 = (tv_stop.tv_sec - tv_start.tv_sec)*1000.0 + (tv_stop.tv_usec - tv_start.tv_usec)/1000.0;
-
+  
   cout << "# Calculation time: " << t1 << " ms" << "\n";
 
+  
   cout << "chi^2/ndf: " << min.Fval() << "\n" << "\n";
 
   cout << "min is valid: " << min.IsValid() << std::endl;
@@ -468,11 +479,75 @@ int main() {
 
   cout << min << "\n";
   
+  vector<double> hessian = min.UserState().Hessian().Data();
+  vector<double> covariance = min.UserState().Covariance().Data();
+  
+  TH2D *hessian_hist = new TH2D("hessian_hist", "Hessian", n_eta_bins*2, -7000.0, 7000.0, n_eta_bins*2, -7000.0, 7000.0); //TODO change s*2
+  TH2D *covariance_hist = new TH2D("covariance_hist", "Covariance", n_eta_bins*2, -7000.0, 7000.0, n_eta_bins*2, -7000.0, 7000.0); //TODO change s*2
+
+  int bin;
+  for (int i=1; i<=n_eta_bins*2; i++){ //TODO change s*2
+    for (int j=1; j<=i; j++){
+      bin = hessian_hist->GetBin(i, n_eta_bins*2+1-j); //TODO change s*2
+      hessian_hist->SetBinContent(bin, hessian[(i-1)*(i)/2+(j-1)]); 
+      covariance_hist->SetBinContent(bin, covariance[(i-1)*(i)/2+(j-1)]); 
+      bin = hessian_hist->GetBin(j, n_eta_bins*2+1-i); //TODO change s*2
+      hessian_hist->SetBinContent(bin, hessian[(i-1)*(i)/2+(j-1)]); 
+      covariance_hist->SetBinContent(bin, covariance[(i-1)*(i)/2+(j-1)]); 
+    }
+  }
+  /*
+  double hessian_ar[n_eta_bins*2*n_eta_bins*2]; //TODO change s*2
+  double covariance_ar[n_eta_bins*2*n_eta_bins*2]; //TODO change s*2
+
+  for (int i=1; i<=n_eta_bins*2; i++){ //TODO change s*2
+    for (int j=1; j<=n_eta_bins*2; j++){ //TODO change s*2
+      // define arrays collumn wise
+      hessian_ar[(i-1)*n_eta_bins*2+(j-1)] = hessian_hist->GetBinContent(hessian_hist->GetBin(i, n_eta_bins*2+1-j)); //TODO change s*2
+      covariance_ar[(i-1)*n_eta_bins*2+(j-1)] = covariance_hist->GetBinContent(covariance_hist->GetBin(i, n_eta_bins*2+1-j)); //TODO change s*2
+    }
+  }
+  
+  cout << "Hessian: " << hessian <<"\n"<< "Hessian: " <<"\n";
+  
+  TMatrixTSym<double> Hessian_matrix(n_eta_bins*2, hessian_ar, "F"); //need option F to unroll collumn wise //TODO change s*2, pass by ptr
+  
+  for(int i=0; i<n_eta_bins*2; i++){ //TODO change s*2
+    for(int j=0; j<n_eta_bins*2; j++){ //TODO change s*2
+      cout << Hessian_matrix(i,j) << " ";
+    }
+    cout << "\n";
+  }
+  cout << "\n";
+  cout << "Covariance: " << covariance << "\n" << "Covariance: " << "\n";
+ 
+  TMatrixTSym<double> Covariance_matrix(n_eta_bins*2, covariance_ar, "F"); //need option F to unroll collumn wise //TODO change s*2, pass by ptr
+
+  for(int i=0; i<n_eta_bins*2; i++){ //TODO change s*2
+    for(int j=0; j<n_eta_bins*2; j++){ //TODO change s*2
+      cout << Covariance_matrix(i,j) << " ";
+    }
+    cout << "\n";
+  }
+  */
+  unique_ptr<TFile> f_a( TFile::Open("a.root", "RECREATE") );
+
+  TCanvas *c4 = new TCanvas("c4","c4",800,600);
+  hessian_hist->SetStats(0);
+  hessian_hist->Draw("COLZ");
+  f_a->WriteObject(c4, "hessian_hist");
+
+  TCanvas *c5 = new TCanvas("c5","c5",800,600);
+  covariance_hist->SetStats(0);
+  covariance_hist->Draw("COLZ");
+  f_a->WriteObject(c5, "covariance_hist");
+
+  /*
   cout << "\n" << "Fitted A [ ], e [GeV], M [GeV^-1] parameters: " << "\n";
   for (unsigned int i(0); i<upar.Params().size(); i++) {
     cout <<"par[" << i << "]: " << get<0>(getParameterNameAndScaling(i)) << " fitted to: "<< min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i)) << " +/- " << min.UserState().Error(i) * abs(get<1>(getParameterNameAndScaling(i))) << "\n";
   }
-  
+  */  
 
   // Histogram with dummy parameters and fitted parameters
 
@@ -585,7 +660,7 @@ int main() {
   f_control->WriteObject(c1, "A");
   f_control->WriteObject(c2, "e");
   f_control->WriteObject(c3, "M");
-  */
+ 
   return 0;
 }
 
