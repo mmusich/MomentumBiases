@@ -336,7 +336,7 @@ int constants_fitter() {
   
   int z=0;
   //for(int z = 0; z<n_tries; z++){
-  TRandom3 iter_random = TRandom3(4357 + z); //TRandom3(4357 + z) was before when i ran 1000 toys, now i am running toys on top of those 1000 
+  TRandom3 iter_random = TRandom3(4357 + z);
   int verbosity = 0; 
   ROOT::Minuit2::MnPrint::SetGlobalLevel(verbosity);
   
@@ -485,9 +485,15 @@ int constants_fitter() {
   TH2D *hessian_hist = new TH2D("hessian_hist", "Hessian", n_parameters, 0, n_parameters, n_parameters, 0, n_parameters);
   TH2D *covariance_hist = new TH2D("covariance_hist", "Covariance", n_parameters, 0, n_parameters, 0, n_parameters);
   TH2D *corr_hist = new TH2D("corr_hist", "Correlation", n_parameters, 0, n_parameters, n_parameters, 0, n_parameters);
-  
-  int bin, i_temp, j_temp;
+ 
+  int bin, i_temp, j_temp, bin_x, bin_y;
   for (int i=1; i<=n_parameters; i++){
+    hessian_hist->GetXaxis()->SetBinLabel(i,get<0>(getParameterNameAndScaling(i-1)).c_str());
+    hessian_hist->GetYaxis()->SetBinLabel(i,get<0>(getParameterNameAndScaling(n_parameters-i)).c_str());
+    covariance_hist->GetXaxis()->SetBinLabel(i,get<0>(getParameterNameAndScaling(i-1)).c_str());
+    covariance_hist->GetYaxis()->SetBinLabel(i,get<0>(getParameterNameAndScaling(n_parameters-i)).c_str());
+    corr_hist->GetXaxis()->SetBinLabel(i,get<0>(getParameterNameAndScaling(i-1)).c_str());
+    corr_hist->GetYaxis()->SetBinLabel(i,get<0>(getParameterNameAndScaling(n_parameters-i)).c_str());
     for (int j=1; j<=i; j++){
       if ((i<=n_eta_bins || i>n_eta_bins*2) && (j<=n_eta_bins || j>n_eta_bins*2)){ //TODO remove if and else block when fitting 3 pars
 	bin = hessian_hist->GetBin(i, n_parameters+1-j);
@@ -529,7 +535,7 @@ int constants_fitter() {
       //TODO scaling???
     }
   }
-  
+  /*
   cout << "Hessian: " << hessian <<"\n"<< "Hessian: " <<"\n";
   
   TMatrixTSym<double> Hessian_matrix(n_parameters, hessian_ar, "F"); //need option F to unroll collumn wise //TODO pass by ptr
@@ -562,7 +568,7 @@ int constants_fitter() {
     }
     cout << "\n";
   }
-  
+  */
   unique_ptr<TFile> f_a( TFile::Open("a.root", "RECREATE") );
 
   TCanvas *c4 = new TCanvas("c4","c4",800,600);
@@ -576,7 +582,7 @@ int constants_fitter() {
   f_a->WriteObject(c5, "covariance_hist");
 
   corr_hist->SetStats(0);
-  corr_hist->Draw("COLZ");
+  corr_hist->Draw("COLZ text");
   f_a->WriteObject(c5, "corr_hist");
 
   /*
