@@ -343,7 +343,7 @@ int constants_fitter() {
   // Choose closure_test/analysis mode
   string mode_option("closure_test"); //TODO pass as command line argument
 
-  int n_eta_bins = 0;
+  int n_eta_bins = 24;
   unsigned int n_data_points, n_parameters;
   vector<string> labels;
   vector<double> dummy_parameters(0.0);
@@ -354,7 +354,7 @@ int constants_fitter() {
     //-----------------------------------------------
     // Get dummy data for closure test
 
-    n_eta_bins = 24;
+    int n_eta_bins = 24;
     int n_pt_bins = 5; 
     labels = generateLabels(n_eta_bins,n_pt_bins);
     
@@ -478,42 +478,64 @@ int constants_fitter() {
   cout << "HasMadePosDefCovar : " << min.HasMadePosDefCovar() << std::endl;
 
   cout << min << "\n";
-  
+
   vector<double> hessian = min.UserState().Hessian().Data();
   vector<double> covariance = min.UserState().Covariance().Data();
   
-  TH2D *hessian_hist = new TH2D("hessian_hist", "Hessian", n_eta_bins*2, -7000.0, 7000.0, n_eta_bins*2, -7000.0, 7000.0); //TODO change s*2
-  TH2D *covariance_hist = new TH2D("covariance_hist", "Covariance", n_eta_bins*2, -7000.0, 7000.0, n_eta_bins*2, -7000.0, 7000.0); //TODO change s*2
-
-  int bin;
-  for (int i=1; i<=n_eta_bins*2; i++){ //TODO change s*2
+  TH2D *hessian_hist = new TH2D("hessian_hist", "Hessian", n_parameters, 0, n_parameters, n_parameters, 0, n_parameters);
+  TH2D *covariance_hist = new TH2D("covariance_hist", "Covariance", n_parameters, 0, n_parameters, 0, n_parameters);
+  TH2D *corr_hist = new TH2D("corr_hist", "Correlation", n_parameters, 0, n_parameters, n_parameters, 0, n_parameters);
+  
+  int bin, i_temp, j_temp;
+  for (int i=1; i<=n_parameters; i++){
     for (int j=1; j<=i; j++){
-      bin = hessian_hist->GetBin(i, n_eta_bins*2+1-j); //TODO change s*2
-      hessian_hist->SetBinContent(bin, hessian[(i-1)*(i)/2+(j-1)]); 
-      covariance_hist->SetBinContent(bin, covariance[(i-1)*(i)/2+(j-1)]); 
-      bin = hessian_hist->GetBin(j, n_eta_bins*2+1-i); //TODO change s*2
-      hessian_hist->SetBinContent(bin, hessian[(i-1)*(i)/2+(j-1)]); 
-      covariance_hist->SetBinContent(bin, covariance[(i-1)*(i)/2+(j-1)]); 
+      if ((i<=n_eta_bins || i>n_eta_bins*2) && (j<=n_eta_bins || j>n_eta_bins*2)){ //TODO remove if and else block when fitting 3 pars
+	bin = hessian_hist->GetBin(i, n_parameters+1-j);
+	i_temp = (i > n_eta_bins*2) ? i - n_eta_bins : i; //TODO when fitting 3 pars i_temp can be just i
+	j_temp = (j > n_eta_bins*2) ? j - n_eta_bins : j; //TODO when fitting 3 pars j_temp can be just j
+	hessian_hist->SetBinContent(bin, hessian[(i_temp-1)*(i_temp)/2+(j_temp-1)]); 
+	covariance_hist->SetBinContent(bin, covariance[(i_temp-1)*(i_temp)/2+(j_temp-1)]); 
+	corr_hist->SetBinContent(bin, covariance[(i_temp-1)*(i_temp)/2+(j_temp-1)] / min.UserState().Error(i-1) / min.UserState().Error(j-1));
+	
+	bin = hessian_hist->GetBin(j, n_parameters+1-i); 
+	
+	hessian_hist->SetBinContent(bin, hessian[(i_temp-1)*(i_temp)/2+(j_temp-1)]); 
+	covariance_hist->SetBinContent(bin, covariance[(i_temp-1)*(i_temp)/2+(j_temp-1)]); 
+	corr_hist->SetBinContent(bin, covariance[(i_temp-1)*(i_temp)/2+(j_temp-1)] / min.UserState().Error(i-1) / min.UserState().Error(j-1));
+      
+      } else {
+	bin = hessian_hist->GetBin(i, n_parameters+1-j); 
+        hessian_hist->SetBinContent(bin, 0.0);
+        covariance_hist->SetBinContent(bin, 0.0);
+	corr_hist->SetBinContent(bin, 0.0);
+        bin = hessian_hist->GetBin(j, n_parameters+1-i); 
+	hessian_hist->SetBinContent(bin, 0.0);
+	covariance_hist->SetBinContent(bin, 0.0);
+	corr_hist->SetBinContent(bin, 0.0);
+      }
     }
   }
-  /*
-  double hessian_ar[n_eta_bins*2*n_eta_bins*2]; //TODO change s*2
-  double covariance_ar[n_eta_bins*2*n_eta_bins*2]; //TODO change s*2
+  
+  double hessian_ar[n_parameters*n_parameters]; 
+  double covariance_ar[n_parameters*n_parameters];
+  double corr_ar[n_parameters*n_parameters];
 
-  for (int i=1; i<=n_eta_bins*2; i++){ //TODO change s*2
-    for (int j=1; j<=n_eta_bins*2; j++){ //TODO change s*2
+  for (int i=1; i<=n_parameters; i++){
+    for (int j=1; j<=n_parameters; j++){
       // define arrays collumn wise
-      hessian_ar[(i-1)*n_eta_bins*2+(j-1)] = hessian_hist->GetBinContent(hessian_hist->GetBin(i, n_eta_bins*2+1-j)); //TODO change s*2
-      covariance_ar[(i-1)*n_eta_bins*2+(j-1)] = covariance_hist->GetBinContent(covariance_hist->GetBin(i, n_eta_bins*2+1-j)); //TODO change s*2
+      hessian_ar[(i-1)*n_parameters+(j-1)] = hessian_hist->GetBinContent(hessian_hist->GetBin(i, n_parameters+1-j)); 
+      covariance_ar[(i-1)*n_parameters+(j-1)] = covariance_hist->GetBinContent(covariance_hist->GetBin(i, n_parameters+1-j)); 
+      corr_ar[(i-1)*n_parameters+(j-1)] = corr_hist->GetBinContent(corr_hist->GetBin(i, n_parameters+1-j));
+      //TODO scaling???
     }
   }
   
   cout << "Hessian: " << hessian <<"\n"<< "Hessian: " <<"\n";
   
-  TMatrixTSym<double> Hessian_matrix(n_eta_bins*2, hessian_ar, "F"); //need option F to unroll collumn wise //TODO change s*2, pass by ptr
+  TMatrixTSym<double> Hessian_matrix(n_parameters, hessian_ar, "F"); //need option F to unroll collumn wise //TODO pass by ptr
   
-  for(int i=0; i<n_eta_bins*2; i++){ //TODO change s*2
-    for(int j=0; j<n_eta_bins*2; j++){ //TODO change s*2
+  for(int i=0; i<n_parameters; i++){ 
+    for(int j=0; j<n_parameters; j++){
       cout << Hessian_matrix(i,j) << " ";
     }
     cout << "\n";
@@ -521,15 +543,26 @@ int constants_fitter() {
   cout << "\n";
   cout << "Covariance: " << covariance << "\n" << "Covariance: " << "\n";
  
-  TMatrixTSym<double> Covariance_matrix(n_eta_bins*2, covariance_ar, "F"); //need option F to unroll collumn wise //TODO change s*2, pass by ptr
+  TMatrixTSym<double> Covariance_matrix(n_parameters, covariance_ar, "F"); //need option F to unroll collumn wise //TODO pass by ptr
 
-  for(int i=0; i<n_eta_bins*2; i++){ //TODO change s*2
-    for(int j=0; j<n_eta_bins*2; j++){ //TODO change s*2
+  for(int i=0; i<n_parameters; i++){
+    for(int j=0; j<n_parameters; j++){
       cout << Covariance_matrix(i,j) << " ";
     }
     cout << "\n";
   }
-  */
+
+  cout << "Correlation: " << "\n";
+
+  TMatrixTSym<double> Corr_matrix(n_parameters, corr_ar, "F"); //need option F to unroll collumn wise //TODO pass by ptr
+
+  for(int i=0; i<n_parameters; i++){ 
+    for(int j=0; j<n_parameters; j++){
+      cout << Corr_matrix(i,j) << " ";
+    }
+    cout << "\n";
+  }
+  
   unique_ptr<TFile> f_a( TFile::Open("a.root", "RECREATE") );
 
   TCanvas *c4 = new TCanvas("c4","c4",800,600);
@@ -541,6 +574,10 @@ int constants_fitter() {
   covariance_hist->SetStats(0);
   covariance_hist->Draw("COLZ");
   f_a->WriteObject(c5, "covariance_hist");
+
+  corr_hist->SetStats(0);
+  corr_hist->Draw("COLZ");
+  f_a->WriteObject(c5, "corr_hist");
 
   /*
   cout << "\n" << "Fitted A [ ], e [GeV], M [GeV^-1] parameters: " << "\n";
