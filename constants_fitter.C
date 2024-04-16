@@ -24,17 +24,18 @@ public:
 
   virtual double operator()(const vector<double>&) const;
   virtual vector<double> Gradient(const vector<double>& ) const;
-  virtual bool CheckGradient() const {return true;} // TODO true means it compares analytic grad to numerical, but what does it do based on the answer? 
+  virtual bool CheckGradient() const {return true;} 
   // virtual std::vector< double > ROOT::Minuit2::FCNGradientBase::Hessian(const std::vector< double > & )const -> allows to do Hessian analytically? 
 
   vector<int> getIndices(string bin_label) const; 
   double getK(const int pT_index) const;
   
   const vector<double> pT_binning {25.0, 33.3584, 38.4562, 42.2942, 45.9469, 55.0}; // pT binning goes here
-  static constexpr double scaling_A = 0.001, scaling_e = 0.001 * 40.0, scaling_M = 0.001 / 40.0; // this scaling makes fitter parameters of order 1 
+  static constexpr double scaling_A = 0.001, scaling_e = 0.001 * 40.0, scaling_M = 0.001 / 40.0, scaling_e_prime = 0.001 / 0.01; // this scaling makes fitter parameters of order 1 
 
   vector<string> binLabels; // made public for the closure test
   static const int n_eta_bins = 24; //TODO automatise, so don't input by hand!!!
+  static const int n_pt_bins = 5; //TODO automatise, so don't input by hand!!!
 
 private:
 
@@ -94,8 +95,10 @@ double TheoryFcn::operator()(const vector<double>& par) const {
   int eta_pos_index, eta_neg_index;
   vector<int> bin_indices(4); // for 4D binning
 
+  double k_middle = (1.0/pT_binning[n_pt_bins] + 1.0/pT_binning[0])/2.0;
+ 
   for(unsigned int n(0); n < scaleSquared.size() ; n++) {
-    bin_indices = getIndices(binLabels[n]); //TODO I hope overwriting this vector is ok
+    bin_indices = getIndices(binLabels[n]); 
     eta_pos_index = bin_indices[0];
     eta_neg_index = bin_indices[2];
 
@@ -103,10 +106,17 @@ double TheoryFcn::operator()(const vector<double>& par) const {
     k_plus = getK(bin_indices[1]); 
     k_minus = getK(bin_indices[3]);
 
-    // (1 + A(+) - e(+)k + M(+)/k)(1 + A(-) - e(-)k - M(-)/k) and scaling of e,M
-    term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e*par[eta_pos_index + n_eta_bins]*k_plus +  scaling_M*par[eta_pos_index + 2*n_eta_bins]/k_plus);
-    term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e*par[eta_neg_index + n_eta_bins]*k_minus - scaling_M*par[eta_neg_index + 2*n_eta_bins]/k_minus);
+    // (1 + A(+) - e(+)k + M(+)/k)(1 + A(-) - e(-)k - M(-)/k) and scaling of A,e,M
+    //term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e*par[eta_pos_index + n_eta_bins]*k_plus +  scaling_M*par[eta_pos_index + 2*n_eta_bins]/k_plus);
+    //term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e*par[eta_neg_index + n_eta_bins]*k_minus - scaling_M*par[eta_neg_index + 2*n_eta_bins]/k_minus);
     
+    // decorrelate A, e by shifting origin of k
+    // (1 + A'(+) - e'(+)k' + M(+)/k)(1 + A'(-) - e'(-)k' - M(-)/k) and scaling of A,e,M
+    //par[eta_pos_index] now has the meaning of A' rather than A
+    //par[eta_pos_index + n_eta_bins] now has the meaning of e' rather than e
+    term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + n_eta_bins]*(k_plus - k_middle) + scaling_M*par[eta_pos_index + 2*n_eta_bins]/k_plus);
+    term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + n_eta_bins]*(k_minus - k_middle) - scaling_M*par[eta_neg_index + 2*n_eta_bins]/k_minus);
+
     my_func = term_pos*term_neg; 
     
     diff = my_func - scaleSquared[n]; 
@@ -132,7 +142,8 @@ vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
   double temp(0.0), local_func(0.0), local_grad(0.0);
 
   double k_plus, k_minus, term_pos, term_neg;
-
+  double k_middle = (1.0/pT_binning[n_pt_bins] + 1.0/pT_binning[0])/2.0;
+  
   int eta_pos_index, eta_neg_index;
   vector<int> bin_indices(4); // for 4D binning
   
@@ -140,7 +151,7 @@ vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
 
   for(unsigned int n(0); n < scaleSquared.size() ; n++) { // loops over measurements
     // TODO I need everything from the chi2 function, maybe better solution to this
-    bin_indices = getIndices(binLabels[n]); // TODO is overwriting a vector like this safe?
+    bin_indices = getIndices(binLabels[n]); 
     eta_pos_index = bin_indices[0];
     eta_neg_index = bin_indices[2];
 
@@ -149,13 +160,21 @@ vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
     k_minus = getK(bin_indices[3]);
 
     // (1 + A(+) - e(+)k + M(+)/k)(1 + A(-) - e(-)k - M(-)/k) and scaling of e,M
-    term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e*par[eta_pos_index + n_eta_bins]*k_plus +  scaling_M*par[eta_pos_index + 2*n_eta_bins]/k_plus);
-    term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e*par[eta_neg_index + n_eta_bins]*k_minus - scaling_M*par[eta_neg_index + 2*n_eta_bins]/k_minus);
+    //term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e*par[eta_pos_index + n_eta_bins]*k_plus +  scaling_M*par[eta_pos_index + 2*n_eta_bins]/k_plus);
+    //term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e*par[eta_neg_index + n_eta_bins]*k_minus - scaling_M*par[eta_neg_index + 2*n_eta_bins]/k_minus);
     
+    // decorrelate A, e by shifting origin of k
+    // (1 + A'(+) - e'(+)k' + M(+)/k)(1 + A'(-) - e'(-)k' - M(-)/k) and scaling of A,e,M
+    //par[eta_pos_index] now has the meaning of A' rather than A
+    //par[eta_pos_index + n_eta_bins] now has the meaning of e' rather than e
+    term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + n_eta_bins]*(k_plus - k_middle) + scaling_M*par[eta_pos_index + 2*n_eta_bins]/k_plus);
+    term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + n_eta_bins]*(k_minus - k_middle) - scaling_M*par[eta_neg_index + 2*n_eta_bins]/k_minus);
+
     local_func = term_pos*term_neg;
     
     temp=2.0*(local_func - scaleSquared[n])/(scaleSquaredError[n]*scaleSquaredError[n])/ndof; 
     
+    /*
     //TODO not calculate terms before checking if needed, ahm, not needed
     for (unsigned int i : {eta_pos_index, eta_pos_index + n_eta_bins, eta_pos_index + 2*n_eta_bins, eta_neg_index, eta_neg_index + n_eta_bins, eta_neg_index + 2*n_eta_bins}) { // loops over parameters
       if (i == eta_pos_index) { // derivative wrt A(+), which is fpar[eta_pos_index] 
@@ -176,6 +195,28 @@ vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
       
       grad[i] += temp*local_grad; 
     }
+    */
+
+    // decorrelate A, e by shifting origin of k
+    for (unsigned int i : {eta_pos_index, eta_pos_index + n_eta_bins, eta_pos_index + 2*n_eta_bins, eta_neg_index, eta_neg_index + n_eta_bins, eta_neg_index + 2*n_eta_bins}) { // loops over parameters
+      if (i == eta_pos_index) { // derivative wrt A'(+), which is fpar[eta_pos_index]
+        local_grad = scaling_A*term_neg;
+      } else if (i == eta_pos_index + n_eta_bins) { // derivative wrt e'(+)
+        local_grad = -scaling_e_prime*(k_plus-k_middle)*term_neg;
+      } else if (i == eta_pos_index + 2*n_eta_bins) { // derivative wrt M(+)
+        local_grad = scaling_M/k_plus*term_neg;
+      } else if (i == eta_neg_index){ // derivative wrt A'(-)
+        local_grad = scaling_A*term_pos;
+      } else if (i == eta_neg_index + n_eta_bins) { // derivative wrt e'(-)
+        local_grad = -scaling_e_prime*(k_minus-k_middle)*term_pos;
+      } else if (i == eta_neg_index + 2*n_eta_bins){ // derivative wrt M(-)
+        local_grad = -scaling_M/k_minus*term_pos;
+      } else {
+        cout<<"\n"<<"ERROR: indices in grad don't match"<<"\n"; //TOOD raise a proper error
+      }
+
+      grad[i] += temp*local_grad;
+    }
   }
   return grad;
 }
@@ -195,7 +236,7 @@ vector<vector<double>> TheoryFcn2::DummyData(const vector<double> &dummy_par_val
   vector<int> bin_indices(4); // for 4D binning
   
   for(unsigned int n(0); n <n_data_points ; n++) {
-    bin_indices = getIndices(binLabels[n]); //TODO I hope overwriting this vector is ok
+    bin_indices = getIndices(binLabels[n]); 
     eta_pos_index = bin_indices[0];
     eta_neg_index = bin_indices[2];
 
@@ -208,7 +249,8 @@ vector<vector<double>> TheoryFcn2::DummyData(const vector<double> &dummy_par_val
     term_neg = (1. + DummyParVal[eta_neg_index] - DummyParVal[eta_neg_index + n_eta_bins]*k_minus - DummyParVal[eta_neg_index + 2*n_eta_bins]/k_minus);
 
     mean = term_pos*term_neg;
-    width_rand = random.Gaus(width, width/10.0);
+    width_rand = random.Gaus(width, width/10.0); // error on scale
+    width_rand = abs(2*mean*width_rand); // error on scale**2
     test_error[n] = width_rand;
     test_data[n] = random.Gaus(mean, width_rand);
     
@@ -223,30 +265,33 @@ vector<vector<double>> TheoryFcn2::DummyData(const vector<double> &dummy_par_val
 //-----------------------------------------------
 // Function to get parameter name (A0, e1, etc.) and appropriate scaling from index in parameters array
 
-tuple<string,double> getParameterNameAndScaling(int index){
+tuple<string,double,string> getParameterNameAndScaling(int index){
 
   int whole = index / TheoryFcn::n_eta_bins;
   int rest = index % TheoryFcn::n_eta_bins;
   double scaling;
 
-  string name;
+  string name, physical_name;
   if (whole == 0) {
-    name = "A" + to_string(rest);
+    name = "A_prime" + to_string(rest);
+    physical_name = "A" + to_string(rest);
     scaling = TheoryFcn::scaling_A;
   }
   else if (whole == 1) {
-    name = "e" + to_string(rest);
-    scaling = TheoryFcn::scaling_e;
+    name = "e_prime" + to_string(rest);
+    physical_name = "e" + to_string(rest);
+    scaling = TheoryFcn::scaling_e_prime;
   }
   else if (whole == 2) {
     name = "M" + to_string(rest);
+    physical_name = "M" + to_string(rest);
     scaling = TheoryFcn::scaling_M;
   }
   else {
     cout<<"\n"<<"ERROR counting parameters"<<"\n";
   }
 
-  return make_tuple(name, scaling);
+  return make_tuple(name, scaling, physical_name);
 }
 
 //-----------------------------------------------
@@ -279,15 +324,15 @@ vector<double> generateParameters (const int n_parameters){ //TODO might be slow
   vector<double> res(n_parameters); // has size n_parameters = 3*number_eta_bins, idices from 0 to n-1 contain A, from n to 2n-1 epsilon, from 2n to 3n-1 M 
   for (int i=0; i<n_parameters/3; i++){ // A from -0.0002 to 0.0005 and back
     res[i] = (-7.0*36.0/n_parameters/n_parameters*(i - n_parameters/6)*(i - n_parameters/6) + 5.0)*0.0001;
-    //res[i] = 0.0; // A set to 0 for debugging
+    //res[i] = 0.0; // A set to 0 for now
   }
   for (int i=n_parameters/3; i<2*n_parameters/3; i++){ // e from 0.01 to 0.001 and back
-    //res[i] = (9.0*36.0/n_parameters/n_parameters*((i-n_parameters/3) - n_parameters/6)*((i-n_parameters/3) - n_parameters/6) + 1.0)*0.001;  
-    res[i] = 0.0; // e set to 0 for debugging
+    res[i] = (9.0*36.0/n_parameters/n_parameters*((i-n_parameters/3) - n_parameters/6)*((i-n_parameters/3) - n_parameters/6) + 1.0)*0.001;  
+    //res[i] = 0.0; // e set to 0 for now
   }
   for (int i=2*n_parameters/3; i<n_parameters; i++){ // M from 4*10^-5 to -2*10^-5 and back
     res[i] = ( 6.0*36.0/n_parameters/n_parameters*((i-2*n_parameters/3) - n_parameters/6)*((i-2*n_parameters/3) - n_parameters/6) - 2.0)*0.00001;
-    //res[i] = 0.0; // M set to 0 for debugging 
+    //res[i] = 0.0; // M set to 0 
   }
   return res;
 }
@@ -314,7 +359,7 @@ int constants_fitter() {
   struct timeval tv_start, tv_stop;
   gettimeofday(&tv_start, 0);
 
-  int n_tries = 1;
+  int n_tries = 1000;
 
   auto track_tree = std::make_unique<TTree>("track_tree", "track_tree");
 
@@ -330,18 +375,18 @@ int constants_fitter() {
   for(int w = 0; w<3*n_eta_bins_tmp; w++){ // 3 for A,e,M model
     int rest_tmp = w % n_eta_bins_tmp;
     if( w / n_eta_bins_tmp == 0) track_tree->Branch(Form("pull_A%d",rest_tmp), &params_tmp[w]);
-    //if( w / n_eta_bins_tmp == 1) track_tree->Branch(Form("e%d",w), &params_tmp[w]);
+    if( w / n_eta_bins_tmp == 1) track_tree->Branch(Form("pull_e%d",rest_tmp), &params_tmp[w]);
     if( w / n_eta_bins_tmp == 2) track_tree->Branch(Form("pull_M%d",rest_tmp), &params_tmp[w]);
   }
   
   int z=0;
   //for(int z = 0; z<n_tries; z++){
   TRandom3 iter_random = TRandom3(4357 + z);
-  int verbosity = 0; 
+  int verbosity = 2; 
   ROOT::Minuit2::MnPrint::SetGlobalLevel(verbosity);
   
   // Choose closure_test/analysis mode
-  string mode_option("closure_test"); //TODO pass as command line argument
+  string mode_option("analysis"); //TODO pass as command line argument
 
   int n_eta_bins = 24;
   unsigned int n_data_points, n_parameters;
@@ -362,7 +407,7 @@ int constants_fitter() {
     n_parameters = 3*n_eta_bins; // 3 for A,e,M model  
     
     vector<double> empty_data(n_data_points, 0.0), empty_error(n_data_points, 0.0); 
-    double error_start = 0.001;
+    double error_start = 0.001; 
     dummy_parameters = generateParameters(n_parameters);
     
     TheoryFcn2 f_dummy(empty_data, empty_error, labels);
@@ -376,18 +421,18 @@ int constants_fitter() {
     // Get data
     
     std::unique_ptr<TFile> inputFile( TFile::Open("mass_fits_control_histos_smear_beta_val.root") );
-    std::unique_ptr<TH1D> scale(inputFile->Get<TH1D>("epsilon")); //TODO change to beta
+    std::unique_ptr<TH1D> scale(inputFile->Get<TH1D>("beta")); 
     
-    n_data_points = 12; // TODO scale->GetEntries();
+    n_data_points = scale->GetEntries();
     
     for(int i=0; i<n_data_points; i++){
-      scale_squared_values[i] = (scale->GetBinContent(i+1))*(scale->GetBinContent(i+1)); // TODO change that we fit for beta in mass
+      scale_squared_values[i] = (scale->GetBinContent(i+1))*(scale->GetBinContent(i+1));
       scale_squared_error_values[i] = 2*abs(scale->GetBinContent(i+1))*(scale->GetBinError(i+1));
       labels[i] = scale->GetXaxis()->GetLabels()->At(i)->GetName();
       std::cout << "\n" << labels[i] << " scale_squared_values " << scale_squared_values[i] << " scale_squared_error_values " << scale_squared_error_values[i] << "\n";
     }
     
-    n_eta_bins = 24; //TODO work out from labels variable counter script
+    n_eta_bins = 24; //TODO work out from labels variable counter script save the number from the scripr and which eta bins not constrained in a file
     n_parameters = 3*n_eta_bins; // 3 for A,e,M model
   
   }
@@ -400,20 +445,18 @@ int constants_fitter() {
 
   // Create parameters with initial starting values
 
-  double start=0.0, par_error=0.001; // Will store error on parameter before taking scaling into account
+  double start=0.0, par_error=0.01; // will store error on parameter before taking scaling into account
   MnUserParameters upar;
-  //cout << "Precision: " << upar.Precision() << "\n";
-  //upar.SetPrecision(8.881784197e-16);
 
   //  for(unsigned int i=0 ; i<n_parameters; ++i){
   //  upar.Add(Form("param%d",i), start, par_error);
   //}
 
-  for (int i=0; i<n_parameters/3; i++){ // A 
-    upar.Add(Form("param%d",i), start, par_error); //TODO in closure mode can use dummy_parameters[i] for start value
+  for (int i=0; i<n_parameters/3; i++){ // in closure mode can use dummy_parameters[i] for start value
+    upar.Add(Form("param%d",i), start, par_error); // A //TODO or is it technically A' e' now? 
   }
   for (int i=n_parameters/3; i<2*n_parameters/3; i++){ // e
-    upar.Add(Form("param%d",i), start); // all e fixed to 0.0
+    upar.Add(Form("param%d",i), start, par_error); 
   }
   for (int i=2*n_parameters/3; i<n_parameters; i++){ // M 
     upar.Add(Form("param%d",i), start, par_error); 
@@ -434,22 +477,39 @@ int constants_fitter() {
   //fFCN.SetErrorDef(1.0/(n_data_points - n_parameters)); 
   //3829.158
   
-  //double t1(0.);
-  // Get start time
-  //struct timeval tv_start, tv_stop;
-  //gettimeofday(&tv_start, 0);
-
   FunctionMinimum min = minimize(maxfcn, tolerance);
+
+  // save results
+  
+  double k_middle = (1.0/55.0 + 1.0/25.0)/2.0; //TODO change to not input by hand
+  vector<double> A_e_M_values(n_parameters), A_e_M_errors(n_parameters);
+  double cov_prime;
+  for (int i=0; i<n_parameters; i++){ 
+    int whole = i / n_eta_bins;
+
+    if (whole == 0) { // scaling_A*par[A] = scaling_A_prime*par[A_prime] + scaling_e*par[e]*k_middle = scaling_A_prime*par[A_prime] + scaling_e_prime*par[e_prime]*k_middle
+      cov_prime = min.UserState().Covariance().Data()[(i+n_eta_bins)*(i+n_eta_bins+1)/2.0 + i];
+      A_e_M_values[i] = min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i)) + min.UserState().Value(i+n_eta_bins) * get<1>(getParameterNameAndScaling(i+n_eta_bins)) * k_middle;
+      A_e_M_errors[i] = pow(pow(get<1>(getParameterNameAndScaling(i)),2)*pow(min.UserState().Error(i),2)+pow(get<1>(getParameterNameAndScaling(i+n_eta_bins))*k_middle,2)*pow(min.UserState().Error(i+n_eta_bins),2)+2.0*get<1>(getParameterNameAndScaling(i))*get<1>(getParameterNameAndScaling(i+n_eta_bins))*k_middle*cov_prime, 0.5); // with cov[A',e']
+    }
+    else if (whole == 1) { // scaling_e*par[e] = scaling_e_prime*par[e_prime]
+      A_e_M_values[i] = min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i));
+      A_e_M_errors[i] = min.UserState().Error(i) * abs(get<1>(getParameterNameAndScaling(i)));
+    }
+    else if (whole == 2) { // M
+      A_e_M_values[i] = min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i));
+      A_e_M_errors[i] = min.UserState().Error(i) * abs(get<1>(getParameterNameAndScaling(i)));
+    }
+  }
+  
   
   red_chi2 = min.Fval();
   edm = min.Edm();
   for (int i=0; i<n_parameters; i++){
-    if(i / n_eta_bins == 0 || i / n_eta_bins == 2) params_tmp[i] = (min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i)) - dummy_parameters[i]) / (min.UserState().Error(i) * abs(get<1>(getParameterNameAndScaling(i)))); // NOTE fit only A,M for now
+    params_tmp[i] = (A_e_M_values[i] - dummy_parameters[i]) / A_e_M_errors[i]; 
   } 
 
   track_tree->Fill();
-
-  //cout<<"iter "<<z<<": "<<red_chi2<<" ; edm: "<< edm <<"\n";
 
   //} //comment this bracket for loop over n_tries
 
@@ -461,7 +521,7 @@ int constants_fitter() {
   gettimeofday(&tv_stop, 0);
   t1 = (tv_stop.tv_sec - tv_start.tv_sec)*1000.0 + (tv_stop.tv_usec - tv_start.tv_usec)/1000.0;
   
-  cout << "# Calculation time: " << t1 << " ms" << "\n";
+  cout << "# Calculation time: " << t1/60000.0 << " min" << "\n";
 
   
   cout << "chi^2/ndf: " << min.Fval() << "\n" << "\n";
@@ -495,10 +555,10 @@ int constants_fitter() {
     corr_hist->GetXaxis()->SetBinLabel(i,get<0>(getParameterNameAndScaling(i-1)).c_str());
     corr_hist->GetYaxis()->SetBinLabel(i,get<0>(getParameterNameAndScaling(n_parameters-i)).c_str());
     for (int j=1; j<=i; j++){
-      if ((i<=n_eta_bins || i>n_eta_bins*2) && (j<=n_eta_bins || j>n_eta_bins*2)){ //TODO remove if and else block when fitting 3 pars
+      //if ((i<=n_eta_bins || i>n_eta_bins*2) && (j<=n_eta_bins || j>n_eta_bins*2)){ //TODO remove if and else block when fitting 3 pars
 	bin = hessian_hist->GetBin(i, n_parameters+1-j);
-	i_temp = (i > n_eta_bins*2) ? i - n_eta_bins : i; //TODO when fitting 3 pars i_temp can be just i
-	j_temp = (j > n_eta_bins*2) ? j - n_eta_bins : j; //TODO when fitting 3 pars j_temp can be just j
+	i_temp = i; // i_temp = (i > n_eta_bins*2) ? i - n_eta_bins : i; //TODO when fitting 3 pars i_temp can be just i
+	j_temp = j; // j_temp = (j > n_eta_bins*2) ? j - n_eta_bins : j; //TODO when fitting 3 pars j_temp can be just j
 	hessian_hist->SetBinContent(bin, hessian[(i_temp-1)*(i_temp)/2+(j_temp-1)]); 
 	covariance_hist->SetBinContent(bin, covariance[(i_temp-1)*(i_temp)/2+(j_temp-1)]); 
 	corr_hist->SetBinContent(bin, covariance[(i_temp-1)*(i_temp)/2+(j_temp-1)] / min.UserState().Error(i-1) / min.UserState().Error(j-1));
@@ -509,16 +569,16 @@ int constants_fitter() {
 	covariance_hist->SetBinContent(bin, covariance[(i_temp-1)*(i_temp)/2+(j_temp-1)]); 
 	corr_hist->SetBinContent(bin, covariance[(i_temp-1)*(i_temp)/2+(j_temp-1)] / min.UserState().Error(i-1) / min.UserState().Error(j-1));
       
-      } else {
-	bin = hessian_hist->GetBin(i, n_parameters+1-j); 
-        hessian_hist->SetBinContent(bin, 0.0);
-        covariance_hist->SetBinContent(bin, 0.0);
-	corr_hist->SetBinContent(bin, 0.0);
-        bin = hessian_hist->GetBin(j, n_parameters+1-i); 
-	hessian_hist->SetBinContent(bin, 0.0);
-	covariance_hist->SetBinContent(bin, 0.0);
-	corr_hist->SetBinContent(bin, 0.0);
-      }
+	//} else {
+	//bin = hessian_hist->GetBin(i, n_parameters+1-j); 
+        //hessian_hist->SetBinContent(bin, 0.0);
+        //covariance_hist->SetBinContent(bin, 0.0);
+	//corr_hist->SetBinContent(bin, 0.0);
+        //bin = hessian_hist->GetBin(j, n_parameters+1-i); 
+	//hessian_hist->SetBinContent(bin, 0.0);
+	//covariance_hist->SetBinContent(bin, 0.0);
+	//corr_hist->SetBinContent(bin, 0.0);
+	// }
     }
   }
   
@@ -535,40 +595,40 @@ int constants_fitter() {
       //TODO scaling???
     }
   }
-  /*
-  cout << "Hessian: " << hessian <<"\n"<< "Hessian: " <<"\n";
+  
+  //cout << "Hessian: " << hessian <<"\n"<< "Hessian: " <<"\n";
   
   TMatrixTSym<double> Hessian_matrix(n_parameters, hessian_ar, "F"); //need option F to unroll collumn wise //TODO pass by ptr
   
   for(int i=0; i<n_parameters; i++){ 
     for(int j=0; j<n_parameters; j++){
-      cout << Hessian_matrix(i,j) << " ";
+      //cout << Hessian_matrix(i,j) << " ";
     }
-    cout << "\n";
+    //cout << "\n";
   }
-  cout << "\n";
-  cout << "Covariance: " << covariance << "\n" << "Covariance: " << "\n";
+  //cout << "\n";
+  //cout << "Covariance: " << covariance << "\n" << "Covariance: " << "\n";
  
   TMatrixTSym<double> Covariance_matrix(n_parameters, covariance_ar, "F"); //need option F to unroll collumn wise //TODO pass by ptr
 
   for(int i=0; i<n_parameters; i++){
     for(int j=0; j<n_parameters; j++){
-      cout << Covariance_matrix(i,j) << " ";
+      //cout << Covariance_matrix(i,j) << " ";
     }
-    cout << "\n";
+    //cout << "\n";
   }
 
-  cout << "Correlation: " << "\n";
+  //cout << "Correlation: " << "\n";
 
   TMatrixTSym<double> Corr_matrix(n_parameters, corr_ar, "F"); //need option F to unroll collumn wise //TODO pass by ptr
 
   for(int i=0; i<n_parameters; i++){ 
     for(int j=0; j<n_parameters; j++){
-      cout << Corr_matrix(i,j) << " ";
+      //cout << Corr_matrix(i,j) << " ";
     }
-    cout << "\n";
+    //cout << "\n";
   }
-  */
+  
   unique_ptr<TFile> f_a( TFile::Open("a.root", "RECREATE") );
 
   TCanvas *c4 = new TCanvas("c4","c4",800,600);
@@ -585,12 +645,12 @@ int constants_fitter() {
   corr_hist->Draw("COLZ text");
   f_a->WriteObject(c5, "corr_hist");
 
-  /*
-  cout << "\n" << "Fitted A [ ], e [GeV], M [GeV^-1] parameters: " << "\n";
+  
+  cout << "\n" << "Fitted A' [ ], e' [GeV], M [GeV^-1] parameters: " << "\n";
   for (unsigned int i(0); i<upar.Params().size(); i++) {
     cout <<"par[" << i << "]: " << get<0>(getParameterNameAndScaling(i)) << " fitted to: "<< min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i)) << " +/- " << min.UserState().Error(i) * abs(get<1>(getParameterNameAndScaling(i))) << "\n";
   }
-  */  
+    
 
   // Histogram with dummy parameters and fitted parameters
 
@@ -603,14 +663,14 @@ int constants_fitter() {
   TH1D *fitted_pars_M = new TH1D("fitted_pars_M", "M", n_eta_bins, -2.4, 2.4);
 
   for (int i=1; i<=n_eta_bins; i++){
-    fitted_pars_A->SetBinContent(i, min.UserState().Value(i-1) * get<1>(getParameterNameAndScaling(i-1)));
-    fitted_pars_A->SetBinError(i, min.UserState().Error(i-1) * abs(get<1>(getParameterNameAndScaling(i-1))));
+    fitted_pars_A->SetBinContent(i, A_e_M_values[i-1]); 
+    fitted_pars_A->SetBinError(i, A_e_M_errors[i-1]);
 
-    fitted_pars_e->SetBinContent(i, min.UserState().Value(i-1+n_eta_bins) * get<1>(getParameterNameAndScaling(i-1+n_eta_bins)));
-    fitted_pars_e->SetBinError(i, min.UserState().Error(i-1+n_eta_bins) * abs(get<1>(getParameterNameAndScaling(i-1+n_eta_bins))));
+    fitted_pars_e->SetBinContent(i, A_e_M_values[i-1+n_eta_bins]);
+    fitted_pars_e->SetBinError(i, A_e_M_errors[i-1+n_eta_bins]);
     
-    fitted_pars_M->SetBinContent(i, min.UserState().Value(i-1+2*n_eta_bins) * get<1>(getParameterNameAndScaling(i-1+2*n_eta_bins)));
-    fitted_pars_M->SetBinError(i, min.UserState().Error(i-1+2*n_eta_bins) * abs(get<1>(getParameterNameAndScaling(i-1+2*n_eta_bins))));
+    fitted_pars_M->SetBinContent(i, A_e_M_values[i-1+2*n_eta_bins]);
+    fitted_pars_M->SetBinError(i, A_e_M_errors[i-1+2*n_eta_bins]);
 
     if (mode_option.compare("closure_test") == 0) { 
       dummy_pars_A->SetBinContent(i, dummy_parameters[i-1]);
@@ -635,8 +695,8 @@ int constants_fitter() {
   leg1->SetNColumns(1);
   leg1->SetHeader("");
   
-  fitted_pars_A->SetMinimum(-0.00025);
-  fitted_pars_A->SetMaximum(0.0007);
+  //fitted_pars_A->SetMinimum(-0.00025);
+  //fitted_pars_A->SetMaximum(0.0007);
   fitted_pars_A->GetYaxis()->SetNoExponent();
   fitted_pars_A->SetStats(0);
   fitted_pars_A->GetXaxis()->SetTitle("#eta");
@@ -658,8 +718,8 @@ int constants_fitter() {
 
   TCanvas *c2 = new TCanvas("c2","c2",800,600);
 
-  fitted_pars_e->SetMinimum(-0.001);
-  fitted_pars_e->SetMaximum(0.017);
+  //fitted_pars_e->SetMinimum(-0.001);
+  //fitted_pars_e->SetMaximum(0.017);
   fitted_pars_e->GetYaxis()->SetNoExponent();
   fitted_pars_e->SetStats(0);
   fitted_pars_e->GetXaxis()->SetTitle("#eta");
@@ -681,8 +741,8 @@ int constants_fitter() {
   
   TCanvas *c3 = new TCanvas("c3","c3",800,600);
 
-  fitted_pars_M->SetMinimum(-3e-5);
-  fitted_pars_M->SetMaximum(4.5e-5);
+  //fitted_pars_M->SetMinimum(-3e-5);
+  //fitted_pars_M->SetMaximum(4.5e-5);
   fitted_pars_M->SetStats(0);
   fitted_pars_M->GetXaxis()->SetTitle("#eta");
   fitted_pars_M->GetYaxis()->SetTitle("Misalignment correction (GeV^{-1})");
@@ -703,7 +763,7 @@ int constants_fitter() {
   f_control->WriteObject(c1, "A");
   f_control->WriteObject(c2, "e");
   f_control->WriteObject(c3, "M");
- 
+  
   return 0;
 }
 

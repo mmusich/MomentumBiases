@@ -1,9 +1,11 @@
-// Standalone code to make multiD histograms for the sagitta fit
+// Standalone code to make multiD histograms for the A,e,M fit
 
 #include "TFile.h"
 #include "TTree.h"
 #include "TChain.h"
 #include "TMath.h"
+
+#include <sys/time.h>
 
 using namespace ROOT;
 using namespace ROOT::VecOps;
@@ -26,7 +28,12 @@ RVecB MuonisGood(RVecF Muon_pt, RVecF Muon_eta, RVecB Muon_isGlobal, RVecB Muon_
   return muonisgood;
 }
 
-int frame(){
+int multiDhist_producer(){
+
+  double t1(0.);
+  // Get start time
+  struct timeval tv_start, tv_stop;
+  gettimeofday(&tv_start, 0);
 
   ROOT::EnableImplicitMT(128);
 
@@ -66,7 +73,8 @@ int frame(){
     std::tuple<int,int,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float,float> temp, pair_to_return;
     float rest_mass = 0.105658; // muMass = 0.105658 GeV
     float firstPt_reco, secondPt_reco, mll_reco, firstPt_smear, secondPt_smear, mll_smear, firstPt_gen, secondPt_gen, mll_gen, firstPt_smear_beta_val, secondPt_smear_beta_val, smear_beta_weight;
-    float smear_pt, mean, width, beta=0.999, smear_beta_weight_first_term, smear_beta_weight_second_term;
+    float smear_pt, mean, width, smeared_mean, smear_beta_weight_first_term, smear_beta_weight_second_term;
+    float A = 0.0004, e = 0.002, M = 0.00001; //for now constant per eta bin
         
     for(int i=1;i<Muon_pt.size();i++){
       if(MuonisGood[i]){
@@ -94,9 +102,14 @@ int frame(){
 		    width = (0.004*pow(GenPart_eta[k],2)+0.01)*GenPart_pt[k];
 		    firstPt_smear = rans[nslot]->Gaus(mean, width);
 		    firstSmearTrack.SetPtEtaPhiM(firstPt_smear, GenPart_eta[k], GenPart_phi[k], rest_mass);
-		    //smear_beta_val, weight for beta != 1
-		    smear_beta_weight_first_term = TMath::Gaus(firstPt_smear, mean*beta, width) / TMath::Gaus(firstPt_smear, mean, width);
-		    firstPt_smear_beta_val = rans[nslot]->Gaus(mean*beta, width);
+		    //smear_beta_val, weight for beta != 1 use Eqn 22 in note AN2021_131_v5
+		    if (GenPart_pdgId[k]>0){ //mu(-)
+	              smeared_mean = 2.0*e/((1.0+A)-pow((1.0+A)*(1.0+A)+4.0*e*(-M-1.0/mean),0.5));
+		    } else { //mu(+)
+		      smeared_mean = 2.0*e/((1.0+A)-pow((1.0+A)*(1.0+A)+4.0*e*(M-1.0/mean),0.5));
+		    }
+		    smear_beta_weight_first_term = TMath::Gaus(firstPt_smear, smeared_mean, width) / TMath::Gaus(firstPt_smear, mean, width);
+		    firstPt_smear_beta_val = rans[nslot]->Gaus(smeared_mean, width);
 		        
 		    firstGenMatched = true;
 		    if(secondGenMatched == true){break;}
@@ -110,8 +123,13 @@ int frame(){
 		    secondPt_smear = rans[nslot]->Gaus(mean, width);
 		    secondSmearTrack.SetPtEtaPhiM(secondPt_smear, GenPart_eta[k], GenPart_phi[k], rest_mass);
 		    //smear_beta_val, weight for beta != 1
-		    smear_beta_weight_second_term = TMath::Gaus(secondPt_smear, mean*beta, width) / TMath::Gaus(secondPt_smear, mean, width); 
-		    secondPt_smear_beta_val = rans[nslot]->Gaus(mean*beta, width);
+		    if (GenPart_pdgId[k]>0){ //mu(-)
+                      smeared_mean = 2.0*e/((1.0+A)-pow((1.0+A)*(1.0+A)+4.0*e*(-M-1.0/mean),0.5));
+                    } else { //mu(+)
+                      smeared_mean = 2.0*e/((1.0+A)-pow((1.0+A)*(1.0+A)+4.0*e*(M-1.0/mean),0.5));
+                    }
+		    smear_beta_weight_second_term = TMath::Gaus(secondPt_smear, smeared_mean, width) / TMath::Gaus(secondPt_smear, mean, width); 
+		    secondPt_smear_beta_val = rans[nslot]->Gaus(smeared_mean, width);
 		        
 		    secondGenMatched = true;
 		    if(firstGenMatched == true){break;}
@@ -212,8 +230,8 @@ int frame(){
     .Define("negTrackEta","return Muon_eta[get<1>(pairs)];");
 
   //Save tree for debugging
-  //TFile *f1 = new TFile("snapshot_output.root","RECREATE");
-  //d4.Snapshot("Events", "snapshot_output.root", {"GenPart_status"});
+  TFile *f1 = new TFile("snapshot_output.root","RECREATE");
+  d4.Snapshot("Events", "snapshot_output.root", {"GenPart_status", "GenPart_pt", "posPtSmearBetaVal", "negPtSmearBetaVal", "Muon_charge", "GenPart_pdgId", "GenPart_genPartIdxMother"});
 
   //Control histograms
   auto mll_smear = d4.Histo1D({"mll_smear", "mll inclusive all bins", 20, 75.0, 105.0},"mll_smear","weight");
@@ -378,7 +396,12 @@ int frame(){
   // mll_diff_reco weighted by jacobian_weight_mll_diff_reco
   auto mDh_jac_diff_reco_mll_diff = d4.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_diff_reco_mll_diff", "multi_data_histo_jac_diff_reco_mll_diff", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_diff_reco","jacobian_weight_mll_diff_reco"});
   f5->WriteObject(mDh_jac_diff_reco_mll_diff.GetPtr(), "multi_data_histo_jac_diff_reco_mll_diff");
+
+  gettimeofday(&tv_stop, 0);
+  t1 = (tv_stop.tv_sec - tv_start.tv_sec)*1000.0 + (tv_stop.tv_usec - tv_start.tv_usec)/1000.0;
   
+  cout << "\n" << "# Calculation time: " << t1/60000.0 << " min" << "\n";  
+
   return 0;
 
 }
