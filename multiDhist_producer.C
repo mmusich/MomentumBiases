@@ -217,15 +217,21 @@ auto d6 = d5.Define("mll_diff_reco_over_gen","return (mll_reco - mll_gen) / mll_
     .Define("mll_diff_reco","return mll_reco - mll_gen;")
     .Define("mll_diff_smear_over_gen","return (mll_smear - mll_gen) / mll_gen;")
     .Define("mll_diff_smear","return mll_smear - mll_gen;")
-    .Define("mll_diff_smear_plus_offset","float offset = 0.1; return mll_diff_smear + offset;") // offset goes here
-    .Define("mll_diff_smear_minus_offset","float offset = 0.1; return mll_diff_smear - offset;"); // offset goes here
+    .Define("mll_diff_smear_plus_offset","float offset = 0.1; return (mll_smear - mll_gen) + offset;") // offset goes here
+    .Define("mll_diff_smear_minus_offset","float offset = 0.1; return (mll_smear - mll_gen) - offset;"); // offset goes here
 
 auto d7 = d6.Define("jacobian_weight_mll_diff_smear", "return mll_diff_smear*weight;")   
     .Define("jacobian_weight_mll_diff_squared_smear","return mll_diff_smear*mll_diff_smear*weight;")
-    .Define("jacobian_weight_mll_over_gen_all_squared_smear", "return (mll_smear/mll_gen)*(mll_smear/mll_gen*weight);")
+    .Define("jacobian_weight_mll_over_gen_all_squared_smear", "return (mll_smear/mll_gen)*(mll_smear/mll_gen)*weight;")
     .Define("jacobian_weight_mll_over_gen_smear", "return mll_smear/mll_gen*weight;")
     .Define("jacobian_weight_mll_over_gen_all_squared_reco", "return (mll_reco/mll_gen)*(mll_reco/mll_gen)*weight;")
-    .Define("jacobian_weight_mll_over_gen_reco", "return mll_reco/mll_gen*weight;");
+    .Define("jacobian_weight_mll_over_gen_reco", "return mll_reco/mll_gen*weight;")
+    // for mixed approach pdf
+    .Define("jacobian_weight_mll_squared_smear","return mll_smear*mll_smear*weight;")
+    .Define("jacobian_weight_mll_squared_gen","return mll_gen*mll_gen*weight;")
+    .Define("jacobian_weight_mll_times_gen_smear","return mll_smear*mll_gen*weight;")
+    // jacobians for unique pdf across k bins
+    .Define("jacobian_weight_mll_diff_times_gen_smear", "return mll_diff_smear*mll_gen*weight;");
     
   //Save tree for debugging
   std::unique_ptr<TFile> f1( TFile::Open("snapshot_output.root", "RECREATE") );
@@ -248,7 +254,7 @@ auto d7 = d6.Define("jacobian_weight_mll_diff_smear", "return mll_diff_smear*wei
   f2->Close();
   
   double ptlow=25.0, pthigh=55.0;
-  int nbinsmll_diff_over_gen=16, nbinsmll_diff=16, nbinsmll=32, nbinseta=24, nbinspt=5;
+  int nbinsmll_diff_over_gen=32, nbinsmll_diff=16, nbinsmll=32, nbinseta=24, nbinspt=5;
   vector<double> etabinranges, ptbinranges, mllbinranges;
   vector<double> mll_diffbinranges, mll_diff_over_genbinranges;
 
@@ -263,7 +269,7 @@ auto d7 = d6.Define("jacobian_weight_mll_diff_smear", "return mll_diff_smear*wei
 
   for (int i=0; i<=nbinsmll_diff; i++) mll_diffbinranges.push_back(-5.0 + i*10.0/nbinsmll_diff);
   for (int i=0; i<=nbinsmll; i++) mllbinranges.push_back(75.0 + i*(105.0-75.0)/nbinsmll);
-  for (int i=0; i<=nbinsmll_diff_over_gen; i++) mll_diff_over_genbinranges.push_back(-0.05 + i*2.0*0.05/nbinsmll_diff_over_gen);
+  for (int i=0; i<=nbinsmll_diff_over_gen; i++) mll_diff_over_genbinranges.push_back(-0.1 + i*2.0*0.1/nbinsmll_diff_over_gen);
 
   std::unique_ptr<TFile> f3( TFile::Open("control_bin_histo.root", "RECREATE") );  
 
@@ -338,6 +344,26 @@ auto d7 = d6.Define("jacobian_weight_mll_diff_smear", "return mll_diff_smear*wei
   // mll_smear weighted by jacobian_weight_mll_over_gen_smear
   auto mDh_jac_mll_over_gen_smear_mll = d7.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_mll_over_gen_smear_mll", "multi_data_histo_jac_mll_over_gen_smear_mll", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_smear","jacobian_weight_mll_over_gen_smear"});
   f5->WriteObject(mDh_jac_mll_over_gen_smear_mll.GetPtr(), "multi_data_histo_jac_mll_over_gen_smear_mll");  
+
+  // mll_smear weighted by jacobian_weight_mll_squared_smear
+  auto mDh_jac_mll_squared_smear_mll = d7.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_mll_squared_smear_mll", "multi_data_histo_jac_mll_squared_smear_mll", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_smear","jacobian_weight_mll_squared_smear"});
+  f5->WriteObject(mDh_jac_mll_squared_smear_mll.GetPtr(), "multi_data_histo_jac_mll_squared_smear_mll");
+
+  // mll_smear weighted by jacobian_weight_mll_squared_gen
+  auto mDh_jac_mll_gen_squared_smear_mll = d7.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_mll_gen_squared_smear_mll", "multi_data_histo_jac_mll_gen_squared_smear_mll", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_smear","jacobian_weight_mll_squared_gen"});
+  f5->WriteObject(mDh_jac_mll_gen_squared_smear_mll.GetPtr(), "multi_data_histo_jac_mll_gen_squared_smear_mll");
+
+  // mll_smear weighted by jacobian_weight_mll_times_gen_smear
+  auto mDh_jac_mll_times_gen_smear_mll = d7.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_mll_times_gen_smear_mll", "multi_data_histo_jac_mll_times_gen_smear_mll", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_smear","jacobian_weight_mll_times_gen_smear"});
+  f5->WriteObject(mDh_jac_mll_times_gen_smear_mll.GetPtr(), "multi_data_histo_jac_mll_times_gen_smear_mll");
+
+  // mll_smear weighted by jacobian_weight_mll_diff_times_gen_smear
+  auto mDh_jac_diff_times_gen_smear_mll = d7.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_diff_times_gen_smear_mll", "multi_data_histo_jac_diff_times_gen_smear_mll", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_smear","jacobian_weight_mll_diff_times_gen_smear"});
+  f5->WriteObject(mDh_jac_diff_times_gen_smear_mll.GetPtr(), "multi_data_histo_jac_diff_times_gen_smear_mll");
+
+  // mll_smear weighted by jacobian_weight_mll_diff_squared_smear
+  auto mDh_jac_diff_squared_smear_mll = d7.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_diff_squared_smear_mll", "multi_data_histo_jac_diff_squared_smear_mll", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_smear","jacobian_weight_mll_diff_squared_smear"});
+  f5->WriteObject(mDh_jac_diff_squared_smear_mll.GetPtr(), "multi_data_histo_jac_diff_squared_smear_mll");
 
   // mll_diff_smear weighted by jacobian_weight_mll_diff_squared_smear
   auto mDh_jac_diff_squared_smear_mll_diff = d7.HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_diff_squared_smear_mll_diff", "multi_data_histo_jac_diff_squared_smear_mll_diff", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_diff_smear","jacobian_weight_mll_diff_squared_smear"});

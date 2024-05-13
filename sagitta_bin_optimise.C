@@ -128,7 +128,7 @@ int sagitta_bin_optimise(){
   std::unique_ptr<THnD> mDh_jac_mll_over_gen_all_squared_mll(myFile->Get<THnD>( ("multi_data_histo_jac_mll_over_gen_all_squared_" + mc_name_root + "_mll").c_str() ) );
   std::unique_ptr<THnD> mDh_jac_mll_over_gen_mll(myFile->Get<THnD>( ("multi_data_histo_jac_mll_over_gen_" + mc_name_root + "_mll").c_str() ) );
   
-  THnD *mDh_diff_plus_offset=nullptr, *mDh_diff_minus_offset=nullptr, *mDh_jac_diff_squared_mll_diff=nullptr, *mDh_jac_diff_mll_diff=nullptr; 
+  THnD *mDh_diff_plus_offset=nullptr, *mDh_diff_minus_offset=nullptr, *mDh_jac_diff_squared_mll_diff=nullptr, *mDh_jac_diff_mll_diff=nullptr, *mDh_jac_diff_squared_mll=nullptr, *mDh_jac_diff_times_gen_mll=nullptr, *mDh_jac_mll_squared_mll, *mDh_jac_mll_gen_squared_mll, *mDh_jac_mll_times_gen_mll; 
   float mll_offset = 0.0; 
 
   if (mode_option.compare("validation") == 0) { 
@@ -136,6 +136,15 @@ int sagitta_bin_optimise(){
     mDh_jac_diff_squared_mll_diff = myFile->Get<THnD>( ("multi_data_histo_jac_diff_squared_" + mc_name_root + "_mll_diff").c_str() ); // sum of mll_diff_squared in mll_diff bin
     mDh_jac_diff_mll_diff = myFile->Get<THnD>( ("multi_data_histo_jac_diff_" + mc_name_root + "_mll_diff").c_str() ); // sum of mll_diff in mll_diff bin
 
+    // mixed approach pdf
+    mDh_jac_mll_squared_mll =  myFile->Get<THnD>(("multi_data_histo_jac_mll_squared_" + mc_name_root + "_mll").c_str());
+    mDh_jac_mll_gen_squared_mll = myFile->Get<THnD>(("multi_data_histo_jac_mll_gen_squared_" + mc_name_root + "_mll").c_str());
+    mDh_jac_mll_times_gen_mll =  myFile->Get<THnD>(("multi_data_histo_jac_mll_times_gen_" + mc_name_root + "_mll").c_str());
+
+    // Jacobian mass one pdf for all k bins
+    mDh_jac_diff_squared_mll = myFile->Get<THnD>(("multi_data_histo_jac_diff_squared_" + mc_name_root + "_mll").c_str());
+    mDh_jac_diff_times_gen_mll = myFile->Get<THnD>(("multi_data_histo_jac_diff_times_gen_" + mc_name_root + "_mll").c_str());
+    
     // Numerical jacobian terms
     mDh_diff_plus_offset = myFile->Get<THnD>( ("multi_data_histo_diff_" + mc_name_root + "_plus_offset").c_str() );
     mDh_diff_minus_offset = myFile->Get<THnD>( ("multi_data_histo_diff_" + mc_name_root + "_minus_offset").c_str() );
@@ -177,7 +186,7 @@ int sagitta_bin_optimise(){
 
   //TODO comment explain where the variables are needed
   double total_nevents=0.0, nevents=0.0, all_histos_count=0.0, remaining_nevents=0.0, empty_histos_count=0.0, hfrac=-1.0, efrac=-1.0; // to check number of passing events
-  double value_alpha, error_alpha, value_beta, error_beta, value_epsilon, error_epsilon, diff_squared, diff, evts_in_bin, error_diff_squared, error_diff, jac_b_weight, error_jac_b_weight; // for jac calculation
+  double value_alpha, error_alpha, value_beta, error_beta, value_epsilon, error_epsilon, diff_squared, diff, evts_in_bin, error_diff_squared, error_diff, jac_b_weight, error_jac_b_weight, mll_squared, mll_gen_squared, mll_times_gen, error_mll_squared, error_mll_gen_squared, error_mll_times_gen; // for jac calculation
   double mll_over_gen_all_squared, error_mll_over_gen_all_squared, mll_over_gen, error_mll_over_gen; // for jac mll calculation
   double mean_mc, error_mean_mc, sigma_mc=0.0, error_sigma_mc, integral_mc, chi2_mc, mean_diff_over_gen, error_mean_diff_over_gen, sigma_diff_over_gen, error_sigma_diff_over_gen;
   double mean_diff_data = 1.0, error_mean_diff_data = 1.0, sigma_diff_data = 1.0, error_sigma_diff_data = 1.0, integral_diff_data = 1.0; //TODO just initialise with 0, are they called in analysis mode at all?
@@ -335,13 +344,18 @@ int sagitta_bin_optimise(){
   auto mDh_proj_jac_mll_over_gen_mll = mDh_jac_mll_over_gen_mll->Projection(4);  
   auto mDh_proj_mll_data = mDh_mll_data->Projection(4);
 
-  TH1D *mDh_proj_diff_data=nullptr, *mDh_proj_diff_plus_offset=nullptr, *mDh_proj_diff_minus_offset=nullptr, *mDh_proj_jac_diff_squared_mll_diff=nullptr, *mDh_proj_jac_diff_mll_diff=nullptr;
+  TH1D *mDh_proj_diff_data=nullptr, *mDh_proj_diff_plus_offset=nullptr, *mDh_proj_diff_minus_offset=nullptr, *mDh_proj_jac_diff_squared_mll_diff=nullptr, *mDh_proj_jac_diff_mll_diff=nullptr, *mDh_proj_jac_diff_times_gen_mll=nullptr, *mDh_proj_jac_diff_squared_mll=nullptr, *mDh_proj_jac_mll_squared_mll=nullptr, *mDh_proj_jac_mll_gen_squared_mll=nullptr, *mDh_proj_jac_mll_times_gen_mll=nullptr;
   if (mode_option.compare("validation") == 0){
     mDh_proj_jac_diff_squared_mll_diff = mDh_jac_diff_squared_mll_diff->Projection(4);
     mDh_proj_jac_diff_mll_diff = mDh_jac_diff_mll_diff->Projection(4);
     mDh_proj_diff_data = mDh_diff_data->Projection(4);
     mDh_proj_diff_plus_offset = mDh_diff_plus_offset->Projection(4);
     mDh_proj_diff_minus_offset = mDh_diff_minus_offset->Projection(4);
+    mDh_proj_jac_diff_times_gen_mll = mDh_jac_diff_times_gen_mll->Projection(4);
+    mDh_proj_jac_diff_squared_mll = mDh_jac_diff_squared_mll->Projection(4);
+    mDh_proj_jac_mll_squared_mll = mDh_jac_mll_squared_mll->Projection(4);
+    mDh_proj_jac_mll_gen_squared_mll = mDh_jac_mll_gen_squared_mll->Projection(4);
+    mDh_proj_jac_mll_times_gen_mll = mDh_jac_mll_times_gen_mll->Projection(4);
   }
   //--------------------------------------------------------------------------------------
 
@@ -402,6 +416,11 @@ int sagitta_bin_optimise(){
       mDh_diff_plus_offset->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
       mDh_diff_minus_offset->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
       mDh_diff_data->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+      mDh_jac_diff_times_gen_mll->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+      mDh_jac_diff_squared_mll->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+      mDh_jac_mll_gen_squared_mll->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+      mDh_jac_mll_squared_mll->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+      mDh_jac_mll_times_gen_mll->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     }
     for (int pos_pt_bin=1; pos_pt_bin<=nbinspt; pos_pt_bin++){   
       mDh_mll_mc->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
@@ -416,6 +435,11 @@ int sagitta_bin_optimise(){
 	mDh_diff_plus_offset->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
 	mDh_diff_minus_offset->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
 	mDh_diff_data->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+	mDh_jac_diff_times_gen_mll->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+	mDh_jac_diff_squared_mll->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+	mDh_jac_mll_gen_squared_mll->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+	mDh_jac_mll_squared_mll->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+	mDh_jac_mll_times_gen_mll->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       }
       for (int neg_eta_bin=1; neg_eta_bin<=nbinseta; neg_eta_bin++){
 	mDh_mll_mc->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
@@ -430,6 +454,11 @@ int sagitta_bin_optimise(){
 	  mDh_diff_plus_offset->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	  mDh_diff_minus_offset->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	  mDh_diff_data->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+	  mDh_jac_diff_times_gen_mll->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+          mDh_jac_diff_squared_mll->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+	  mDh_jac_mll_gen_squared_mll->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+	  mDh_jac_mll_squared_mll->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+	  mDh_jac_mll_times_gen_mll->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	} 
 	for (int neg_pt_bin=1; neg_pt_bin<=nbinspt; neg_pt_bin++){
 	  mDh_mll_mc->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
@@ -480,6 +509,11 @@ int sagitta_bin_optimise(){
 		mDh_diff_plus_offset->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 		mDh_diff_minus_offset->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 		mDh_diff_data->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+		mDh_jac_diff_times_gen_mll->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+		mDh_jac_diff_squared_mll->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+		mDh_jac_mll_gen_squared_mll->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+		mDh_jac_mll_squared_mll->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+		mDh_jac_mll_times_gen_mll->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	      }
 	      //--------------------------------------------------------------------------
 	      // Diff over gen histograms
@@ -491,6 +525,8 @@ int sagitta_bin_optimise(){
 	      mDh_proj_diff_over_gen->GetXaxis()->SetTitle("mll_diff_over_gen [-]");
 	      mDh_proj_diff_over_gen->GetYaxis()->SetTitle("Events");
 	      mDh_proj_diff_over_gen->SetLineColor(kBlue);
+	      mDh_proj_diff_over_gen->SetStats(1);
+
 	      // Fit diff_over_gen
 	      fitresult = fitHisto(mDh_proj_diff_over_gen, 1, 4, 5);
 	      // Save these for mass alpha, beta fits 
@@ -697,7 +733,7 @@ int sagitta_bin_optimise(){
 	      
 	      //--------------------------------------------------------------------------
 	      // Compute jacobians mass
-	      
+	      /*
 	      // Needed for jacobian alpha and beta mass
 	      title = "multi_data_histo_jac_mll_over_gen_all_squared_" + mc_name_root + "_mll_proj_4";
 	      delete gROOT->FindObject(title.c_str());
@@ -706,6 +742,8 @@ int sagitta_bin_optimise(){
 	      title = "multi_data_histo_jac_mll_over_gen_" + mc_name_root + "_mll_proj_4";
 	      delete gROOT->FindObject(title.c_str());
 	      mDh_proj_jac_mll_over_gen_mll = mDh_jac_mll_over_gen_mll->Projection(4);
+
+	      f_fits->WriteObject(mDh_proj_jac_mll_over_gen_mll, ("jac_mll_over_gen" + name).c_str());
 	      
 	      position_to_fill=0;
 	      for(int i=1; i<=nbinsmll; i++){
@@ -718,10 +756,12 @@ int sagitta_bin_optimise(){
 		if ( find(good_indices_mll.begin(), good_indices_mll.end(), i) != good_indices_mll.end() ){
 		  
 		  evts_in_bin = mDh_proj_mll_mc->GetBinContent(i);
-		  
+		  //TODO for debugging, delete after!!
+		  //mean_diff_over_gen = 0.0;
+
 		  // alpha mass
-		  value_alpha = (mll_over_gen_all_squared - 2.*(1. + mean_diff_over_gen)*mll_over_gen + (1. + mean_diff_over_gen)*(1. + mean_diff_over_gen))/(sigma_diff_over_gen*sigma_diff_over_gen) - evts_in_bin;
-		  error_alpha = 2./sigma_diff_over_gen/sigma_diff_over_gen * pow(error_mll_over_gen_all_squared*error_mll_over_gen_all_squared/4. + (1.+mean_diff_over_gen)*(1.+mean_diff_over_gen)*error_mll_over_gen*error_mll_over_gen + (value_alpha + evts_in_bin)*(value_alpha + evts_in_bin)*sigma_diff_over_gen*sigma_diff_over_gen*error_sigma_diff_over_gen*error_sigma_diff_over_gen + (1.+mean_diff_over_gen-mll_over_gen)*(1.+mean_diff_over_gen-mll_over_gen)*error_mll_over_gen*error_mll_over_gen, 0.5);
+		  value_alpha = (mll_over_gen_all_squared - 2.*(1. + mean_diff_over_gen)*mll_over_gen + evts_in_bin*(1. + mean_diff_over_gen)*(1. + mean_diff_over_gen))/(sigma_diff_over_gen*sigma_diff_over_gen) - evts_in_bin;
+		  error_alpha = 2./sigma_diff_over_gen/sigma_diff_over_gen * pow(error_mll_over_gen_all_squared*error_mll_over_gen_all_squared/4. + (1.+mean_diff_over_gen)*(1.+mean_diff_over_gen)*error_mll_over_gen*error_mll_over_gen + (value_alpha + evts_in_bin)*(value_alpha + evts_in_bin)*sigma_diff_over_gen*sigma_diff_over_gen*error_sigma_diff_over_gen*error_sigma_diff_over_gen + (evts_in_bin+evts_in_bin*mean_diff_over_gen-mll_over_gen)*(evts_in_bin+evts_in_bin*mean_diff_over_gen-mll_over_gen)*error_mll_over_gen*error_mll_over_gen, 0.5);
 		  J(position_to_fill,2) = value_alpha; //J.col(2) is alpha
 		  
 		  jac_alpha->SetBinContent(i, value_alpha);
@@ -729,8 +769,8 @@ int sagitta_bin_optimise(){
 		  jac_alpha_inclusive->Fill(mllbinranges[i-1], value_alpha);
 		  
 		  // beta mass
-		  value_beta = 1./sigma_diff_over_gen/sigma_diff_over_gen*((1.+mean_diff_over_gen)*mll_over_gen - (1.+mean_diff_over_gen)*(1.+mean_diff_over_gen));
-		  error_beta = 1./sigma_diff_over_gen/sigma_diff_over_gen*pow((1.+mean_diff_over_gen)*(1.+mean_diff_over_gen)*error_mll_over_gen*error_mll_over_gen + 4.*value_beta*value_beta*sigma_diff_over_gen*sigma_diff_over_gen*error_sigma_diff_over_gen*error_sigma_diff_over_gen + (mll_over_gen-2.*(1.+mean_diff_over_gen))*(mll_over_gen-2.*(1.+mean_diff_over_gen))*error_mean_diff_over_gen*error_mean_diff_over_gen, 0.5);
+		  value_beta = 1./sigma_diff_over_gen/sigma_diff_over_gen*((1.+mean_diff_over_gen)*mll_over_gen - evts_in_bin*(1.+mean_diff_over_gen)*(1.+mean_diff_over_gen));
+		  error_beta = 1./sigma_diff_over_gen/sigma_diff_over_gen*pow((1.+mean_diff_over_gen)*(1.+mean_diff_over_gen)*error_mll_over_gen*error_mll_over_gen + 4.*value_beta*value_beta*sigma_diff_over_gen*sigma_diff_over_gen*error_sigma_diff_over_gen*error_sigma_diff_over_gen + (mll_over_gen-2.*evts_in_bin*(1.+mean_diff_over_gen))*(mll_over_gen-2.*evts_in_bin*(1.+mean_diff_over_gen))*error_mean_diff_over_gen*error_mean_diff_over_gen, 0.5);
 		  J(position_to_fill,1) = value_beta; //J.col(1) is beta
 		  
 		  jac_beta->SetBinContent(i, value_beta);
@@ -741,7 +781,113 @@ int sagitta_bin_optimise(){
 		  
 		}
 	      }
-	            
+	      */
+	      
+	      // ONE PDF for all k BIN!!! works only in vlidation
+	      // Needed for jacobian alpha mass
+              title = "multi_data_histo_jac_diff_squared_" + mc_name_root + "_mll_proj_4";
+              delete gROOT->FindObject(title.c_str());
+              mDh_proj_jac_diff_squared_mll = mDh_jac_diff_squared_mll->Projection(4);
+              // Needed for jacobian beta mass
+              title = "multi_data_histo_jac_diff_times_gen_" + mc_name_root + "_mll_proj_4";
+              delete gROOT->FindObject(title.c_str());
+              mDh_proj_jac_diff_times_gen_mll = mDh_jac_diff_times_gen_mll->Projection(4);
+
+	      f_fits->WriteObject(mDh_proj_jac_diff_times_gen_mll, ("jac_diff_times_gen" + name).c_str());
+
+              position_to_fill=0;
+              for(int i=1; i<=nbinsmll; i++){
+		// alpha mass
+                diff_squared = mDh_proj_jac_diff_squared_mll->GetBinContent(i);
+                error_diff_squared = mDh_proj_jac_diff_squared_mll->GetBinError(i);
+                // beta mass
+                jac_b_weight = mDh_proj_jac_diff_times_gen_mll->GetBinContent(i);
+                error_jac_b_weight = mDh_proj_jac_diff_times_gen_mll->GetBinError(i);
+		
+                if ( find(good_indices_mll.begin(), good_indices_mll.end(), i) != good_indices_mll.end() ){
+		      
+                  evts_in_bin = mDh_proj_mll_mc->GetBinContent(i);
+                  // alpha mass
+                  value_alpha =  diff_squared / (sigma_mc * sigma_mc) - evts_in_bin;
+                  error_alpha = 1 / (sigma_mc*sigma_mc) * pow((4.0 * diff_squared*diff_squared * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_diff_squared*error_diff_squared) , 0.5);
+                  J(position_to_fill,2) = value_alpha; //J.col(2) is alpha
+
+                  jac_alpha->SetBinContent(i, value_alpha);
+                  jac_alpha->SetBinError(i, error_alpha);
+                  jac_alpha_inclusive->Fill(mllbinranges[i-1], value_alpha);
+
+                  // beta mass
+                  value_beta = jac_b_weight / (sigma_mc * sigma_mc);
+                  error_beta = 1 / (sigma_mc*sigma_mc) * pow((4 * jac_b_weight*jac_b_weight * error_sigma_mc*error_sigma_mc / (sigma_mc*sigma_mc) + error_jac_b_weight*error_jac_b_weight) , 0.5);
+                  J(position_to_fill,1) = value_beta; //J.col(1) is beta
+
+                  jac_beta->SetBinContent(i, value_beta);
+                  jac_beta->SetBinError(i, error_beta);
+                  jac_beta_inclusive->Fill(mllbinranges[i-1], value_beta);
+		      
+                  position_to_fill++;
+
+                }
+              }
+	      // ONE PDF for all k BIN!!! above
+	      
+	      /*
+              // MIXED APPROACH PDF !!! works only in vlidation
+              // Needed for jacobian alpha and beta mass
+              title = "multi_data_histo_jac_mll_squared_" + mc_name_root + "_mll_proj_4";
+              delete gROOT->FindObject(title.c_str());
+              mDh_proj_jac_mll_squared_mll = mDh_jac_mll_squared_mll->Projection(4);
+              
+	      title = "multi_data_histo_jac_mll_gen_squared_" + mc_name_root + "_mll_proj_4";
+              delete gROOT->FindObject(title.c_str());
+              mDh_proj_jac_mll_gen_squared_mll = mDh_jac_mll_gen_squared_mll->Projection(4);
+
+              title = "multi_data_histo_jac_mll_times_gen_" + mc_name_root + "_mll_proj_4";
+              delete gROOT->FindObject(title.c_str());
+              mDh_proj_jac_mll_times_gen_mll = mDh_jac_mll_times_gen_mll->Projection(4);
+
+	      position_to_fill=0;
+              for(int i=1; i<=nbinsmll; i++){
+                //beta alpha mass
+                mll_squared = mDh_proj_jac_mll_squared_mll->GetBinContent(i);
+                error_mll_squared = mDh_proj_jac_mll_squared_mll->GetBinError(i);
+                
+		mll_gen_squared = mDh_proj_jac_mll_gen_squared_mll->GetBinContent(i);
+                error_mll_gen_squared = mDh_proj_jac_mll_gen_squared_mll->GetBinError(i);
+
+                mll_times_gen = mDh_proj_jac_mll_times_gen_mll->GetBinContent(i);
+                error_mll_times_gen = mDh_proj_jac_mll_times_gen_mll->GetBinError(i);
+
+                if ( find(good_indices_mll.begin(), good_indices_mll.end(), i) != good_indices_mll.end() ){
+
+                  evts_in_bin = mDh_proj_mll_mc->GetBinContent(i);
+		  //TODO for debugging, delete after!!
+                  //mean_diff_over_gen = 0.0;
+
+                  // alpha mass
+                  value_alpha =  (mll_squared  - 2.*(1.+mean_diff_over_gen)*mll_times_gen + (1.+mean_diff_over_gen)*(1.+mean_diff_over_gen)*mll_gen_squared) / (sigma_mc * sigma_mc) - evts_in_bin;
+                  error_alpha = pow(4.*sigma_mc*sigma_mc*pow(value_alpha+evts_in_bin,2)*error_sigma_mc*error_sigma_mc + 4.*pow((1.+mean_diff_over_gen)*mll_gen_squared-mll_times_gen,2)*error_mean_diff_over_gen*error_mean_diff_over_gen + error_mll_squared*error_mll_squared + 4.*(1.+mean_diff_over_gen)*(1.+mean_diff_over_gen)*error_mll_times_gen*error_mll_times_gen + pow(1.+mean_diff_over_gen,4)*error_mll_gen_squared*error_mll_gen_squared ,0.5)/(sigma_mc*sigma_mc);
+                  J(position_to_fill,2) = value_alpha; //J.col(2) is alpha
+
+                  jac_alpha->SetBinContent(i, value_alpha);
+                  jac_alpha->SetBinError(i, error_alpha);
+                  jac_alpha_inclusive->Fill(mllbinranges[i-1], value_alpha);
+
+                  // beta mass
+                  value_beta = ((1.+mean_diff_over_gen)*mll_times_gen-(1.+mean_diff_over_gen)*(1.+mean_diff_over_gen)*mll_gen_squared) / (sigma_mc * sigma_mc);
+                  error_beta = pow(4.*sigma_mc*sigma_mc*value_beta*value_beta*error_sigma_mc*error_sigma_mc + pow(mll_times_gen-2.*(1.+mean_diff_over_gen)*mll_gen_squared ,2)*error_mean_diff_over_gen*error_mean_diff_over_gen + (1.+mean_diff_over_gen)*(1.+mean_diff_over_gen)*error_mll_times_gen*error_mll_times_gen + pow(1.+mean_diff_over_gen,4)*error_mll_gen_squared*error_mll_gen_squared ,0.5)/(sigma_mc*sigma_mc); 
+                  J(position_to_fill,1) = value_beta; //J.col(1) is beta
+
+                  jac_beta->SetBinContent(i, value_beta);
+                  jac_beta->SetBinError(i, error_beta);
+                  jac_beta_inclusive->Fill(mllbinranges[i-1], value_beta);
+
+                  position_to_fill++;
+
+                }
+              }
+              // MIXED APPROACH PDF!!! above
+              */
 	      if (position_to_fill != filled_bins_mll){ std::cout<<"PROBLEM: counting jac mass size \n"; }
 
 	      //--------------------------------------------------------------------------
