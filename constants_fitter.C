@@ -30,7 +30,7 @@ public:
   vector<int> getIndices(string bin_label) const; 
   double getK(const int pT_index) const;
   
-  const vector<double> pT_binning {25.0, 33.3584, 38.4562, 42.2942, 45.9469, 55.0}; // pT binning goes here
+  const vector<double> pT_binning {25.0, 33.327, 38.4302, 42.2782, 45.9389, 55.0}; // pT binning goes here
   static constexpr double scaling_A = 0.001, scaling_e = 0.001 * 40.0, scaling_M = 0.001 / 40.0, scaling_e_prime = 0.001 / 0.01; // this scaling makes fitter parameters of order 1 
 
   vector<string> binLabels; // made public for the closure test
@@ -253,6 +253,8 @@ vector<vector<double>> TheoryFcn2::DummyData(const vector<double> &dummy_par_val
     width_rand = abs(2*mean*width_rand); // error on scale**2
     test_error[n] = width_rand;
     test_data[n] = random.Gaus(mean, width_rand);
+
+    if (n<10) {std::cout << "\n" << n << ": dummy scale_squared = " << test_data[n] << "; dummy scale_squared_error =  " << test_error[n] << "\n";}
     
   }
 
@@ -299,15 +301,13 @@ tuple<string,double,string> getParameterNameAndScaling(int index){
 
 vector<string> generateLabels (const int n_eta_bins, const int n_pt_bins){
   
-  vector<string> labels(n_eta_bins*n_eta_bins*n_pt_bins*n_pt_bins);
-  int m = 0; 
+  vector<string> labels;
 
   for (int i=0; i<n_eta_bins; i++){
     for (int j=0; j<n_pt_bins; j++){
       for (int k=0; k<n_eta_bins; k++){
 	for (int l=0; l<n_pt_bins; l++){
-	  labels[m] = to_string(i) + "_" + to_string(j) + "_" + to_string(k) + "_" + to_string(l);
-	  m ++;
+	  labels.push_back(to_string(i) + "_" + to_string(j) + "_" + to_string(k) + "_" + to_string(l));
 	}
       }
     }
@@ -323,16 +323,16 @@ vector<double> generateParameters (const int n_parameters){ //TODO might be slow
 
   vector<double> res(n_parameters); // has size n_parameters = 3*number_eta_bins, idices from 0 to n-1 contain A, from n to 2n-1 epsilon, from 2n to 3n-1 M 
   for (int i=0; i<n_parameters/3; i++){ // A from -0.0002 to 0.0005 and back
-    res[i] = (-7.0*36.0/n_parameters/n_parameters*(i - n_parameters/6)*(i - n_parameters/6) + 5.0)*0.0001;
-    //res[i] = 0.0; // A set to 0 for now
+    //res[i] = (-7.0*36.0/n_parameters/n_parameters*(i - n_parameters/6)*(i - n_parameters/6) + 5.0)*0.0001;
+    res[i] = 0.0004; // A set constant for now
   }
   for (int i=n_parameters/3; i<2*n_parameters/3; i++){ // e from 0.01 to 0.001 and back
-    res[i] = (9.0*36.0/n_parameters/n_parameters*((i-n_parameters/3) - n_parameters/6)*((i-n_parameters/3) - n_parameters/6) + 1.0)*0.001;  
-    //res[i] = 0.0; // e set to 0 for now
+    //res[i] = (9.0*36.0/n_parameters/n_parameters*((i-n_parameters/3) - n_parameters/6)*((i-n_parameters/3) - n_parameters/6) + 1.0)*0.001;  
+    res[i] = 0.002; // e set constant for now
   }
   for (int i=2*n_parameters/3; i<n_parameters; i++){ // M from 4*10^-5 to -2*10^-5 and back
-    res[i] = ( 6.0*36.0/n_parameters/n_parameters*((i-2*n_parameters/3) - n_parameters/6)*((i-2*n_parameters/3) - n_parameters/6) - 2.0)*0.00001;
-    //res[i] = 0.0; // M set to 0 
+    //res[i] = ( 6.0*36.0/n_parameters/n_parameters*((i-2*n_parameters/3) - n_parameters/6)*((i-2*n_parameters/3) - n_parameters/6) - 2.0)*0.00001;
+    res[i] = 0.00001; // M set constant for now 
   }
   return res;
 }
@@ -420,23 +420,29 @@ int constants_fitter() {
     //-----------------------------------------------
     // Get data
     
-    std::unique_ptr<TFile> inputFile( TFile::Open("mass_fits_control_histos_smear_beta_val.root") );
-    std::unique_ptr<TH1D> scale(inputFile->Get<TH1D>("beta")); 
+    std::unique_ptr<TFile> inputFile( TFile::Open("mass_fits_control_histos_smear_beta_val_unique_pdf.root") );
+    std::unique_ptr<TH1D> beta(inputFile->Get<TH1D>("beta")); 
     
-    n_data_points = scale->GetEntries();
+    n_data_points = beta->GetEntries();
+    
+    std::cout << "\n" << n_data_points <<" entries in beta histogram";
     
     for(int i=0; i<n_data_points; i++){
-      scale_squared_values[i] = (scale->GetBinContent(i+1))*(scale->GetBinContent(i+1));
-      scale_squared_error_values[i] = 2*abs(scale->GetBinContent(i+1))*(scale->GetBinError(i+1));
-      labels[i] = scale->GetXaxis()->GetLabels()->At(i)->GetName();
-      std::cout << "\n" << labels[i] << " scale_squared_values " << scale_squared_values[i] << " scale_squared_error_values " << scale_squared_error_values[i] << "\n";
+      scale_squared_values.push_back((1.0 + beta->GetBinContent(i+1))*(1.0 + beta->GetBinContent(i+1)));
+      scale_squared_error_values.push_back(2*abs(1.0 + beta->GetBinContent(i+1))*(beta->GetBinError(i+1)));
+      labels.push_back(beta->GetXaxis()->GetLabels()->At(i)->GetName());
+      
+      if (i<10) {std::cout << "\n" << labels[i] << ": beta = " << beta->GetBinContent(i+1) << "; scale_squared =  " << scale_squared_values[i] << "; scale_squared_error = " << scale_squared_error_values[i] << "\n";}
+      
     }
     
+    std::cout << "\n" << "scale_squared_values.size() = " << scale_squared_values.size() << "; scale_squared_error_values.size() = " << scale_squared_error_values.size() << "labels.size() = " << labels.size();
+
     n_eta_bins = 24; //TODO work out from labels variable counter script save the number from the scripr and which eta bins not constrained in a file
     n_parameters = 3*n_eta_bins; // 3 for A,e,M model
-  
+   
   }
-
+  
   //-------------------------------------------------
   // Use data
 
@@ -478,7 +484,7 @@ int constants_fitter() {
   //3829.158
   
   FunctionMinimum min = minimize(maxfcn, tolerance);
-
+    
   // save results
   
   double k_middle = (1.0/55.0 + 1.0/25.0)/2.0; //TODO change to not input by hand
@@ -502,22 +508,24 @@ int constants_fitter() {
     }
   }
   
-  
-  red_chi2 = min.Fval();
-  edm = min.Edm();
-  for (int i=0; i<n_parameters; i++){
-    params_tmp[i] = (A_e_M_values[i] - dummy_parameters[i]) / A_e_M_errors[i]; 
-  } 
-
-  track_tree->Fill();
-
+  if (mode_option.compare("closure_test") == 0) { 
+    red_chi2 = min.Fval();
+    edm = min.Edm();
+    for (int i=0; i<n_parameters; i++){
+      params_tmp[i] = (A_e_M_values[i] - dummy_parameters[i]) / A_e_M_errors[i]; 
+    } 
+    
+    track_tree->Fill();
+  }
   //} //comment this bracket for loop over n_tries
 
-  std::unique_ptr<TFile> f_control_iter( TFile::Open("track_params.root", "RECREATE") );
-  track_tree->Write();
-  cout<<"\n"<<"done"<<"\n";
-  f_control_iter->Close();
-
+  if (mode_option.compare("closure_test") == 0) {
+    std::unique_ptr<TFile> f_control_iter( TFile::Open("track_params.root", "RECREATE") );
+    track_tree->Write();
+    cout<<"\n"<<"done"<<"\n";
+    f_control_iter->Close();
+  }
+    
   gettimeofday(&tv_stop, 0);
   t1 = (tv_stop.tv_sec - tv_start.tv_sec)*1000.0 + (tv_stop.tv_usec - tv_start.tv_usec)/1000.0;
   
@@ -672,6 +680,15 @@ int constants_fitter() {
     fitted_pars_M->SetBinContent(i, A_e_M_values[i-1+2*n_eta_bins]);
     fitted_pars_M->SetBinError(i, A_e_M_errors[i-1+2*n_eta_bins]);
 
+    if (mode_option.compare("analysis") == 0) {
+      dummy_pars_A->SetBinContent(i, 0.0004);
+      dummy_pars_A->SetBinError(i, 1e-10);
+      dummy_pars_e->SetBinContent(i, 0.002);
+      dummy_pars_e->SetBinError(i, 1e-10);
+      dummy_pars_M->SetBinContent(i, 0.00001);
+      dummy_pars_M->SetBinError(i, 1e-10);
+    }
+
     if (mode_option.compare("closure_test") == 0) { 
       dummy_pars_A->SetBinContent(i, dummy_parameters[i-1]);
       dummy_pars_A->SetBinError(i, 1e-10);
@@ -703,7 +720,7 @@ int constants_fitter() {
   fitted_pars_A->GetYaxis()->SetTitle("Magnetic field correction");
   fitted_pars_A->Draw("");
   
-  if (mode_option.compare("closure_test") == 0) {
+  if (mode_option.compare("closure_test") == 0 || mode_option.compare("analysis") == 0) { //TODO change for only closure
     dummy_pars_A->SetLineColor(kRed);
     dummy_pars_A->SetMarkerStyle(kPlus);
     dummy_pars_A->SetMarkerColor(kRed);
@@ -726,7 +743,7 @@ int constants_fitter() {
   fitted_pars_e->GetYaxis()->SetTitle("Material correction (GeV)");
   fitted_pars_e->Draw("");
 
-  if (mode_option.compare("closure_test") == 0) {
+  if (mode_option.compare("closure_test") == 0 || mode_option.compare("analysis") == 0) { //TODO change for only closure
     dummy_pars_e->SetLineColor(kRed);
     dummy_pars_e->SetMarkerStyle(kPlus);
     dummy_pars_e->SetMarkerColor(kRed);
@@ -748,7 +765,7 @@ int constants_fitter() {
   fitted_pars_M->GetYaxis()->SetTitle("Misalignment correction (GeV^{-1})");
   fitted_pars_M->Draw("");
 
-  if (mode_option.compare("closure_test") == 0) {
+  if (mode_option.compare("closure_test") == 0 || mode_option.compare("analysis") == 0) { //TODO change for only closure
     dummy_pars_M->SetLineColor(kRed);
     dummy_pars_M->SetMarkerStyle(kPlus);
     dummy_pars_M->SetMarkerColor(kRed);

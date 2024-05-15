@@ -129,7 +129,7 @@ int sagitta_bin_optimise(){
   std::unique_ptr<THnD> mDh_jac_mll_over_gen_mll(myFile->Get<THnD>( ("multi_data_histo_jac_mll_over_gen_" + mc_name_root + "_mll").c_str() ) );
   
   THnD *mDh_diff_plus_offset=nullptr, *mDh_diff_minus_offset=nullptr, *mDh_jac_diff_squared_mll_diff=nullptr, *mDh_jac_diff_mll_diff=nullptr, *mDh_jac_diff_squared_mll=nullptr, *mDh_jac_diff_times_gen_mll=nullptr, *mDh_jac_mll_squared_mll=nullptr, *mDh_jac_mll_gen_squared_mll=nullptr, *mDh_jac_mll_times_gen_mll=nullptr, *mDh_jac_diff_mll=nullptr, *mDh_jac_mll_minus_2gen_mll=nullptr; 
-  float mll_offset = 0.0; 
+  double mll_offset = 0.0; 
 
   if (mode_option.compare("validation") == 0) { 
     // Analytical jacobian mll_diff terms
@@ -259,7 +259,7 @@ int sagitta_bin_optimise(){
   beta->SetMarkerStyle(kPlus);
   beta->SetMarkerColor(kBlue);
   beta->GetXaxis()->SetTitle("Bin number");
-  beta->GetYaxis()->SetTitle("#beta");
+  beta->GetYaxis()->SetTitle("#Delta#beta");
 
   TH1D *nu = new TH1D("nu", "#Delta#nu", 3, 0, 3);
   nu->SetCanExtend(TH1::kAllAxes);
@@ -596,9 +596,9 @@ int sagitta_bin_optimise(){
 		mDh_proj_diff_data = mDh_diff_data->Projection(4);
 		mDh_proj_diff_data->GetXaxis()->SetTitle("mll_diff [GeV]");
 		mDh_proj_diff_data->GetYaxis()->SetTitle("Events");
-		mDh_proj_diff_data->SetLineColor(kYellow);
+		mDh_proj_diff_data->SetLineColor(kOrange+7);
 		// Fit diff_data
-		fitresult = fitHisto(mDh_proj_diff_data, 1, 5, 2);
+		fitresult = fitHisto(mDh_proj_diff_data, 1, 95, 2);
 		      
 		// Save these for pull histograms 
 		mean_diff_data = fitresult[0]; 
@@ -617,8 +617,8 @@ int sagitta_bin_optimise(){
 	      max_hist_mll_diff = max_hist_mll_diff * 1.3;
 	      mDh_proj_diff_mc->SetMaximum(max_hist_mll_diff);
 	      mDh_proj_diff_mc->SetTitle(("mll diff " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
-	      mDh_proj_diff_mc->Draw();
-	      if (mode_option.compare("validation") == 0) mDh_proj_diff_data->Draw("SAME");
+	      mDh_proj_diff_mc->Draw("HIST");
+	      if (mode_option.compare("validation") == 0) mDh_proj_diff_data->Draw("HIST SAME");
 	                  
 	      // Legend
 	      leg1->Clear();
@@ -662,7 +662,7 @@ int sagitta_bin_optimise(){
 	      mDh_proj_mll_data = mDh_mll_data->Projection(4);
 	      mDh_proj_mll_data->GetXaxis()->SetTitle("mll [GeV]");
 	      mDh_proj_mll_data->GetYaxis()->SetTitle("Events");
-	      mDh_proj_mll_data->SetLineColor(kYellow);
+	      mDh_proj_mll_data->SetLineColor(kOrange+7);
 	      // Fit mll data
 	      //fitresult = fitHisto(mDh_proj_mll_data, 0, 5, 5);
               
@@ -675,8 +675,8 @@ int sagitta_bin_optimise(){
 	                  
 	      max_hist_mll = max_hist_mll * 1.3;
 	                  
-	      mDh_proj_mll_mc->Draw("");
-	      mDh_proj_mll_data->Draw("SAME");
+	      mDh_proj_mll_mc->Draw("HIST");
+	      mDh_proj_mll_data->Draw("HIST SAME");
 
 	      // Legend 
 	      leg2->Clear();
@@ -715,22 +715,20 @@ int sagitta_bin_optimise(){
 	      // Declare mass vectors, jacobians and variance
 	      
 	      VectorXd h_data_minus_mc_mll_vector(filled_bins_mll);
-	      Eigen::MatrixXd V_sqrt(filled_bins_mll, filled_bins_mll), V_inv_sqrt(filled_bins_mll, filled_bins_mll), J(filled_bins_mll, 3); //J.col(0) is nu, (1) is beta, (2) is alpha
+	      Eigen::MatrixXd V_inv_sqrt(filled_bins_mll, filled_bins_mll), J(filled_bins_mll, 3); //J.col(0) is nu, (1) is beta, (2) is alpha
 
-	      V_sqrt = MatrixXd::Zero(filled_bins_mll, filled_bins_mll);
+	      V_inv_sqrt = MatrixXd::Zero(filled_bins_mll, filled_bins_mll);
 	      position_to_fill=0;
 	      for(int i=1; i<=nbinsmll; i++){
 		if ( find(good_indices_mll.begin(), good_indices_mll.end(), i) != good_indices_mll.end() ){
 		  h_data_minus_mc_mll_vector(position_to_fill) = mDh_proj_mll_data->GetBinContent(i) - mDh_proj_mll_mc->GetBinContent(i);
 		  J(position_to_fill,0) = mDh_proj_mll_mc->GetBinContent(i); //J.col(0) is nu
-		  V_sqrt(position_to_fill,position_to_fill) = pow(pow(mDh_proj_mll_data->GetBinError(i),2) + pow(mDh_proj_mll_mc->GetBinError(i),2), 0.5); // sqrt(data_stat**2 + mc_stat**2)
+		  V_inv_sqrt(position_to_fill,position_to_fill) = 1.0 / mDh_proj_mll_data->GetBinError(i); // 1/sqrt(data_stat**2) 
 		  position_to_fill++;
 		}
 	      }
 	      if (position_to_fill != filled_bins_mll){ std::cout<<"problem counting vector size \n"; }
-	      // solve for V_inv_sqrt
-	      V_inv_sqrt = V_sqrt.completeOrthogonalDecomposition().solve(MatrixXd::Identity(filled_bins_mll,filled_bins_mll));
-	
+	      	
 	      //--------------------------------------------------------------------------
 	      // Define jacobian histograms
 	      
@@ -748,7 +746,7 @@ int sagitta_bin_optimise(){
 	      
 	      //--------------------------------------------------------------------------
 	      // Compute jacobians mass
-	      
+	      /*
 	      // Additive k bin dependent PDF WORKS ONLY IN VALIDATION for now, TODO make it for reco too
               // Needed for jacobian alpha mass
               title = "multi_data_histo_jac_diff_squared_" + mc_name_root + "_mll_proj_4";
@@ -812,7 +810,7 @@ int sagitta_bin_optimise(){
                 }
               }
               // Additive k bin dependent PDF above !!!
-	      
+	      */
 	      /*
 	      // Multiplicative k bin dependent PDF
 	      // Needed for jacobian alpha and beta mass
@@ -865,7 +863,7 @@ int sagitta_bin_optimise(){
 		}
 	      }
 	      */
-	      /*
+	      
 	      // ONE PDF for all k BIN!!! works only in validation
 	      // Needed for jacobian alpha mass
               title = "multi_data_histo_jac_diff_squared_" + mc_name_root + "_mll_proj_4";
@@ -915,7 +913,7 @@ int sagitta_bin_optimise(){
                 }
               }
 	      // ONE PDF for all k BIN!!! above
-	      */
+	      
 	      
 	      /*
               // MULTIPLICATIVE MIXED APPROACH PDF !!! works only in vlidation
@@ -1051,7 +1049,7 @@ int sagitta_bin_optimise(){
 	      // Draw corrected_mll in mass fit panel
 	      c1->cd();
 	      c1->cd(2);
-	      corrected_mll->Draw("SAME");
+	      corrected_mll->Draw("HIST SAME");
 	      
 	      leg2->AddEntry(corrected_mll, "corrected mll", "l");
 	      leg2->Draw("");
@@ -1081,9 +1079,9 @@ int sagitta_bin_optimise(){
 		
 		// Declare mll_diff vectors, jacobians and variance
 		VectorXd h_data_minus_mc_diff_vector(filled_bins_mll_diff);
-		Eigen::MatrixXd V_sqrt_control(filled_bins_mll_diff, filled_bins_mll_diff), V_inv_sqrt_control(filled_bins_mll_diff, filled_bins_mll_diff), J_control(filled_bins_mll_diff, 3); //J_control.col(0) is nu, (1) is epsilon, (2) is alpha 
+		Eigen::MatrixXd V_inv_sqrt_control(filled_bins_mll_diff, filled_bins_mll_diff), J_control(filled_bins_mll_diff, 3); //J_control.col(0) is nu, (1) is epsilon, (2) is alpha 
 		
-		V_sqrt_control = MatrixXd::Zero(filled_bins_mll_diff, filled_bins_mll_diff);
+		V_inv_sqrt_control = MatrixXd::Zero(filled_bins_mll_diff, filled_bins_mll_diff);
 		position_to_fill = 0;
 		integral_diff_data = 0.0;
 		integral_mc = 0.0;
@@ -1092,7 +1090,7 @@ int sagitta_bin_optimise(){
 		  if( find(good_indices_mll_diff.begin(), good_indices_mll_diff.end(), i) != good_indices_mll_diff.end() ){
 		    h_data_minus_mc_diff_vector(position_to_fill) = mDh_proj_diff_data->GetBinContent(i) - mDh_proj_diff_mc->GetBinContent(i);
 		    J_control(position_to_fill,0) = mDh_proj_diff_mc->GetBinContent(i); //J_control.col(0) is nu
-		    V_sqrt_control(position_to_fill,position_to_fill) = pow(pow(mDh_proj_diff_data->GetBinError(i),2) + pow(mDh_proj_diff_mc->GetBinError(i),2), 0.5); // sqrt(data_stat**2 + mc_stat**2)
+		    V_inv_sqrt_control(position_to_fill,position_to_fill) = 1.0 / mDh_proj_diff_data->GetBinError(i); // 1/sqrt(data_stat**2)
 		    integral_diff_data += mDh_proj_diff_data->GetBinContent(i);
 		    integral_mc += mDh_proj_diff_mc->GetBinContent(i);
 	              
@@ -1100,8 +1098,6 @@ int sagitta_bin_optimise(){
 		  }
 		}
 		if (position_to_fill != filled_bins_mll_diff){ std::cout<<"problem counting vector size \n"; }
-		// solve for V_inv_sqrt_control
-		V_inv_sqrt_control = V_sqrt_control.completeOrthogonalDecomposition().solve(MatrixXd::Identity(filled_bins_mll_diff,filled_bins_mll_diff));
 		
 		//--------------------------------------------------------------------------
 		// Define jacobian histograms
@@ -1282,7 +1278,7 @@ int sagitta_bin_optimise(){
 		error_mean_corrected_diff = fitresult[2];
 		error_sigma_corrected_diff = fitresult[3];
 		corrected_diff->SetLineColor(kBlack);
-		corrected_diff->Draw("SAME");
+		corrected_diff->Draw("HIST SAME");
 		
 		// Draw pull distributions
 		
