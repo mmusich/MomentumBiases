@@ -420,22 +420,30 @@ int constants_fitter() {
     //-----------------------------------------------
     // Get data
     
-    std::unique_ptr<TFile> inputFile( TFile::Open("mass_fits_control_histos_smear_beta_val_unique_pdf.root") );
-    std::unique_ptr<TH1D> beta(inputFile->Get<TH1D>("beta")); 
+    std::unique_ptr<TFile> inputFile( TFile::Open("mass_fits_control_histos_smear_beta_val_additive_k_bin_dependent_pdf.root") );
+    std::unique_ptr<TH1D> beta(inputFile->Get<TH1D>("beta"));
+    std::unique_ptr<TH1D> bin_occupancy(inputFile->Get<TH1D>("bin_occupancy"));
     
-    n_data_points = beta->GetEntries();
+    int n_data_points_initial = beta->GetEntries();
+    n_data_points = 0;
+
+    std::cout << "\n" << n_data_points_initial <<" entries initially in beta histogram";
     
-    std::cout << "\n" << n_data_points <<" entries in beta histogram";
-    
-    for(int i=0; i<n_data_points; i++){
-      scale_squared_values.push_back((1.0 + beta->GetBinContent(i+1))*(1.0 + beta->GetBinContent(i+1)));
-      scale_squared_error_values.push_back(2*abs(1.0 + beta->GetBinContent(i+1))*(beta->GetBinError(i+1)));
-      labels.push_back(beta->GetXaxis()->GetLabels()->At(i)->GetName());
-      
-      if (i<10) {std::cout << "\n" << labels[i] << ": beta = " << beta->GetBinContent(i+1) << "; scale_squared =  " << scale_squared_values[i] << "; scale_squared_error = " << scale_squared_error_values[i] << "\n";}
-      
+    for(int i=0; i<n_data_points_initial; i++){
+      if( bin_occupancy->GetBinContent(i+1) > 0.0 ){
+	scale_squared_values.push_back((1.0 + beta->GetBinContent(i+1))*(1.0 + beta->GetBinContent(i+1)));
+	scale_squared_error_values.push_back(2*abs(1.0 + beta->GetBinContent(i+1))*(beta->GetBinError(i+1)));
+	labels.push_back(beta->GetXaxis()->GetLabels()->At(i)->GetName());
+		
+	n_data_points += 1;
+      }
     }
     
+    for(int i=0; i<10; i++){
+      std::cout << "\n" << labels[i] << ": beta = " << beta->GetBinContent(i+1) << "; scale_squared =  " << scale_squared_values[i] << "; scale_squared_error = " << scale_squared_error_values[i] << "\n";
+    }
+
+    std::cout << "\n" << n_data_points << "entries remain from beta histogram";
     std::cout << "\n" << "scale_squared_values.size() = " << scale_squared_values.size() << "; scale_squared_error_values.size() = " << scale_squared_error_values.size() << "labels.size() = " << labels.size();
 
     n_eta_bins = 24; //TODO work out from labels variable counter script save the number from the scripr and which eta bins not constrained in a file
@@ -637,7 +645,7 @@ int constants_fitter() {
     //cout << "\n";
   }
   
-  unique_ptr<TFile> f_a( TFile::Open("a.root", "RECREATE") );
+  unique_ptr<TFile> f_a( TFile::Open("constants_fitted_correlation.root", "RECREATE") );
 
   TCanvas *c4 = new TCanvas("c4","c4",800,600);
   hessian_hist->SetStats(0);
@@ -681,11 +689,26 @@ int constants_fitter() {
     fitted_pars_M->SetBinError(i, A_e_M_errors[i-1+2*n_eta_bins]);
 
     if (mode_option.compare("analysis") == 0) {
-      dummy_pars_A->SetBinContent(i, 0.0004);
+
+      std::vector<double> A_input_values(n_eta_bins), e_input_values(n_eta_bins), M_input_values(n_eta_bins);
+    
+      for (int i=0; i<n_eta_bins; i++){
+	// A from -0.0002 to 0.0005 and back
+	//A_input_values[i] = (-7.0*4.0/n_eta_bins/n_eta_bins*(i - n_eta_bins/2)*(i - n_eta_bins/2) + 5.0)*0.0001;
+	A_input_values[i] = 0.0004;
+	// e from 0.01 to 0.001 and back
+	//e_input_values[i] = (9.0*4.0/n_eta_bins/n_eta_bins*(i - n_eta_bins/2)*(i - n_eta_bins/2) + 1.0)*0.001;
+	e_input_values[i] = 0.002;
+	// M from 4*10^-5 to -2*10^-5 and back
+	//M_input_values[i] = (6.0*4.0/n_eta_bins/n_eta_bins*(i - n_eta_bins/2)*(i - n_eta_bins/2) - 2.0)*0.00001;
+	M_input_values[i] = 0.00001; 
+      }
+
+      dummy_pars_A->SetBinContent(i, A_input_values[i]);
       dummy_pars_A->SetBinError(i, 1e-10);
-      dummy_pars_e->SetBinContent(i, 0.002);
+      dummy_pars_e->SetBinContent(i, e_input_values[i]);
       dummy_pars_e->SetBinError(i, 1e-10);
-      dummy_pars_M->SetBinContent(i, 0.00001);
+      dummy_pars_M->SetBinContent(i, M_input_values[i]);
       dummy_pars_M->SetBinError(i, 1e-10);
     }
 
