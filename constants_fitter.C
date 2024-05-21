@@ -6,8 +6,13 @@
 #include "Minuit2/MnPrint.h"
 #include "Minuit2/MnUserParameterState.h"
 #include "Minuit2/FCNGradientBase.h"
+#include <eigen3/Eigen/Core>
+#include <eigen3/Eigen/Dense>
 
 #include <sys/time.h>
+
+using Eigen::MatrixXd;
+using Eigen::VectorXd;
 
 using namespace ROOT::Minuit2;
 using namespace std;
@@ -94,9 +99,73 @@ double TheoryFcn::operator()(const vector<double>& par) const {
   double my_func;
   int eta_pos_index, eta_neg_index;
   vector<int> bin_indices(4); // for 4D binning
-
+  
   double k_middle = (1.0/pT_binning[n_pt_bins] + 1.0/pT_binning[0])/2.0;
- 
+
+  vector<double> physical_M_pars(n_eta_bins);
+  TMatrixD V_inv(n_eta_bins, n_eta_bins), internal_M_matrix(n_eta_bins,1), physical_M_matrix(n_eta_bins,1);
+  TArrayD data(n_eta_bins*n_eta_bins), internal_M_data(n_eta_bins);
+
+  for(int j=0; j<n_eta_bins; j++){
+    for(int i=0; i<n_eta_bins; i++){
+      if (i == 0){
+        data[j*n_eta_bins+i] = 1.0/n_eta_bins;
+      } else if (j >= i) {
+        data[j*n_eta_bins+i] = (-1.0)*i/n_eta_bins;
+      } else if (j < i){
+        data[j*n_eta_bins+i] = double(n_eta_bins - i)/double(n_eta_bins);
+      } else {std::cout << "\n" << "Miscounted V decorrelating M";}
+
+      internal_M_data[j] = par[2*n_eta_bins + j];
+    }
+  }
+
+  V_inv.SetMatrixArray(data.GetArray());
+  internal_M_matrix.SetMatrixArray(internal_M_data.GetArray());
+  physical_M_matrix = TMatrixD(V_inv,TMatrixD::kMult,internal_M_matrix);
+
+  for(int i=0; i<n_eta_bins; i++){
+    physical_M_pars[i] = TMatrixDColumn(physical_M_matrix,0)(i);
+  }
+
+  /*
+  Eigen::VectorXd internal_M_pars(n_eta_bins), physical_M_pars(n_eta_bins);
+  Eigen::MatrixXd V_inv(n_eta_bins, n_eta_bins);
+  
+  for(int i=0; i<n_eta_bins; i++){
+    internal_M_pars(i) = par[i + 2*n_eta_bins];
+  }
+
+  for(int i=0; i<n_eta_bins; i++){
+    for(int j=0; j<n_eta_bins; j++){
+      if(i == 0){
+	V_inv(j,i) = 1/n_eta_bins; //V_inv(row, collumn)
+      } else if (j < i){
+	V_inv(j,i) = (n_eta_bins - i)/n_eta_bins;
+      } else if (j >= i){
+	V_inv(j,i) = (-1)*i/n_eta_bins;
+      }
+    }
+  }
+
+  physical_M_pars = V_inv*internal_M_pars;
+    
+  for(int j=0; j<n_eta_bins; j++){
+    physical_M_pars[j] = 0;
+    for(int i=0; i<n_eta_bins; i++){
+      if (i == 0){
+	V_inv_elem = 1.0/n_eta_bins;
+      } else if (j >= i) {
+	V_inv_elem = (-1.0)*i/n_eta_bins;
+      } else if (j < i){
+	V_inv_elem = double(n_eta_bins - i)/double(n_eta_bins);
+      } else {std::cout << "\n" << "Miscounted V decorrelating M";}
+
+      physical_M_pars[j] += V_inv_elem*par[i + 2*n_eta_bins];
+    }
+  }
+  */
+
   for(unsigned int n(0); n < scaleSquared.size() ; n++) {
     bin_indices = getIndices(binLabels[n]); 
     eta_pos_index = bin_indices[0];
@@ -114,8 +183,12 @@ double TheoryFcn::operator()(const vector<double>& par) const {
     // (1 + A'(+) - e'(+)k' + M(+)/k)(1 + A'(-) - e'(-)k' - M(-)/k) and scaling of A,e,M
     //par[eta_pos_index] now has the meaning of A' rather than A
     //par[eta_pos_index + n_eta_bins] now has the meaning of e' rather than e
-    term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + n_eta_bins]*(k_plus - k_middle) + scaling_M*par[eta_pos_index + 2*n_eta_bins]/k_plus);
-    term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + n_eta_bins]*(k_minus - k_middle) - scaling_M*par[eta_neg_index + 2*n_eta_bins]/k_minus);
+    //term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + n_eta_bins]*(k_plus - k_middle) + scaling_M*par[eta_pos_index + 2*n_eta_bins]/k_plus);
+    //term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + n_eta_bins]*(k_minus - k_middle) - scaling_M*par[eta_neg_index + 2*n_eta_bins]/k_minus);
+
+    // decorrelate M
+    term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + n_eta_bins]*(k_plus - k_middle) + scaling_M*physical_M_pars[eta_pos_index]/k_plus);
+    term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + n_eta_bins]*(k_minus - k_middle) - scaling_M*physical_M_pars[eta_neg_index]/k_minus);
 
     my_func = term_pos*term_neg; 
     
@@ -149,6 +222,72 @@ vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
   
   int ndof = scaleSquared.size() - par.size();
 
+  vector<double> physical_M_pars(n_eta_bins);
+  TMatrixD V_inv(n_eta_bins, n_eta_bins), internal_M_matrix(n_eta_bins,1), physical_M_matrix(n_eta_bins,1);
+  TArrayD data(n_eta_bins*n_eta_bins), internal_M_data(n_eta_bins);
+
+  for(int j=0; j<n_eta_bins; j++){
+    for(int i=0; i<n_eta_bins; i++){
+      if (i == 0){
+        data[j*n_eta_bins+i] = 1.0/n_eta_bins;
+      } else if (j >= i) {
+        data[j*n_eta_bins+i] = (-1.0)*i/n_eta_bins;
+      } else if (j < i){
+        data[j*n_eta_bins+i] = double(n_eta_bins - i)/double(n_eta_bins);
+      } else {std::cout << "\n" << "Miscounted V decorrelating M";}
+
+      internal_M_data[j] = par[2*n_eta_bins + j];
+    }
+  }
+
+  V_inv.SetMatrixArray(data.GetArray());
+  internal_M_matrix.SetMatrixArray(internal_M_data.GetArray());
+  physical_M_matrix = TMatrixD(V_inv,TMatrixD::kMult,internal_M_matrix);
+  
+  for(int i=0; i<n_eta_bins; i++){
+    physical_M_pars[i] = TMatrixDColumn(physical_M_matrix,0)(i);
+  }
+
+  /*
+  Eigen::VectorXd internal_M_pars(n_eta_bins), physical_M_pars(n_eta_bins);
+  Eigen::MatrixXd V_inv(n_eta_bins, n_eta_bins);
+
+  for(int i=0; i<n_eta_bins; i++){
+    internal_M_pars(i) = par[i + 2*n_eta_bins];
+  }
+
+  for(int i=0; i<n_eta_bins; i++){
+    for(int j=0; j<n_eta_bins; j++){
+      if(i == 0){
+        V_inv(j,i) = 1/n_eta_bins; //V_inv(row, collumn)
+      } else if (j < i){
+        V_inv(j,i) = (n_eta_bins - i)/n_eta_bins;
+      } else if (j >= i){
+        V_inv(j,i) = (-1)*i/n_eta_bins;
+      }
+    }
+  }
+
+  physical_M_pars = V_inv*internal_M_pars;
+
+
+  for(int j=0; j<n_eta_bins; j++){
+    physical_M_pars[j] = 0;
+    for(int i=0; i<n_eta_bins; i++){
+      if (i == 0){
+        V_inv_elem = 1.0/n_eta_bins;
+      } else if (j >= i) {
+        V_inv_elem = (-1.0)*i/n_eta_bins;
+      } else if (j < i){
+        V_inv_elem = double(n_eta_bins - i)/double(n_eta_bins);
+      } else {std::cout << "\n" << "Miscounted V decorrelating M";}
+
+      physical_M_pars[j] += V_inv_elem*par[i + 2*n_eta_bins];
+    }
+  }
+
+  */
+
   for(unsigned int n(0); n < scaleSquared.size() ; n++) { // loops over measurements
     // TODO I need everything from the chi2 function, maybe better solution to this
     bin_indices = getIndices(binLabels[n]); 
@@ -167,8 +306,12 @@ vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
     // (1 + A'(+) - e'(+)k' + M(+)/k)(1 + A'(-) - e'(-)k' - M(-)/k) and scaling of A,e,M
     //par[eta_pos_index] now has the meaning of A' rather than A
     //par[eta_pos_index + n_eta_bins] now has the meaning of e' rather than e
-    term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + n_eta_bins]*(k_plus - k_middle) + scaling_M*par[eta_pos_index + 2*n_eta_bins]/k_plus);
-    term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + n_eta_bins]*(k_minus - k_middle) - scaling_M*par[eta_neg_index + 2*n_eta_bins]/k_minus);
+    //term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + n_eta_bins]*(k_plus - k_middle) + scaling_M*par[eta_pos_index + 2*n_eta_bins]/k_plus);
+    //term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + n_eta_bins]*(k_minus - k_middle) - scaling_M*par[eta_neg_index + 2*n_eta_bins]/k_minus);
+
+    // decorrelate M
+    term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + n_eta_bins]*(k_plus - k_middle) + scaling_M*physical_M_pars[eta_pos_index]/k_plus);
+    term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + n_eta_bins]*(k_minus - k_middle) - scaling_M*physical_M_pars[eta_neg_index]/k_minus);
 
     local_func = term_pos*term_neg;
     
@@ -466,14 +609,59 @@ int constants_fitter() {
   //  upar.Add(Form("param%d",i), start, par_error);
   //}
 
-  for (int i=0; i<n_parameters/3; i++){ // in closure mode can use dummy_parameters[i] for start value
-    upar.Add(Form("param%d",i), start, par_error); // A //TODO or is it technically A' e' now? 
-  }
-  for (int i=n_parameters/3; i<2*n_parameters/3; i++){ // e
-    upar.Add(Form("param%d",i), start, par_error); 
-  }
-  for (int i=2*n_parameters/3; i<n_parameters; i++){ // M 
-    upar.Add(Form("param%d",i), start, par_error); 
+  // for closure mode, translate dummy parameters to internal parameters and set as starting value
+  if (mode_option.compare("closure_test") == 0) {
+
+    // Translate dummy parameters to internal parameters and set as starting value
+    TMatrixD V(n_eta_bins, n_eta_bins), internal_M_matrix(n_eta_bins,1), dummy_M_matrix(n_eta_bins,1);
+    TArrayD data(n_eta_bins*n_eta_bins), dummy_M_data(n_eta_bins);
+
+    for(int i=0; i<n_eta_bins; i++){ // j = 0
+      data[i] = 1.0;
+    }
+    dummy_M_data[0] = dummy_parameters[2*n_eta_bins];
+    for(int j=1; j<n_eta_bins; j++){ // j starts from 1
+      for(int i=0; i<n_eta_bins; i++){
+	if (i == j){
+	  data[j*n_eta_bins+i] = -1.0;
+	} else if ( i == j-1) {
+	  data[j*n_eta_bins+i] = 1.0;
+	} else {
+	  data[j*n_eta_bins+i] = 0;
+	} 
+      }
+	dummy_M_data[j] = dummy_parameters[2*n_eta_bins + j] / (0.001 / 40.0); // divided by scaling_M = 0.001 / 40.0
+    }
+
+    V.SetMatrixArray(data.GetArray());
+    dummy_M_matrix.SetMatrixArray(dummy_M_data.GetArray());
+    internal_M_matrix = TMatrixD(V,TMatrixD::kMult,dummy_M_matrix);
+    
+    for (int i=0; i<n_parameters/3; i++){
+      upar.Add(Form("param%d",i), dummy_parameters[i] / 0.001, par_error); // divided by scaling_A = 0.001
+      //upar.Add(Form("param%d",i), start, par_error); // A_internal starts from 0 for now
+    }
+    for (int i=n_parameters/3; i<2*n_parameters/3; i++){
+      upar.Add(Form("param%d",i), dummy_parameters[i] / (0.001 / 0.01), par_error); // divided by scaling_e_prime = 0.001 / 0.01
+      //upar.Add(Form("param%d",i), start, par_error); // e_internal starts from 0 for now 
+    }
+    for (int i=2*n_parameters/3; i<n_parameters; i++){
+      upar.Add(Form("param%d",i), TMatrixDColumn(internal_M_matrix,0)(i-2*n_eta_bins), par_error);
+      //upar.Add(Form("param%d",i), start, par_error); // M_internal starts from 0 for now
+    }
+    
+  } else if (mode_option.compare("analysis") == 0){
+    
+    for (int i=0; i<n_parameters/3; i++){ 
+      upar.Add(Form("param%d",i), start, par_error); // A_internal
+    }
+    for (int i=n_parameters/3; i<2*n_parameters/3; i++){ // e_internal
+      upar.Add(Form("param%d",i), start, par_error);
+    }
+    for (int i=2*n_parameters/3; i<n_parameters; i++){ // M_internal
+      upar.Add(Form("param%d",i), start, par_error);
+    }
+    
   }
 
   //for (unsigned int i=0; i<upar.Params().size(); i++) {
@@ -498,6 +686,60 @@ int constants_fitter() {
   double k_middle = (1.0/55.0 + 1.0/25.0)/2.0; //TODO change to not input by hand
   vector<double> A_e_M_values(n_parameters), A_e_M_errors(n_parameters);
   double cov_prime;
+  /*
+  Eigen::VectorXd internal_M_pars(n_eta_bins), physical_M_pars(n_eta_bins);
+  Eigen::MatrixXd V_inv(n_eta_bins, n_eta_bins);
+
+  for(int i=0; i<n_eta_bins; i++){
+    internal_M_pars(i) = min.UserState().Value(i+2*n_eta_bins);
+  }
+
+  for(int i=0; i<n_eta_bins; i++){
+    for(int j=0; j<n_eta_bins; j++){
+      if(i == 0){
+        V_inv(j,i) = 1/n_eta_bins; //V_inv(row, collumn)
+      } else if (j < i){
+        V_inv(j,i) = (n_eta_bins - i)/n_eta_bins;
+      } else if (j >= i){
+        V_inv(j,i) = (-1)*i/n_eta_bins;
+      }
+    }
+  }
+
+  physical_M_pars = V_inv*internal_M_pars;
+  */
+
+  TMatrixD V_inv(n_eta_bins, n_eta_bins), internal_M_matrix(n_eta_bins,1), internal_M_err_squared_matrix(n_eta_bins,1), physical_M_matrix(n_eta_bins,1), physical_M_err_squared_matrix(n_eta_bins,1);
+  TArrayD data(n_eta_bins*n_eta_bins), internal_M_data(n_eta_bins), internal_M_error_squared_data(n_eta_bins);
+  vector<double> physical_M_parameters(n_eta_bins), physical_M_errors(n_eta_bins);
+
+  for(int j=0; j<n_eta_bins; j++){
+    for(int i=0; i<n_eta_bins; i++){
+      if (i == 0){
+        data[j*n_eta_bins+i] = 1.0/n_eta_bins;
+      } else if (j >= i) {
+        data[j*n_eta_bins+i] = (-1.0)*i/n_eta_bins;
+      } else if (j < i){
+        data[j*n_eta_bins+i] = double(n_eta_bins - i)/double(n_eta_bins);
+      } else {std::cout << "\n" << "Miscounted V decorrelating M";}
+
+      internal_M_data[j] = min.UserState().Value(2*n_eta_bins + j);
+      internal_M_error_squared_data[j] = min.UserState().Error(2*n_eta_bins + j) * min.UserState().Error(2*n_eta_bins + j); 
+    }
+  }
+
+  V_inv.SetMatrixArray(data.GetArray());
+  internal_M_matrix.SetMatrixArray(internal_M_data.GetArray());
+  physical_M_matrix = TMatrixD(V_inv,TMatrixD::kMult,internal_M_matrix);
+  
+  internal_M_err_squared_matrix.SetMatrixArray(internal_M_error_squared_data.GetArray());
+  physical_M_err_squared_matrix = TMatrixD(V_inv,TMatrixD::kMult,internal_M_err_squared_matrix);
+  
+  for(int i=0; i<n_eta_bins; i++){
+    physical_M_parameters[i] = TMatrixDColumn(physical_M_matrix,0)(i);
+    physical_M_errors[i] =pow(TMatrixDColumn(physical_M_err_squared_matrix,0)(i), 0.5);
+  }
+
   for (int i=0; i<n_parameters; i++){ 
     int whole = i / n_eta_bins;
 
@@ -511,8 +753,10 @@ int constants_fitter() {
       A_e_M_errors[i] = min.UserState().Error(i) * abs(get<1>(getParameterNameAndScaling(i)));
     }
     else if (whole == 2) { // M
-      A_e_M_values[i] = min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i));
-      A_e_M_errors[i] = min.UserState().Error(i) * abs(get<1>(getParameterNameAndScaling(i)));
+      cout << i<<" " << physical_M_parameters[i - 2*n_eta_bins] * get<1>(getParameterNameAndScaling(i)) << "\n";
+      A_e_M_values[i] = physical_M_parameters[i - 2*n_eta_bins] * get<1>(getParameterNameAndScaling(i)); // min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i)); 
+      cout << i<<" " << A_e_M_values[i] << "\n";
+      A_e_M_errors[i] = physical_M_errors[i - 2*n_eta_bins] * abs(get<1>(getParameterNameAndScaling(i))); //TODO check maths 
     }
   }
   
