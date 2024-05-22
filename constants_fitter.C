@@ -17,11 +17,14 @@ using Eigen::VectorXd;
 using namespace ROOT::Minuit2;
 using namespace std;
 
+const int n_eta_bins = 24;
+const int n_pt_bins = 5;
+
 class TheoryFcn : public FCNGradientBase {
 
 public:
 
-  TheoryFcn(const vector<double> &meas, const vector<double> &err, const vector<string> &bin_labels) : scaleSquared(meas), scaleSquaredError(err), binLabels(bin_labels), errorDef(1.0) {}
+  TheoryFcn(const vector<double> &meas, const vector<double> &err, const vector<string> &bin_labels, const TMatrixD &V_inv) : scaleSquared(meas), scaleSquaredError(err), binLabels(bin_labels), VInv(V_inv), errorDef(1.0) {}
   ~TheoryFcn() {}
 
   virtual double Up() const {return errorDef;}
@@ -39,9 +42,10 @@ public:
   static constexpr double scaling_A = 0.001, scaling_e = 0.001 * 40.0, scaling_M = 0.001 / 40.0, scaling_e_prime = 0.001 / 0.01; // this scaling makes fitter parameters of order 1 
 
   vector<string> binLabels; // made public for the closure test
-  static const int n_eta_bins = 24; //TODO automatise, so don't input by hand!!!
-  static const int n_pt_bins = 5; //TODO automatise, so don't input by hand!!!
-
+  //static const int n_eta_bins = 24; //TODO automatise, so don't input by hand!!!
+  //static const int n_pt_bins = 5; //TODO automatise, so don't input by hand!!!
+  TMatrixD VInv;
+  
 private:
 
   vector<double> scaleSquared;
@@ -54,7 +58,7 @@ class TheoryFcn2 : public TheoryFcn {
 
 public:
   
-  TheoryFcn2(const vector<double> &meas, const vector<double> &err, const vector<string> &bin_labels) : TheoryFcn(meas, err, bin_labels) {}
+  TheoryFcn2(const vector<double> &meas, const vector<double> &err, const vector<string> &bin_labels, const TMatrixD &V_inv) : TheoryFcn(meas, err, bin_labels,V_inv) {}
   ~TheoryFcn2() {}
 
   vector<vector<double>> DummyData(const vector<double> &dummy_par_val, const int n_data_points, const double width, TRandom3 random) const; //TODO  vector<vector<double>> might be slow
@@ -103,68 +107,67 @@ double TheoryFcn::operator()(const vector<double>& par) const {
   double k_middle = (1.0/pT_binning[n_pt_bins] + 1.0/pT_binning[0])/2.0;
 
   vector<double> physical_M_pars(n_eta_bins);
-  TMatrixD V_inv(n_eta_bins, n_eta_bins), internal_M_matrix(n_eta_bins,1), physical_M_matrix(n_eta_bins,1);
-  TArrayD data(n_eta_bins*n_eta_bins), internal_M_data(n_eta_bins);
-
-  for(int j=0; j<n_eta_bins; j++){
-    for(int i=0; i<n_eta_bins; i++){
-      if (i == 0){
-        data[j*n_eta_bins+i] = 1.0/n_eta_bins;
-      } else if (j >= i) {
-        data[j*n_eta_bins+i] = (-1.0)*i/n_eta_bins;
-      } else if (j < i){
-        data[j*n_eta_bins+i] = double(n_eta_bins - i)/double(n_eta_bins);
-      } else {std::cout << "\n" << "Miscounted V decorrelating M";}
-
-      internal_M_data[j] = par[2*n_eta_bins + j];
-    }
-  }
-
-  V_inv.SetMatrixArray(data.GetArray());
-  internal_M_matrix.SetMatrixArray(internal_M_data.GetArray());
-  physical_M_matrix = TMatrixD(V_inv,TMatrixD::kMult,internal_M_matrix);
-
-  for(int i=0; i<n_eta_bins; i++){
-    physical_M_pars[i] = TMatrixDColumn(physical_M_matrix,0)(i);
-  }
+  TMatrixD internal_M_matrix(n_eta_bins,1), physical_M_matrix(n_eta_bins,1);
+  TArrayD V_inv_elements(n_eta_bins*n_eta_bins), internal_M_elements(n_eta_bins);
 
   /*
-  Eigen::VectorXd internal_M_pars(n_eta_bins), physical_M_pars(n_eta_bins);
-  Eigen::MatrixXd V_inv(n_eta_bins, n_eta_bins);
-  
-  for(int i=0; i<n_eta_bins; i++){
-    internal_M_pars(i) = par[i + 2*n_eta_bins];
-  }
-
-  for(int i=0; i<n_eta_bins; i++){
-    for(int j=0; j<n_eta_bins; j++){
-      if(i == 0){
-	V_inv(j,i) = 1/n_eta_bins; //V_inv(row, collumn)
-      } else if (j < i){
-	V_inv(j,i) = (n_eta_bins - i)/n_eta_bins;
-      } else if (j >= i){
-	V_inv(j,i) = (-1)*i/n_eta_bins;
-      }
-    }
-  }
-
-  physical_M_pars = V_inv*internal_M_pars;
-    
   for(int j=0; j<n_eta_bins; j++){
-    physical_M_pars[j] = 0;
     for(int i=0; i<n_eta_bins; i++){
       if (i == 0){
-	V_inv_elem = 1.0/n_eta_bins;
+        V_inv_elements[j*n_eta_bins+i] = 1.0/n_eta_bins;
       } else if (j >= i) {
-	V_inv_elem = (-1.0)*i/n_eta_bins;
+        V_inv_elements[j*n_eta_bins+i] = (-1.0)*i/n_eta_bins;
       } else if (j < i){
-	V_inv_elem = double(n_eta_bins - i)/double(n_eta_bins);
+        V_inv_elements[j*n_eta_bins+i] = double(n_eta_bins - i)/double(n_eta_bins);
       } else {std::cout << "\n" << "Miscounted V decorrelating M";}
 
-      physical_M_pars[j] += V_inv_elem*par[i + 2*n_eta_bins];
+      internal_M_elements[j] = par[2*n_eta_bins + j];
     }
   }
   */
+
+  for(int j=0; j<n_eta_bins; j++){
+    for(int i=0; i<n_eta_bins; i++){
+      /*
+      if (i == 0){
+        V_inv_elements[j*n_eta_bins+i] = 1.0/n_eta_bins;
+      } else if (j == i) {
+        V_inv_elements[j*n_eta_bins+i] = double(n_eta_bins - 1)/double(n_eta_bins);
+      } else {
+        V_inv_elements[j*n_eta_bins+i] = (-1.0)/n_eta_bins;
+      }
+      */
+      internal_M_elements[j] = par[2*n_eta_bins + j];
+    }
+  }
+  
+  //V_inv.SetMatrixArray(V_inv_elements.GetArray());
+  internal_M_matrix.SetMatrixArray(internal_M_elements.GetArray());
+  physical_M_matrix = TMatrixD(VInv,TMatrixD::kMult,internal_M_matrix);
+ 
+  /*
+  std::cout<< "\n" << "V_inv"<< "\n";
+  V_inv.Print();
+
+  std::cout<< "\n" << "internal M"<< "\n";
+  internal_M_matrix.Print();
+
+  std::cout<< "\n" << "physical M"<< "\n";
+  physical_M_matrix.Print();
+
+  std::cout<< "\n" << "physical M by collumn"<< "\n";
+  for(int i=0; i<n_eta_bins; i++){
+    std::cout<< " "<< TMatrixDColumn(physical_M_matrix,0)(i);
+  }
+  std::cout<<"\n";
+  */
+  //std::cout<< "\n" << "physical M array"<< "\n";
+  for(int i=0; i<n_eta_bins; i++){
+    physical_M_pars[i] = TMatrixDColumn(physical_M_matrix,0)(i);
+    //std::cout<< " "<< physical_M_pars[i];
+  }
+  //std::cout<<"\n";
+
 
   for(unsigned int n(0); n < scaleSquared.size() ; n++) {
     bin_indices = getIndices(binLabels[n]); 
@@ -199,6 +202,7 @@ double TheoryFcn::operator()(const vector<double>& par) const {
  
   int ndof = scaleSquared.size() - par.size();
  
+  cout<<"chi2/ndof"<<"\n"<<chi2/ndof;
   return chi2/ndof; // minimise reduced chi2 directly 
 
 }
@@ -223,71 +227,47 @@ vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
   int ndof = scaleSquared.size() - par.size();
 
   vector<double> physical_M_pars(n_eta_bins);
-  TMatrixD V_inv(n_eta_bins, n_eta_bins), internal_M_matrix(n_eta_bins,1), physical_M_matrix(n_eta_bins,1);
-  TArrayD data(n_eta_bins*n_eta_bins), internal_M_data(n_eta_bins);
-
+  TMatrixD internal_M_matrix(n_eta_bins,1), physical_M_matrix(n_eta_bins,1);
+  TArrayD V_inv_elements(n_eta_bins*n_eta_bins), internal_M_elements(n_eta_bins);
+  /*
   for(int j=0; j<n_eta_bins; j++){
     for(int i=0; i<n_eta_bins; i++){
       if (i == 0){
-        data[j*n_eta_bins+i] = 1.0/n_eta_bins;
+        V_inv_elements[j*n_eta_bins+i] = 1.0/n_eta_bins;
       } else if (j >= i) {
-        data[j*n_eta_bins+i] = (-1.0)*i/n_eta_bins;
+        V_inv_elements[j*n_eta_bins+i] = (-1.0)*i/n_eta_bins;
       } else if (j < i){
-        data[j*n_eta_bins+i] = double(n_eta_bins - i)/double(n_eta_bins);
+        V_inv_elements[j*n_eta_bins+i] = double(n_eta_bins - i)/double(n_eta_bins);
       } else {std::cout << "\n" << "Miscounted V decorrelating M";}
 
-      internal_M_data[j] = par[2*n_eta_bins + j];
+      internal_M_elements[j] = par[2*n_eta_bins + j];
     }
   }
-
-  V_inv.SetMatrixArray(data.GetArray());
-  internal_M_matrix.SetMatrixArray(internal_M_data.GetArray());
-  physical_M_matrix = TMatrixD(V_inv,TMatrixD::kMult,internal_M_matrix);
+  */
+  
+  for(int j=0; j<n_eta_bins; j++){
+    for(int i=0; i<n_eta_bins; i++){
+      /*
+      if (i == 0){
+	V_inv_elements[j*n_eta_bins+i] = 1.0/n_eta_bins;
+      } else if (j == i) {
+	V_inv_elements[j*n_eta_bins+i] = double(n_eta_bins - 1)/double(n_eta_bins);
+      } else {
+	V_inv_elements[j*n_eta_bins+i] = (-1.0)/n_eta_bins;
+      }
+      */
+      internal_M_elements[j] = par[2*n_eta_bins + j];
+    }
+  }
+  
+  //V_inv.SetMatrixArray(V_inv_elements.GetArray());
+  internal_M_matrix.SetMatrixArray(internal_M_elements.GetArray());
+  physical_M_matrix = TMatrixD(VInv,TMatrixD::kMult,internal_M_matrix);
   
   for(int i=0; i<n_eta_bins; i++){
     physical_M_pars[i] = TMatrixDColumn(physical_M_matrix,0)(i);
   }
-
-  /*
-  Eigen::VectorXd internal_M_pars(n_eta_bins), physical_M_pars(n_eta_bins);
-  Eigen::MatrixXd V_inv(n_eta_bins, n_eta_bins);
-
-  for(int i=0; i<n_eta_bins; i++){
-    internal_M_pars(i) = par[i + 2*n_eta_bins];
-  }
-
-  for(int i=0; i<n_eta_bins; i++){
-    for(int j=0; j<n_eta_bins; j++){
-      if(i == 0){
-        V_inv(j,i) = 1/n_eta_bins; //V_inv(row, collumn)
-      } else if (j < i){
-        V_inv(j,i) = (n_eta_bins - i)/n_eta_bins;
-      } else if (j >= i){
-        V_inv(j,i) = (-1)*i/n_eta_bins;
-      }
-    }
-  }
-
-  physical_M_pars = V_inv*internal_M_pars;
-
-
-  for(int j=0; j<n_eta_bins; j++){
-    physical_M_pars[j] = 0;
-    for(int i=0; i<n_eta_bins; i++){
-      if (i == 0){
-        V_inv_elem = 1.0/n_eta_bins;
-      } else if (j >= i) {
-        V_inv_elem = (-1.0)*i/n_eta_bins;
-      } else if (j < i){
-        V_inv_elem = double(n_eta_bins - i)/double(n_eta_bins);
-      } else {std::cout << "\n" << "Miscounted V decorrelating M";}
-
-      physical_M_pars[j] += V_inv_elem*par[i + 2*n_eta_bins];
-    }
-  }
-
-  */
-
+  
   for(unsigned int n(0); n < scaleSquared.size() ; n++) { // loops over measurements
     // TODO I need everything from the chi2 function, maybe better solution to this
     bin_indices = getIndices(binLabels[n]); 
@@ -352,7 +332,7 @@ vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
         local_grad = scaling_A*term_pos;
       } else if (i == eta_neg_index + n_eta_bins) { // derivative wrt e'(-)
         local_grad = -scaling_e_prime*(k_minus-k_middle)*term_pos;
-      } else if (i == eta_neg_index + 2*n_eta_bins){ // derivative wrt M(-)
+      } else if (i == eta_neg_index + 2*n_eta_bins){ // derivative wrt M(-) TODO should be wrt M_internal, so deriv_wrt_M_physical*d_M_physical/d_M_internal
         local_grad = -scaling_M/k_minus*term_pos;
       } else {
         cout<<"\n"<<"ERROR: indices in grad don't match"<<"\n"; //TOOD raise a proper error
@@ -412,8 +392,8 @@ vector<vector<double>> TheoryFcn2::DummyData(const vector<double> &dummy_par_val
 
 tuple<string,double,string> getParameterNameAndScaling(int index){
 
-  int whole = index / TheoryFcn::n_eta_bins;
-  int rest = index % TheoryFcn::n_eta_bins;
+  int whole = index / n_eta_bins;
+  int rest = index % n_eta_bins;
   double scaling;
 
   string name, physical_name;
@@ -529,21 +509,42 @@ int constants_fitter() {
   ROOT::Minuit2::MnPrint::SetGlobalLevel(verbosity);
   
   // Choose closure_test/analysis mode
-  string mode_option("analysis"); //TODO pass as command line argument
+  string mode_option("closure_test"); //TODO pass as command line argument
 
-  int n_eta_bins = 24;
+  //int n_eta_bins = 24;
   unsigned int n_data_points, n_parameters;
   vector<string> labels;
   vector<double> dummy_parameters(0.0);
   vector<double> scale_squared_values, scale_squared_error_values;
+
+  //-------------------------------------------------
+  // Internal to physical parameter transformation
+
+  TMatrixD V_inv(n_eta_bins, n_eta_bins);
+  TArrayD V_inv_elements(n_eta_bins*n_eta_bins);
+
+  for(int j=0; j<n_eta_bins; j++){
+    for(int i=0; i<n_eta_bins; i++){
+      if (i == 0){
+        V_inv_elements[j*n_eta_bins+i] = 1.0/n_eta_bins;
+      } else if (j == i) {
+        V_inv_elements[j*n_eta_bins+i] = double(n_eta_bins - 1)/double(n_eta_bins);
+      } else {
+        V_inv_elements[j*n_eta_bins+i] = (-1.0)/n_eta_bins;
+      }
+    }
+  }
+
+  V_inv.SetMatrixArray(V_inv_elements.GetArray());
+  //-------------------------------------------------
 
   if (mode_option.compare("closure_test") == 0) {
 
     //-----------------------------------------------
     // Get dummy data for closure test
 
-    int n_eta_bins = 24;
-    int n_pt_bins = 5; 
+    //int n_eta_bins = 24;
+    //int n_pt_bins = 5; 
     labels = generateLabels(n_eta_bins,n_pt_bins);
     
     n_data_points = labels.size(); 
@@ -553,7 +554,7 @@ int constants_fitter() {
     double error_start = 0.001; 
     dummy_parameters = generateParameters(n_parameters);
     
-    TheoryFcn2 f_dummy(empty_data, empty_error, labels);
+    TheoryFcn2 f_dummy(empty_data, empty_error, labels, V_inv);
     vector<vector<double>> dummy_call = f_dummy.DummyData(dummy_parameters, n_data_points, error_start, iter_random);
     scale_squared_values = dummy_call[0];
     scale_squared_error_values = dummy_call[1];
@@ -589,7 +590,7 @@ int constants_fitter() {
     std::cout << "\n" << n_data_points << "entries remain from beta histogram";
     std::cout << "\n" << "scale_squared_values.size() = " << scale_squared_values.size() << "; scale_squared_error_values.size() = " << scale_squared_error_values.size() << "labels.size() = " << labels.size();
 
-    n_eta_bins = 24; //TODO work out from labels variable counter script save the number from the scripr and which eta bins not constrained in a file
+    //n_eta_bins = 24; //TODO work out from labels variable counter script save the number from the scripr and which eta bins not constrained in a file
     n_parameters = 3*n_eta_bins; // 3 for A,e,M model
    
   }
@@ -597,7 +598,7 @@ int constants_fitter() {
   //-------------------------------------------------
   // Use data
 
-  TheoryFcn fFCN(scale_squared_values,scale_squared_error_values,labels);
+  TheoryFcn fFCN(scale_squared_values,scale_squared_error_values,labels,V_inv);
   fFCN.SetErrorDef(1.0/(n_data_points - n_parameters)); // new error definition when minimising reduced chi2
 
   // Create parameters with initial starting values
@@ -614,40 +615,49 @@ int constants_fitter() {
 
     // Translate dummy parameters to internal parameters and set as starting value
     TMatrixD V(n_eta_bins, n_eta_bins), internal_M_matrix(n_eta_bins,1), dummy_M_matrix(n_eta_bins,1);
-    TArrayD data(n_eta_bins*n_eta_bins), dummy_M_data(n_eta_bins);
+    TArrayD V_elements(n_eta_bins*n_eta_bins), dummy_M_elements(n_eta_bins);
 
     for(int i=0; i<n_eta_bins; i++){ // j = 0
-      data[i] = 1.0;
+      V_elements[i] = 1.0;
     }
-    dummy_M_data[0] = dummy_parameters[2*n_eta_bins];
+    dummy_M_elements[0] = dummy_parameters[2*n_eta_bins];
     for(int j=1; j<n_eta_bins; j++){ // j starts from 1
       for(int i=0; i<n_eta_bins; i++){
+	/*
 	if (i == j){
-	  data[j*n_eta_bins+i] = -1.0;
+	  V_elements[j*n_eta_bins+i] = -1.0;
 	} else if ( i == j-1) {
-	  data[j*n_eta_bins+i] = 1.0;
+	  V_elements[j*n_eta_bins+i] = 1.0;
 	} else {
-	  data[j*n_eta_bins+i] = 0;
-	} 
+	  V_elements[j*n_eta_bins+i] = 0;
+	}
+	*/
+	if (i == j){
+          V_elements[j*n_eta_bins+i] = 1.0;
+        } else if ( i == 0) {
+          V_elements[j*n_eta_bins+i] = -1.0;
+        } else {
+          V_elements[j*n_eta_bins+i] = 0;
+        }
       }
-	dummy_M_data[j] = dummy_parameters[2*n_eta_bins + j] / (0.001 / 40.0); // divided by scaling_M = 0.001 / 40.0
+	dummy_M_elements[j] = dummy_parameters[2*n_eta_bins + j] / (0.001 / 40.0); // divided by scaling_M = 0.001 / 40.0
     }
 
-    V.SetMatrixArray(data.GetArray());
-    dummy_M_matrix.SetMatrixArray(dummy_M_data.GetArray());
+    V.SetMatrixArray(V_elements.GetArray());
+    dummy_M_matrix.SetMatrixArray(dummy_M_elements.GetArray());
     internal_M_matrix = TMatrixD(V,TMatrixD::kMult,dummy_M_matrix);
     
     for (int i=0; i<n_parameters/3; i++){
-      upar.Add(Form("param%d",i), dummy_parameters[i] / 0.001, par_error); // divided by scaling_A = 0.001
-      //upar.Add(Form("param%d",i), start, par_error); // A_internal starts from 0 for now
+      //upar.Add(Form("param%d",i), dummy_parameters[i] / 0.001, par_error); // divided by scaling_A = 0.001
+      upar.Add(Form("param%d",i), start, par_error); // A_internal starts from 0 for now
     }
     for (int i=n_parameters/3; i<2*n_parameters/3; i++){
-      upar.Add(Form("param%d",i), dummy_parameters[i] / (0.001 / 0.01), par_error); // divided by scaling_e_prime = 0.001 / 0.01
-      //upar.Add(Form("param%d",i), start, par_error); // e_internal starts from 0 for now 
+      //upar.Add(Form("param%d",i), dummy_parameters[i] / (0.001 / 0.01), par_error); // divided by scaling_e_prime = 0.001 / 0.01
+      upar.Add(Form("param%d",i), start, par_error); // e_internal starts from 0 for now 
     }
     for (int i=2*n_parameters/3; i<n_parameters; i++){
-      upar.Add(Form("param%d",i), TMatrixDColumn(internal_M_matrix,0)(i-2*n_eta_bins), par_error);
-      //upar.Add(Form("param%d",i), start, par_error); // M_internal starts from 0 for now
+      //upar.Add(Form("param%d",i), TMatrixDColumn(internal_M_matrix,0)(i-2*n_eta_bins), par_error);
+      upar.Add(Form("param%d",i), start, par_error); // M_internal starts from 0 for now
     }
     
   } else if (mode_option.compare("analysis") == 0){
@@ -659,7 +669,7 @@ int constants_fitter() {
       upar.Add(Form("param%d",i), start, par_error);
     }
     for (int i=2*n_parameters/3; i<n_parameters; i++){ // M_internal
-      upar.Add(Form("param%d",i), start, par_error);
+      upar.Add(Form("param%d",i), start, par_error); //upar.Add(Form("param%d",i), double((i-2*n_eta_bins)/10.0), par_error);
     }
     
   }
@@ -675,6 +685,7 @@ int constants_fitter() {
   // ... and Minimize
 
   unsigned int maxfcn(numeric_limits<unsigned int>::max());
+  
   double tolerance(0.001); //MIGRAD will stop iterating when edm : 0.002 * tolerance * UPERROR
   //fFCN.SetErrorDef(1.0/(n_data_points - n_parameters)); 
   //3829.158
@@ -686,33 +697,13 @@ int constants_fitter() {
   double k_middle = (1.0/55.0 + 1.0/25.0)/2.0; //TODO change to not input by hand
   vector<double> A_e_M_values(n_parameters), A_e_M_errors(n_parameters);
   double cov_prime;
-  /*
-  Eigen::VectorXd internal_M_pars(n_eta_bins), physical_M_pars(n_eta_bins);
-  Eigen::MatrixXd V_inv(n_eta_bins, n_eta_bins);
-
-  for(int i=0; i<n_eta_bins; i++){
-    internal_M_pars(i) = min.UserState().Value(i+2*n_eta_bins);
-  }
-
-  for(int i=0; i<n_eta_bins; i++){
-    for(int j=0; j<n_eta_bins; j++){
-      if(i == 0){
-        V_inv(j,i) = 1/n_eta_bins; //V_inv(row, collumn)
-      } else if (j < i){
-        V_inv(j,i) = (n_eta_bins - i)/n_eta_bins;
-      } else if (j >= i){
-        V_inv(j,i) = (-1)*i/n_eta_bins;
-      }
-    }
-  }
-
-  physical_M_pars = V_inv*internal_M_pars;
-  */
-
-  TMatrixD V_inv(n_eta_bins, n_eta_bins), internal_M_matrix(n_eta_bins,1), internal_M_err_squared_matrix(n_eta_bins,1), physical_M_matrix(n_eta_bins,1), physical_M_err_squared_matrix(n_eta_bins,1);
+  
+  //TMatrixD V_inv(n_eta_bins, n_eta_bins);
+  TMatrixD internal_M_matrix(n_eta_bins,1), internal_M_err_squared_matrix(n_eta_bins,1), physical_M_matrix(n_eta_bins,1), physical_M_err_squared_matrix(n_eta_bins,1);
   TArrayD data(n_eta_bins*n_eta_bins), internal_M_data(n_eta_bins), internal_M_error_squared_data(n_eta_bins);
   vector<double> physical_M_parameters(n_eta_bins), physical_M_errors(n_eta_bins);
 
+  /*
   for(int j=0; j<n_eta_bins; j++){
     for(int i=0; i<n_eta_bins; i++){
       if (i == 0){
@@ -727,8 +718,25 @@ int constants_fitter() {
       internal_M_error_squared_data[j] = min.UserState().Error(2*n_eta_bins + j) * min.UserState().Error(2*n_eta_bins + j); 
     }
   }
+  */
 
-  V_inv.SetMatrixArray(data.GetArray());
+  for(int j=0; j<n_eta_bins; j++){
+    for(int i=0; i<n_eta_bins; i++){
+      /*
+      if (i == 0){
+        data[j*n_eta_bins+i] = 1.0/n_eta_bins;
+      } else if (j == i) {
+        data[j*n_eta_bins+i] = double(n_eta_bins - 1)/double(n_eta_bins);
+      } else {
+        data[j*n_eta_bins+i] = (-1.0)/n_eta_bins;
+      } 
+      */
+      internal_M_data[j] = min.UserState().Value(2*n_eta_bins + j);
+      internal_M_error_squared_data[j] = min.UserState().Error(2*n_eta_bins + j) * min.UserState().Error(2*n_eta_bins + j);
+    }
+  }
+
+  //V_inv.SetMatrixArray(data.GetArray());
   internal_M_matrix.SetMatrixArray(internal_M_data.GetArray());
   physical_M_matrix = TMatrixD(V_inv,TMatrixD::kMult,internal_M_matrix);
   
@@ -754,9 +762,9 @@ int constants_fitter() {
     }
     else if (whole == 2) { // M
       cout << i<<" " << physical_M_parameters[i - 2*n_eta_bins] * get<1>(getParameterNameAndScaling(i)) << "\n";
-      A_e_M_values[i] = physical_M_parameters[i - 2*n_eta_bins] * get<1>(getParameterNameAndScaling(i)); // min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i)); 
+      A_e_M_values[i] = physical_M_parameters[i - 2*n_eta_bins] * get<1>(getParameterNameAndScaling(i)); //min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i));
       cout << i<<" " << A_e_M_values[i] << "\n";
-      A_e_M_errors[i] = physical_M_errors[i - 2*n_eta_bins] * abs(get<1>(getParameterNameAndScaling(i))); //TODO check maths 
+      A_e_M_errors[i] = physical_M_errors[i - 2*n_eta_bins] * abs(get<1>(getParameterNameAndScaling(i))); //min.UserState().Error(i) *get<1>(getParameterNameAndScaling(i));
     }
   }
   
