@@ -24,7 +24,7 @@ class TheoryFcn : public FCNGradientBase {
 
 public:
 
-  TheoryFcn(const vector<double> &meas, const vector<double> &err, const vector<string> &bin_labels, const TMatrixD &V_inv) : scaleSquared(meas), scaleSquaredError(err), binLabels(bin_labels), VInv(V_inv), errorDef(1.0) {}
+  TheoryFcn(const vector<double> &meas, const vector<double> &err, const vector<string> &bin_labels, const TMatrixD &V_phys_to_int, const TMatrixD &V_int_to_phys) : scaleSquared(meas), scaleSquaredError(err), binLabels(bin_labels), VPhysToInt(V_phys_to_int), VIntToPhys(V_int_to_phys), errorDef(1.0) {}
   ~TheoryFcn() {}
 
   virtual double Up() const {return errorDef;}
@@ -42,9 +42,7 @@ public:
   static constexpr double scaling_A = 0.001, scaling_e = 0.001 * 40.0, scaling_M = 0.001 / 40.0, scaling_e_prime = 0.001 / 0.01; // this scaling makes fitter parameters of order 1 
 
   vector<string> binLabels; // made public for the closure test
-  //static const int n_eta_bins = 24; //TODO automatise, so don't input by hand!!!
-  //static const int n_pt_bins = 5; //TODO automatise, so don't input by hand!!!
-  TMatrixD VInv;
+  TMatrixD VPhysToInt, VIntToPhys;
   
 private:
 
@@ -58,7 +56,7 @@ class TheoryFcn2 : public TheoryFcn {
 
 public:
   
-  TheoryFcn2(const vector<double> &meas, const vector<double> &err, const vector<string> &bin_labels, const TMatrixD &V_inv) : TheoryFcn(meas, err, bin_labels,V_inv) {}
+  TheoryFcn2(const vector<double> &meas, const vector<double> &err, const vector<string> &bin_labels, const TMatrixD &V_phys_to_int, const TMatrixD &V_int_to_phys) : TheoryFcn(meas, err, bin_labels, V_phys_to_int, V_int_to_phys) {}
   ~TheoryFcn2() {}
 
   vector<vector<double>> DummyData(const vector<double> &dummy_par_val, const int n_data_points, const double width, TRandom3 random) const; //TODO  vector<vector<double>> might be slow
@@ -108,46 +106,20 @@ double TheoryFcn::operator()(const vector<double>& par) const {
 
   vector<double> physical_M_pars(n_eta_bins);
   TMatrixD internal_M_matrix(n_eta_bins,1), physical_M_matrix(n_eta_bins,1);
-  TArrayD V_inv_elements(n_eta_bins*n_eta_bins), internal_M_elements(n_eta_bins);
-
-  /*
-  for(int j=0; j<n_eta_bins; j++){
-    for(int i=0; i<n_eta_bins; i++){
-      if (i == 0){
-        V_inv_elements[j*n_eta_bins+i] = 1.0/n_eta_bins;
-      } else if (j >= i) {
-        V_inv_elements[j*n_eta_bins+i] = (-1.0)*i/n_eta_bins;
-      } else if (j < i){
-        V_inv_elements[j*n_eta_bins+i] = double(n_eta_bins - i)/double(n_eta_bins);
-      } else {std::cout << "\n" << "Miscounted V decorrelating M";}
-
-      internal_M_elements[j] = par[2*n_eta_bins + j];
-    }
-  }
-  */
+  TArrayD internal_M_elements(n_eta_bins);
 
   for(int j=0; j<n_eta_bins; j++){
     for(int i=0; i<n_eta_bins; i++){
-      /*
-      if (i == 0){
-        V_inv_elements[j*n_eta_bins+i] = 1.0/n_eta_bins;
-      } else if (j == i) {
-        V_inv_elements[j*n_eta_bins+i] = double(n_eta_bins - 1)/double(n_eta_bins);
-      } else {
-        V_inv_elements[j*n_eta_bins+i] = (-1.0)/n_eta_bins;
-      }
-      */
       internal_M_elements[j] = par[2*n_eta_bins + j];
     }
   }
   
-  //V_inv.SetMatrixArray(V_inv_elements.GetArray());
   internal_M_matrix.SetMatrixArray(internal_M_elements.GetArray());
-  physical_M_matrix = TMatrixD(VInv,TMatrixD::kMult,internal_M_matrix);
+  physical_M_matrix = TMatrixD(VIntToPhys,TMatrixD::kMult,internal_M_matrix);
  
   /*
-  std::cout<< "\n" << "V_inv"<< "\n";
-  V_inv.Print();
+  std::cout<< "\n" << "VIntToPhys"<< "\n";
+  VIntToPhys.Print();
 
   std::cout<< "\n" << "internal M"<< "\n";
   internal_M_matrix.Print();
@@ -189,7 +161,7 @@ double TheoryFcn::operator()(const vector<double>& par) const {
     //term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + n_eta_bins]*(k_plus - k_middle) + scaling_M*par[eta_pos_index + 2*n_eta_bins]/k_plus);
     //term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + n_eta_bins]*(k_minus - k_middle) - scaling_M*par[eta_neg_index + 2*n_eta_bins]/k_minus);
 
-    // decorrelate M
+    // decorrelate A, e by shifting origin of k and decorrelate M by fitting a linear combination of physical parameters 
     term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + n_eta_bins]*(k_plus - k_middle) + scaling_M*physical_M_pars[eta_pos_index]/k_plus);
     term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + n_eta_bins]*(k_minus - k_middle) - scaling_M*physical_M_pars[eta_neg_index]/k_minus);
 
@@ -202,7 +174,6 @@ double TheoryFcn::operator()(const vector<double>& par) const {
  
   int ndof = scaleSquared.size() - par.size();
  
-  cout<<"chi2/ndof"<<"\n"<<chi2/ndof;
   return chi2/ndof; // minimise reduced chi2 directly 
 
 }
@@ -215,7 +186,9 @@ vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
   assert(par.size() == 3*n_eta_bins);
 
   vector<double> grad(par.size(),0.0);
-
+  TArrayD grad_wrt_M_physical_array(n_eta_bins), grad_wrt_M_internal_array(n_eta_bins); // TODO and if not eta 24 bins?
+  TMatrixD grad_wrt_M_physical_matrix(n_eta_bins,1), grad_wrt_M_internal_matrix(n_eta_bins,1);
+  
   double temp(0.0), local_func(0.0), local_grad(0.0);
 
   double k_plus, k_minus, term_pos, term_neg;
@@ -228,41 +201,14 @@ vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
 
   vector<double> physical_M_pars(n_eta_bins);
   TMatrixD internal_M_matrix(n_eta_bins,1), physical_M_matrix(n_eta_bins,1);
-  TArrayD V_inv_elements(n_eta_bins*n_eta_bins), internal_M_elements(n_eta_bins);
-  /*
-  for(int j=0; j<n_eta_bins; j++){
-    for(int i=0; i<n_eta_bins; i++){
-      if (i == 0){
-        V_inv_elements[j*n_eta_bins+i] = 1.0/n_eta_bins;
-      } else if (j >= i) {
-        V_inv_elements[j*n_eta_bins+i] = (-1.0)*i/n_eta_bins;
-      } else if (j < i){
-        V_inv_elements[j*n_eta_bins+i] = double(n_eta_bins - i)/double(n_eta_bins);
-      } else {std::cout << "\n" << "Miscounted V decorrelating M";}
-
-      internal_M_elements[j] = par[2*n_eta_bins + j];
-    }
-  }
-  */
+  TArrayD internal_M_elements(n_eta_bins);
   
-  for(int j=0; j<n_eta_bins; j++){
-    for(int i=0; i<n_eta_bins; i++){
-      /*
-      if (i == 0){
-	V_inv_elements[j*n_eta_bins+i] = 1.0/n_eta_bins;
-      } else if (j == i) {
-	V_inv_elements[j*n_eta_bins+i] = double(n_eta_bins - 1)/double(n_eta_bins);
-      } else {
-	V_inv_elements[j*n_eta_bins+i] = (-1.0)/n_eta_bins;
-      }
-      */
-      internal_M_elements[j] = par[2*n_eta_bins + j];
-    }
+  for(int i=0; i<n_eta_bins; i++){
+    internal_M_elements[i] = par[2*n_eta_bins + i];
   }
-  
-  //V_inv.SetMatrixArray(V_inv_elements.GetArray());
+    
   internal_M_matrix.SetMatrixArray(internal_M_elements.GetArray());
-  physical_M_matrix = TMatrixD(VInv,TMatrixD::kMult,internal_M_matrix);
+  physical_M_matrix = TMatrixD(VIntToPhys,TMatrixD::kMult,internal_M_matrix);
   
   for(int i=0; i<n_eta_bins; i++){
     physical_M_pars[i] = TMatrixDColumn(physical_M_matrix,0)(i);
@@ -289,7 +235,7 @@ vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
     //term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + n_eta_bins]*(k_plus - k_middle) + scaling_M*par[eta_pos_index + 2*n_eta_bins]/k_plus);
     //term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + n_eta_bins]*(k_minus - k_middle) - scaling_M*par[eta_neg_index + 2*n_eta_bins]/k_minus);
 
-    // decorrelate M
+    // decorrelate A, e by shifting origin of k and decorrelate M by fitting a linear combination of physical parameters
     term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + n_eta_bins]*(k_plus - k_middle) + scaling_M*physical_M_pars[eta_pos_index]/k_plus);
     term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + n_eta_bins]*(k_minus - k_middle) - scaling_M*physical_M_pars[eta_neg_index]/k_minus);
 
@@ -320,19 +266,19 @@ vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
     }
     */
 
-    // decorrelate A, e by shifting origin of k
+    // // decorrelate A, e by shifting origin of k and decorrelate M by fitting a linear combination of physical parameters
     for (unsigned int i : {eta_pos_index, eta_pos_index + n_eta_bins, eta_pos_index + 2*n_eta_bins, eta_neg_index, eta_neg_index + n_eta_bins, eta_neg_index + 2*n_eta_bins}) { // loops over parameters
       if (i == eta_pos_index) { // derivative wrt A'(+), which is fpar[eta_pos_index]
         local_grad = scaling_A*term_neg;
       } else if (i == eta_pos_index + n_eta_bins) { // derivative wrt e'(+)
         local_grad = -scaling_e_prime*(k_plus-k_middle)*term_neg;
-      } else if (i == eta_pos_index + 2*n_eta_bins) { // derivative wrt M(+)
+      } else if (i == eta_pos_index + 2*n_eta_bins) { // derivative wrt M(+), next transform to derivative wrt M_internal(+)
         local_grad = scaling_M/k_plus*term_neg;
       } else if (i == eta_neg_index){ // derivative wrt A'(-)
         local_grad = scaling_A*term_pos;
       } else if (i == eta_neg_index + n_eta_bins) { // derivative wrt e'(-)
         local_grad = -scaling_e_prime*(k_minus-k_middle)*term_pos;
-      } else if (i == eta_neg_index + 2*n_eta_bins){ // derivative wrt M(-) TODO should be wrt M_internal, so deriv_wrt_M_physical*d_M_physical/d_M_internal
+      } else if (i == eta_neg_index + 2*n_eta_bins){ // derivative wrt M(-), next transform to derivative wrt M_internal(-)
         local_grad = -scaling_M/k_minus*term_pos;
       } else {
         cout<<"\n"<<"ERROR: indices in grad don't match"<<"\n"; //TOOD raise a proper error
@@ -341,6 +287,21 @@ vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
       grad[i] += temp*local_grad;
     }
   }
+
+  // -----------------------------------------------
+  // Transform M terms to derivatives wrt M_internal
+  for(int i=0; i<n_eta_bins; i++){
+    grad_wrt_M_physical_array[i] = grad[2*n_eta_bins + i];
+  }
+  
+  grad_wrt_M_physical_matrix.SetMatrixArray(grad_wrt_M_physical_array.GetArray());
+  grad_wrt_M_internal_matrix = TMatrixD(VPhysToInt,TMatrixD::kMult,grad_wrt_M_physical_matrix);
+
+  for(int i=0; i<n_eta_bins; i++){
+    grad[2*n_eta_bins + i] = TMatrixDColumn(grad_wrt_M_internal_matrix,0)(i);
+  }
+  // -----------------------------------------------
+  
   return grad;
 }
 
@@ -477,12 +438,138 @@ ostream& operator<<(ostream& os,
 
 int constants_fitter() {
   
-  double t1(0.);
+  //-------------------------------------------------
   // Get start time
+  double t1(0.);
   struct timeval tv_start, tv_stop;
   gettimeofday(&tv_start, 0);
 
-  int n_tries = 1000;
+  //-------------------------------------------------
+  // Choose closure_test/analysis mode
+  string mode_option("closure_test"); //TODO pass as command line argument
+
+  // Set verbosity
+  int verbosity = 2;
+  ROOT::Minuit2::MnPrint::SetGlobalLevel(verbosity);
+
+  //-------------------------------------------------
+  // Internal to physical parameter transformation
+
+  TMatrixD V_internal_to_physical(n_eta_bins, n_eta_bins);
+  TArrayD V_internal_to_physical_elements(n_eta_bins*n_eta_bins);
+
+  
+  //---------------------------------------------------------------------  
+  // inverse of {(1, 1, 1, 1, ...),(1, -1, 0, 0, ...),(0, 1, -1, 0, ...)}  
+  for(int j=0; j<n_eta_bins; j++){ // counts rows 
+    for(int i=0; i<n_eta_bins; i++){ // counts collumns
+      if (i == 0){
+        V_internal_to_physical_elements[j*n_eta_bins+i] = 1.0/n_eta_bins;
+      } else if (j >= i) {
+        V_internal_to_physical_elements[j*n_eta_bins+i] = (-1.0)*i/n_eta_bins;
+      } else if (j < i){
+        V_internal_to_physical_elements[j*n_eta_bins+i] = double(n_eta_bins - i)/double(n_eta_bins);
+	} else {std::cout << "\n" << "Miscounted V decorrelating M";}
+    }
+  }
+
+  /*
+  //---------------------------------------------------------------------
+  // inverse of {(1, 1, 1, 1, ...),(-1, 1, 0, 0, ...),(-1, 0, 1, 0, ...)}
+  for(int j=0; j<n_eta_bins; j++){
+    for(int i=0; i<n_eta_bins; i++){
+      if (i == 0){
+        V_internal_to_physical_elements[j*n_eta_bins+i] = 1.0/n_eta_bins;
+      } else if (j == i) {
+        V_internal_to_physical_elements[j*n_eta_bins+i] = double(n_eta_bins - 1)/double(n_eta_bins);
+      } else {
+        V_internal_to_physical_elements[j*n_eta_bins+i] = (-1.0)/n_eta_bins;
+      }
+    }
+  }
+  */
+  /*
+  //-------------------------------------------------------------------  
+  // inverse of {(1, 1, 1, 1, ...),(0, 1, 0, 0, ...),(0, 0, 1, 0, ...)}  
+  V_internal_to_physical_elements[0] = 1.0;
+  for(int i=1; i<n_eta_bins; i++){ // j = 0
+    V_internal_to_physical_elements[i] = -1.0;
+  }
+  for(int j=1; j<n_eta_bins; j++){ // j starts from 1
+    for(int i=0; i<n_eta_bins; i++){
+      if (i == j){
+        V_internal_to_physical_elements[j*n_eta_bins+i] = 1.0;
+      } else {
+        V_internal_to_physical_elements[j*n_eta_bins+i] = 0;
+      }
+
+    }
+  }
+  */
+  V_internal_to_physical.SetMatrixArray(V_internal_to_physical_elements.GetArray());
+  
+  std::cout<< "\n" << "VIntToPhys"<< "\n";
+  //V_internal_to_physical.Print();
+
+  //-------------------------------------------------
+  // Physical to internal parameter transformation
+
+  TMatrixD V_physical_to_internal(n_eta_bins, n_eta_bins);
+  TArrayD V_physical_to_internal_elements(n_eta_bins*n_eta_bins);
+
+  for(int i=0; i<n_eta_bins; i++){ // j = 0 <- row 0
+    V_physical_to_internal_elements[i] = 1.0;
+  }
+  for(int j=1; j<n_eta_bins; j++){ // counts rows, j starts from 1
+    for(int i=0; i<n_eta_bins; i++){ // counts collumns
+      
+      //----------------------------------------------------------	
+      // {(1, 1, 1, 1, ...),(1, -1, 0, 0, ...),(0, 1, -1, 0, ...)}	
+      if (i == j){
+	V_physical_to_internal_elements[j*n_eta_bins+i] = -1.0;
+      } else if ( i == j-1) {
+	V_physical_to_internal_elements[j*n_eta_bins+i] = 1.0;
+      } else {
+	V_physical_to_internal_elements[j*n_eta_bins+i] = 0;
+      }
+      
+      /*
+      //----------------------------------------------------------
+      // {(1, 1, 1, 1, ...),(-1, 1, 0, 0, ...),(-1, 0, 1, 0, ...)} 
+      if (i == j){
+        V_physical_to_internal_elements[j*n_eta_bins+i] = 1.0;
+      } else if ( i == 0) {
+        V_physical_to_internal_elements[j*n_eta_bins+i] = -1.0;
+      } else {
+        V_physical_to_internal_elements[j*n_eta_bins+i] = 0;
+      }
+      */
+      /*
+      //--------------------------------------------------------	
+      // {(1, 1, 1, 1, ...),(0, 1, 0, 0, ...),(0, 0, 1, 0, ...)}
+      if (i == j){
+        V_physical_to_internal_elements[j*n_eta_bins+i] = 1.0;
+      } else {
+        V_physical_to_internal_elements[j*n_eta_bins+i] = 0;
+      }
+      */
+    }
+  }
+
+  V_physical_to_internal.SetMatrixArray(V_physical_to_internal_elements.GetArray());
+  std::cout<< "\n" << "VPhysToInt"<< "\n";
+  //V_physical_to_internal.Print();
+  
+
+  //-------------------------------------------------
+  // (Optional) Run over many toys
+
+  int n_toys = 1;
+  if ( n_toys != 1 && mode_option.compare("analysis") == 0 ){
+    cout << "Can't run toys over data, will quit";
+    return 0;
+  }
+  if ( n_toys != 1 ) { verbosity = 0; }
 
   auto track_tree = std::make_unique<TTree>("track_tree", "track_tree");
 
@@ -490,61 +577,33 @@ int constants_fitter() {
   double* red_chi2_ptr = &red_chi2;
   double* edm_ptr = &edm;
 
-  int n_eta_bins_tmp = 24; // TODO must match n_eta_bins in for loop
-  vector<double> params_tmp(3*n_eta_bins_tmp); // 3 for A,e,M model
+  vector<double> params_tmp(3*n_eta_bins); // 3 for A,e,M model
 
   track_tree->Branch("red_chi2", red_chi2_ptr);
   track_tree->Branch("edm", edm_ptr);
-  for(int w = 0; w<3*n_eta_bins_tmp; w++){ // 3 for A,e,M model
-    int rest_tmp = w % n_eta_bins_tmp;
-    if( w / n_eta_bins_tmp == 0) track_tree->Branch(Form("pull_A%d",rest_tmp), &params_tmp[w]);
-    if( w / n_eta_bins_tmp == 1) track_tree->Branch(Form("pull_e%d",rest_tmp), &params_tmp[w]);
-    if( w / n_eta_bins_tmp == 2) track_tree->Branch(Form("pull_M%d",rest_tmp), &params_tmp[w]);
+  for(int w = 0; w<3*n_eta_bins; w++){ // 3 for A,e,M model
+    int rest_tmp = w % n_eta_bins;
+    if( w / n_eta_bins == 0) track_tree->Branch(Form("pull_A%d",rest_tmp), &params_tmp[w]);
+    if( w / n_eta_bins == 1) track_tree->Branch(Form("pull_e%d",rest_tmp), &params_tmp[w]);
+    if( w / n_eta_bins == 2) track_tree->Branch(Form("pull_M%d",rest_tmp), &params_tmp[w]);
   }
   
-  int z=0;
-  //for(int z = 0; z<n_tries; z++){
+  int z = 0;
+  //for(int z = 0; z<n_toys; z++){ // <- Loop over toys starts 
   TRandom3 iter_random = TRandom3(4357 + z);
-  int verbosity = 2; 
-  ROOT::Minuit2::MnPrint::SetGlobalLevel(verbosity);
-  
-  // Choose closure_test/analysis mode
-  string mode_option("closure_test"); //TODO pass as command line argument
 
-  //int n_eta_bins = 24;
+  //------------------------------------------------- 
+  
   unsigned int n_data_points, n_parameters;
   vector<string> labels;
   vector<double> dummy_parameters(0.0);
   vector<double> scale_squared_values, scale_squared_error_values;
 
-  //-------------------------------------------------
-  // Internal to physical parameter transformation
-
-  TMatrixD V_inv(n_eta_bins, n_eta_bins);
-  TArrayD V_inv_elements(n_eta_bins*n_eta_bins);
-
-  for(int j=0; j<n_eta_bins; j++){
-    for(int i=0; i<n_eta_bins; i++){
-      if (i == 0){
-        V_inv_elements[j*n_eta_bins+i] = 1.0/n_eta_bins;
-      } else if (j == i) {
-        V_inv_elements[j*n_eta_bins+i] = double(n_eta_bins - 1)/double(n_eta_bins);
-      } else {
-        V_inv_elements[j*n_eta_bins+i] = (-1.0)/n_eta_bins;
-      }
-    }
-  }
-
-  V_inv.SetMatrixArray(V_inv_elements.GetArray());
-  //-------------------------------------------------
-
   if (mode_option.compare("closure_test") == 0) {
 
     //-----------------------------------------------
     // Get dummy data for closure test
-
-    //int n_eta_bins = 24;
-    //int n_pt_bins = 5; 
+    
     labels = generateLabels(n_eta_bins,n_pt_bins);
     
     n_data_points = labels.size(); 
@@ -554,7 +613,7 @@ int constants_fitter() {
     double error_start = 0.001; 
     dummy_parameters = generateParameters(n_parameters);
     
-    TheoryFcn2 f_dummy(empty_data, empty_error, labels, V_inv);
+    TheoryFcn2 f_dummy(empty_data, empty_error, labels, V_physical_to_internal, V_internal_to_physical);
     vector<vector<double>> dummy_call = f_dummy.DummyData(dummy_parameters, n_data_points, error_start, iter_random);
     scale_squared_values = dummy_call[0];
     scale_squared_error_values = dummy_call[1];
@@ -590,7 +649,6 @@ int constants_fitter() {
     std::cout << "\n" << n_data_points << "entries remain from beta histogram";
     std::cout << "\n" << "scale_squared_values.size() = " << scale_squared_values.size() << "; scale_squared_error_values.size() = " << scale_squared_error_values.size() << "labels.size() = " << labels.size();
 
-    //n_eta_bins = 24; //TODO work out from labels variable counter script save the number from the scripr and which eta bins not constrained in a file
     n_parameters = 3*n_eta_bins; // 3 for A,e,M model
    
   }
@@ -598,7 +656,8 @@ int constants_fitter() {
   //-------------------------------------------------
   // Use data
 
-  TheoryFcn fFCN(scale_squared_values,scale_squared_error_values,labels,V_inv);
+  // TheoryFcn(const vector<double> &meas, const vector<double> &err, const vector<string> &bin_labels, const TMatrixD &V_phys_to_int, const TMatrixD &V_int_to_phys)
+  TheoryFcn fFCN(scale_squared_values, scale_squared_error_values, labels, V_physical_to_internal, V_internal_to_physical);
   fFCN.SetErrorDef(1.0/(n_data_points - n_parameters)); // new error definition when minimising reduced chi2
 
   // Create parameters with initial starting values
@@ -614,38 +673,15 @@ int constants_fitter() {
   if (mode_option.compare("closure_test") == 0) {
 
     // Translate dummy parameters to internal parameters and set as starting value
-    TMatrixD V(n_eta_bins, n_eta_bins), internal_M_matrix(n_eta_bins,1), dummy_M_matrix(n_eta_bins,1);
-    TArrayD V_elements(n_eta_bins*n_eta_bins), dummy_M_elements(n_eta_bins);
+    TMatrixD internal_M_matrix(n_eta_bins,1), dummy_M_matrix(n_eta_bins,1);
+    TArrayD dummy_M_elements(n_eta_bins);
 
-    for(int i=0; i<n_eta_bins; i++){ // j = 0
-      V_elements[i] = 1.0;
-    }
-    dummy_M_elements[0] = dummy_parameters[2*n_eta_bins];
-    for(int j=1; j<n_eta_bins; j++){ // j starts from 1
-      for(int i=0; i<n_eta_bins; i++){
-	/*
-	if (i == j){
-	  V_elements[j*n_eta_bins+i] = -1.0;
-	} else if ( i == j-1) {
-	  V_elements[j*n_eta_bins+i] = 1.0;
-	} else {
-	  V_elements[j*n_eta_bins+i] = 0;
-	}
-	*/
-	if (i == j){
-          V_elements[j*n_eta_bins+i] = 1.0;
-        } else if ( i == 0) {
-          V_elements[j*n_eta_bins+i] = -1.0;
-        } else {
-          V_elements[j*n_eta_bins+i] = 0;
-        }
-      }
-	dummy_M_elements[j] = dummy_parameters[2*n_eta_bins + j] / (0.001 / 40.0); // divided by scaling_M = 0.001 / 40.0
+    for(int i=0; i<n_eta_bins; i++){ 
+      dummy_M_elements[i] = dummy_parameters[2*n_eta_bins + i] / (0.001 / 40.0); // divided by scaling_M = 0.001 / 40.0
     }
 
-    V.SetMatrixArray(V_elements.GetArray());
     dummy_M_matrix.SetMatrixArray(dummy_M_elements.GetArray());
-    internal_M_matrix = TMatrixD(V,TMatrixD::kMult,dummy_M_matrix);
+    internal_M_matrix = TMatrixD(V_physical_to_internal,TMatrixD::kMult,dummy_M_matrix);
     
     for (int i=0; i<n_parameters/3; i++){
       //upar.Add(Form("param%d",i), dummy_parameters[i] / 0.001, par_error); // divided by scaling_A = 0.001
@@ -654,6 +690,7 @@ int constants_fitter() {
     for (int i=n_parameters/3; i<2*n_parameters/3; i++){
       //upar.Add(Form("param%d",i), dummy_parameters[i] / (0.001 / 0.01), par_error); // divided by scaling_e_prime = 0.001 / 0.01
       upar.Add(Form("param%d",i), start, par_error); // e_internal starts from 0 for now 
+      //upar.Add(Form("param%d",i), start); // e_internal set constant to 0
     }
     for (int i=2*n_parameters/3; i<n_parameters; i++){
       //upar.Add(Form("param%d",i), TMatrixDColumn(internal_M_matrix,0)(i-2*n_eta_bins), par_error);
@@ -667,6 +704,7 @@ int constants_fitter() {
     }
     for (int i=n_parameters/3; i<2*n_parameters/3; i++){ // e_internal
       upar.Add(Form("param%d",i), start, par_error);
+      //upar.Add(Form("param%d",i), start); // e_internal set constant to 0
     }
     for (int i=2*n_parameters/3; i<n_parameters; i++){ // M_internal
       upar.Add(Form("param%d",i), start, par_error); //upar.Add(Form("param%d",i), double((i-2*n_eta_bins)/10.0), par_error);
@@ -689,7 +727,7 @@ int constants_fitter() {
   double tolerance(0.001); //MIGRAD will stop iterating when edm : 0.002 * tolerance * UPERROR
   //fFCN.SetErrorDef(1.0/(n_data_points - n_parameters)); 
   //3829.158
-  
+    
   FunctionMinimum min = minimize(maxfcn, tolerance);
     
   // save results
@@ -698,50 +736,20 @@ int constants_fitter() {
   vector<double> A_e_M_values(n_parameters), A_e_M_errors(n_parameters);
   double cov_prime;
   
-  //TMatrixD V_inv(n_eta_bins, n_eta_bins);
   TMatrixD internal_M_matrix(n_eta_bins,1), internal_M_err_squared_matrix(n_eta_bins,1), physical_M_matrix(n_eta_bins,1), physical_M_err_squared_matrix(n_eta_bins,1);
-  TArrayD data(n_eta_bins*n_eta_bins), internal_M_data(n_eta_bins), internal_M_error_squared_data(n_eta_bins);
+  TArrayD internal_M_data(n_eta_bins), internal_M_error_squared_data(n_eta_bins);
   vector<double> physical_M_parameters(n_eta_bins), physical_M_errors(n_eta_bins);
-
-  /*
-  for(int j=0; j<n_eta_bins; j++){
-    for(int i=0; i<n_eta_bins; i++){
-      if (i == 0){
-        data[j*n_eta_bins+i] = 1.0/n_eta_bins;
-      } else if (j >= i) {
-        data[j*n_eta_bins+i] = (-1.0)*i/n_eta_bins;
-      } else if (j < i){
-        data[j*n_eta_bins+i] = double(n_eta_bins - i)/double(n_eta_bins);
-      } else {std::cout << "\n" << "Miscounted V decorrelating M";}
-
-      internal_M_data[j] = min.UserState().Value(2*n_eta_bins + j);
-      internal_M_error_squared_data[j] = min.UserState().Error(2*n_eta_bins + j) * min.UserState().Error(2*n_eta_bins + j); 
-    }
+  
+  for(int i=0; i<n_eta_bins; i++){
+    internal_M_data[i] = min.UserState().Value(2*n_eta_bins + i);
+    internal_M_error_squared_data[i] = min.UserState().Error(2*n_eta_bins + i) * min.UserState().Error(2*n_eta_bins + i);
   }
-  */
-
-  for(int j=0; j<n_eta_bins; j++){
-    for(int i=0; i<n_eta_bins; i++){
-      /*
-      if (i == 0){
-        data[j*n_eta_bins+i] = 1.0/n_eta_bins;
-      } else if (j == i) {
-        data[j*n_eta_bins+i] = double(n_eta_bins - 1)/double(n_eta_bins);
-      } else {
-        data[j*n_eta_bins+i] = (-1.0)/n_eta_bins;
-      } 
-      */
-      internal_M_data[j] = min.UserState().Value(2*n_eta_bins + j);
-      internal_M_error_squared_data[j] = min.UserState().Error(2*n_eta_bins + j) * min.UserState().Error(2*n_eta_bins + j);
-    }
-  }
-
-  //V_inv.SetMatrixArray(data.GetArray());
+    
   internal_M_matrix.SetMatrixArray(internal_M_data.GetArray());
-  physical_M_matrix = TMatrixD(V_inv,TMatrixD::kMult,internal_M_matrix);
+  physical_M_matrix = TMatrixD(V_internal_to_physical,TMatrixD::kMult,internal_M_matrix);
   
   internal_M_err_squared_matrix.SetMatrixArray(internal_M_error_squared_data.GetArray());
-  physical_M_err_squared_matrix = TMatrixD(V_inv,TMatrixD::kMult,internal_M_err_squared_matrix);
+  physical_M_err_squared_matrix = TMatrixD(V_internal_to_physical,TMatrixD::kMult,internal_M_err_squared_matrix);
   
   for(int i=0; i<n_eta_bins; i++){
     physical_M_parameters[i] = TMatrixDColumn(physical_M_matrix,0)(i);
@@ -768,7 +776,7 @@ int constants_fitter() {
     }
   }
   
-  if (mode_option.compare("closure_test") == 0) { 
+  if ( n_toys != 1 ) { 
     red_chi2 = min.Fval();
     edm = min.Edm();
     for (int i=0; i<n_parameters; i++){
@@ -777,12 +785,12 @@ int constants_fitter() {
     
     track_tree->Fill();
   }
-  //} //comment this bracket for loop over n_tries
+  //} // <- Loop over toys finishes
 
-  if (mode_option.compare("closure_test") == 0) {
+  if ( n_toys != 1 ) {
     std::unique_ptr<TFile> f_control_iter( TFile::Open("track_params.root", "RECREATE") );
     track_tree->Write();
-    cout<<"\n"<<"done"<<"\n";
+    cout<<"\n"<<"done running over toys"<<"\n";
     f_control_iter->Close();
   }
     
@@ -790,10 +798,11 @@ int constants_fitter() {
   t1 = (tv_stop.tv_sec - tv_start.tv_sec)*1000.0 + (tv_stop.tv_usec - tv_start.tv_usec)/1000.0;
   
   cout << "# Calculation time: " << t1/60000.0 << " min" << "\n";
-
+  if ( n_toys != 1) { 
+    return 0;
+  }
   
   cout << "chi^2/ndf: " << min.Fval() << "\n" << "\n";
-
   cout << "min is valid: " << min.IsValid() << std::endl;
   cout << "HesseFailed: " << min.HesseFailed() << std::endl;
   cout << "HasCovariance: " << min.HasCovariance() << std::endl;
@@ -804,7 +813,6 @@ int constants_fitter() {
   cout << "HasAccurateCovar: " << min.HasAccurateCovar() << std::endl;
   cout << "HasPosDefCovar : " << min.HasPosDefCovar() << std::endl;
   cout << "HasMadePosDefCovar : " << min.HasMadePosDefCovar() << std::endl;
-
   cout << min << "\n";
 
   vector<double> hessian = min.UserState().Hessian().Data();
