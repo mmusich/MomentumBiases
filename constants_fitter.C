@@ -20,7 +20,8 @@ using namespace std;
 const int n_eta_bins = 24;
 const int n_pt_bins = 5;
 
-class TheoryFcn : public FCNGradientBase {
+//class TheoryFcn : public FCNGradientBase {
+class TheoryFcn : public FCNBase {
 
 public:
 
@@ -31,8 +32,8 @@ public:
   virtual void SetErrorDef(double def) {errorDef = def;}
 
   virtual double operator()(const vector<double>&) const;
-  virtual vector<double> Gradient(const vector<double>& ) const;
-  virtual bool CheckGradient() const {return true;} 
+  //  virtual vector<double> Gradient(const vector<double>& ) const;
+  //virtual bool CheckGradient() const {return true;} 
   // virtual std::vector< double > ROOT::Minuit2::FCNGradientBase::Hessian(const std::vector< double > & )const -> allows to do Hessian analytically? 
 
   vector<int> getIndices(string bin_label) const; 
@@ -177,7 +178,7 @@ double TheoryFcn::operator()(const vector<double>& par) const {
   return chi2/ndof; // minimise reduced chi2 directly 
 
 }
-
+/*
 //-----------------------------------------------
 // Function to build gradient of reduced chi2 analytically 
 
@@ -243,49 +244,76 @@ vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
     
     temp=2.0*(local_func - scaleSquared[n])/(scaleSquaredError[n]*scaleSquaredError[n])/ndof; 
     
-    /*
+    
     //TODO not calculate terms before checking if needed, ahm, not needed
-    for (unsigned int i : {eta_pos_index, eta_pos_index + n_eta_bins, eta_pos_index + 2*n_eta_bins, eta_neg_index, eta_neg_index + n_eta_bins, eta_neg_index + 2*n_eta_bins}) { // loops over parameters
-      if (i == eta_pos_index) { // derivative wrt A(+), which is fpar[eta_pos_index] 
-	local_grad = scaling_A*term_neg;
-      } else if (i == eta_pos_index + n_eta_bins) { // derivative wrt e(+)
-      	local_grad = -scaling_e*k_plus*term_neg;
-      } else if (i == eta_pos_index + 2*n_eta_bins) { // derivative wrt M(+)
-	local_grad = scaling_M/k_plus*term_neg;
-      } else if (i == eta_neg_index){ // derivative wrt A(-)
-	local_grad = scaling_A*term_pos;
-      } else if (i == eta_neg_index + n_eta_bins) { // derivative wrt e(-)
-	local_grad = -scaling_e*k_minus*term_pos;
-      } else if (i == eta_neg_index + 2*n_eta_bins){ // derivative wrt M(-)
-	local_grad = -scaling_M/k_minus*term_pos;
-      } else {
-	cout<<"\n"<<"ERROR: indices in grad don't match"<<"\n"; //TOOD raise a proper error
-      }
-      
-      grad[i] += temp*local_grad; 
-    }
-    */
+    //for (unsigned int i : {eta_pos_index, eta_pos_index + n_eta_bins, eta_pos_index + 2*n_eta_bins, eta_neg_index, eta_neg_index + n_eta_bins, eta_neg_index + 2*n_eta_bins}) { // loops over parameters
+    //  if (i == eta_pos_index) { // derivative wrt A(+), which is fpar[eta_pos_index] 
+//	local_grad = scaling_A*term_neg;
+  //    } else if (i == eta_pos_index + n_eta_bins) { // derivative wrt e(+)
+    //  	local_grad = -scaling_e*k_plus*term_neg;
+ //     } else if (i == eta_pos_index + 2*n_eta_bins) { // derivative wrt M(+)
+//	local_grad = scaling_M/k_plus*term_neg;
+  //    } else if (i == eta_neg_index){ // derivative wrt A(-)
+//	local_grad = scaling_A*term_pos;
+  //    } else if (i == eta_neg_index + n_eta_bins) { // derivative wrt e(-)
+//	local_grad = -scaling_e*k_minus*term_pos;
+  //    } else if (i == eta_neg_index + 2*n_eta_bins){ // derivative wrt M(-)
+//	local_grad = -scaling_M/k_minus*term_pos;
+  //    } else {
+//	cout<<"\n"<<"ERROR: indices in grad don't match"<<"\n"; //TOOD raise a proper error
+  //    }
+    //  
+      //grad[i] += temp*local_grad; 
+    //}
+    
+    // INCORRECT
+    // decorrelate A, e by shifting origin of k and decorrelate M by fitting a linear combination of physical parameters
+    // for (unsigned int i : {eta_pos_index, eta_pos_index + n_eta_bins, eta_pos_index + 2*n_eta_bins, eta_neg_index, eta_neg_index + n_eta_bins, eta_neg_index + 2*n_eta_bins}) { // loops over parameters
+    //  if (i == eta_pos_index) { // derivative wrt A'(+), which is fpar[eta_pos_index]
+    //    local_grad = scaling_A*term_neg;
+    //  } else if (i == eta_pos_index + n_eta_bins) { // derivative wrt e'(+)
+    //    local_grad = -scaling_e_prime*(k_plus-k_middle)*term_neg;
+    //  } else if (i == eta_pos_index + 2*n_eta_bins) { // derivative wrt M(+), next transform to derivative wrt M_internal(+)
+    //    local_grad = scaling_M/k_plus*term_neg;
+    //  } else if (i == eta_neg_index){ // derivative wrt A'(-)
+    //    local_grad = scaling_A*term_pos;
+    // } else if (i == eta_neg_index + n_eta_bins) { // derivative wrt e'(-)
+    //    local_grad = -scaling_e_prime*(k_minus-k_middle)*term_pos;
+    //  } else if (i == eta_neg_index + 2*n_eta_bins){ // derivative wrt M(-), next transform to derivative wrt M_internal(-)
+    //    local_grad = -scaling_M/k_minus*term_pos;
+    //  } else {
+    //    cout<<"\n"<<"ERROR: indices in grad don't match"<<"\n"; //TOOD raise a proper error
+    // }
 
-    // // decorrelate A, e by shifting origin of k and decorrelate M by fitting a linear combination of physical parameters
-    for (unsigned int i : {eta_pos_index, eta_pos_index + n_eta_bins, eta_pos_index + 2*n_eta_bins, eta_neg_index, eta_neg_index + n_eta_bins, eta_neg_index + 2*n_eta_bins}) { // loops over parameters
-      if (i == eta_pos_index) { // derivative wrt A'(+), which is fpar[eta_pos_index]
-        local_grad = scaling_A*term_neg;
-      } else if (i == eta_pos_index + n_eta_bins) { // derivative wrt e'(+)
-        local_grad = -scaling_e_prime*(k_plus-k_middle)*term_neg;
-      } else if (i == eta_pos_index + 2*n_eta_bins) { // derivative wrt M(+), next transform to derivative wrt M_internal(+)
-        local_grad = scaling_M/k_plus*term_neg;
-      } else if (i == eta_neg_index){ // derivative wrt A'(-)
-        local_grad = scaling_A*term_pos;
-      } else if (i == eta_neg_index + n_eta_bins) { // derivative wrt e'(-)
-        local_grad = -scaling_e_prime*(k_minus-k_middle)*term_pos;
-      } else if (i == eta_neg_index + 2*n_eta_bins){ // derivative wrt M(-), next transform to derivative wrt M_internal(-)
-        local_grad = -scaling_M/k_minus*term_pos;
-      } else {
-        cout<<"\n"<<"ERROR: indices in grad don't match"<<"\n"; //TOOD raise a proper error
-      }
+    //  grad[i] += temp*local_grad;
+    //}
+    
+    // Correct derivatives
+    
+    // derivative wrt A'(+), which is fpar[eta_pos_index]
+    local_grad = scaling_A*term_neg;
+    grad[eta_pos_index] += temp*local_grad;
+    
+    // derivative wrt e'(+)
+    local_grad = -scaling_e_prime*(k_plus-k_middle)*term_neg;
+    grad[eta_pos_index + n_eta_bins] += temp*local_grad;
 
-      grad[i] += temp*local_grad;
-    }
+    // derivative wrt M(+), next transform to derivative wrt M_internal(+)
+    local_grad = scaling_M/k_plus*term_neg;
+    grad[eta_pos_index + 2*n_eta_bins] += temp*local_grad;
+    
+    // derivative wrt A'(-)
+    local_grad = scaling_A*term_pos;
+    grad[eta_neg_index] += temp*local_grad;
+
+    // derivative wrt e'(-)
+    local_grad = -scaling_e_prime*(k_minus-k_middle)*term_pos;
+    grad[eta_neg_index + n_eta_bins] += temp*local_grad;
+
+    // derivative wrt M(-), next transform to derivative wrt M_internal(-)
+    local_grad = -scaling_M/k_minus*term_pos;
+    grad[eta_neg_index + 2*n_eta_bins] += temp*local_grad;
+
   }
 
   // -----------------------------------------------
@@ -304,7 +332,7 @@ vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
   
   return grad;
 }
-
+*/
 //-----------------------------------------------
 // Function to generate dummy data for closure test
 
@@ -446,7 +474,7 @@ int constants_fitter() {
 
   //-------------------------------------------------
   // Choose closure_test/analysis mode
-  string mode_option("closure_test"); //TODO pass as command line argument
+  string mode_option("analysis"); //TODO pass as command line argument
 
   // Set verbosity
   int verbosity = 2;
@@ -458,7 +486,7 @@ int constants_fitter() {
   TMatrixD V_internal_to_physical(n_eta_bins, n_eta_bins);
   TArrayD V_internal_to_physical_elements(n_eta_bins*n_eta_bins);
 
-  
+  /*
   //---------------------------------------------------------------------  
   // inverse of {(1, 1, 1, 1, ...),(1, -1, 0, 0, ...),(0, 1, -1, 0, ...)}  
   for(int j=0; j<n_eta_bins; j++){ // counts rows 
@@ -472,8 +500,8 @@ int constants_fitter() {
 	} else {std::cout << "\n" << "Miscounted V decorrelating M";}
     }
   }
-
-  /*
+  */
+  
   //---------------------------------------------------------------------
   // inverse of {(1, 1, 1, 1, ...),(-1, 1, 0, 0, ...),(-1, 0, 1, 0, ...)}
   for(int j=0; j<n_eta_bins; j++){
@@ -487,7 +515,7 @@ int constants_fitter() {
       }
     }
   }
-  */
+  
   /*
   //-------------------------------------------------------------------  
   // inverse of {(1, 1, 1, 1, ...),(0, 1, 0, 0, ...),(0, 0, 1, 0, ...)}  
@@ -503,6 +531,18 @@ int constants_fitter() {
         V_internal_to_physical_elements[j*n_eta_bins+i] = 0;
       }
 
+    }
+  }
+  */
+  /*
+  //identity e.g. M not decorrelated
+  for(int j=0; j<n_eta_bins; j++){
+    for(int i=0; i<n_eta_bins; i++){
+      if (j == i){
+        V_internal_to_physical_elements[j*n_eta_bins+i] = 1.0;
+      } else {
+        V_internal_to_physical_elements[j*n_eta_bins+i] = 0.0;
+      }
     }
   }
   */
@@ -522,7 +562,7 @@ int constants_fitter() {
   }
   for(int j=1; j<n_eta_bins; j++){ // counts rows, j starts from 1
     for(int i=0; i<n_eta_bins; i++){ // counts collumns
-      
+      /*
       //----------------------------------------------------------	
       // {(1, 1, 1, 1, ...),(1, -1, 0, 0, ...),(0, 1, -1, 0, ...)}	
       if (i == j){
@@ -532,8 +572,8 @@ int constants_fitter() {
       } else {
 	V_physical_to_internal_elements[j*n_eta_bins+i] = 0;
       }
+      */
       
-      /*
       //----------------------------------------------------------
       // {(1, 1, 1, 1, ...),(-1, 1, 0, 0, ...),(-1, 0, 1, 0, ...)} 
       if (i == j){
@@ -543,7 +583,7 @@ int constants_fitter() {
       } else {
         V_physical_to_internal_elements[j*n_eta_bins+i] = 0;
       }
-      */
+      
       /*
       //--------------------------------------------------------	
       // {(1, 1, 1, 1, ...),(0, 1, 0, 0, ...),(0, 0, 1, 0, ...)}
@@ -555,7 +595,18 @@ int constants_fitter() {
       */
     }
   }
-
+  /*
+  //identity e.g. M not decorrelated
+  for(int j=0; j<n_eta_bins; j++){
+    for(int i=0; i<n_eta_bins; i++){
+      if (j == i){
+	V_internal_to_physical_elements[j*n_eta_bins+i] = 1.0;
+      } else {
+	V_internal_to_physical_elements[j*n_eta_bins+i] = 0.0;
+      }
+    }
+  }
+  */
   V_physical_to_internal.SetMatrixArray(V_physical_to_internal_elements.GetArray());
   std::cout<< "\n" << "VPhysToInt"<< "\n";
   //V_physical_to_internal.Print();
