@@ -65,6 +65,8 @@ vector<double> fitHisto(TH1* histogram, int draw_option, int color, int nsigma){
 
       // integral of fitted gaussian function in range of the histogram
       integral = gaussianNewFunc->Integral(75.0, 105.0);
+      // TODO implement line below
+      //integral = gaussianNewFunc->Integral(histogram->GetXaxis()->GetBinLowEdge(1), histogram->GetXaxis()->GetBinLowEdge(histogram->GetNbins()+1)); // TODO histogram->GetNbins() includes under/over flow??
 
     } else {
       mean = -90.0;
@@ -119,46 +121,34 @@ int sagitta_bin_optimise(){
   }
      
   // MC 
-  std::unique_ptr<TFile> myFile( TFile::Open( ("multiD_histo_"+ mc_name_root +".root").c_str() ) );
+  std::unique_ptr<TFile> myFile( TFile::Open( ("multiD_histo_"+ mc_name_root +"_2016.root").c_str() ) );
   std::unique_ptr<THnD> mDh_mll_mc(myFile->Get<THnD>( ("multi_data_histo_mll_" + mc_name_root).c_str() ) ); 
-  std::unique_ptr<THnD> mDh_diff_over_gen(myFile->Get<THnD>( ("multi_data_histo_diff_" + mc_name_root + "_over_gen").c_str() ) ); // (reco-gen)/gen or (smear-gen)/gen
   std::unique_ptr<THnD> mDh_diff_mc(myFile->Get<THnD>( ("multi_data_histo_diff_" + mc_name_root).c_str() ) ); // reco-gen or smear-gen
   
-  // Analytical jacobian mll terms 
-  std::unique_ptr<THnD> mDh_jac_mll_over_gen_all_squared_mll(myFile->Get<THnD>( ("multi_data_histo_jac_mll_over_gen_all_squared_" + mc_name_root + "_mll").c_str() ) );
-  std::unique_ptr<THnD> mDh_jac_mll_over_gen_mll(myFile->Get<THnD>( ("multi_data_histo_jac_mll_over_gen_" + mc_name_root + "_mll").c_str() ) );
+  // Analytical jacobian mll terms: additive, k bin dependent 
+  std::unique_ptr<THnD> mDh_jac_diff_mll(myFile->Get<THnD>(("multi_data_histo_jac_diff_" + mc_name_root + "_mll").c_str() ) );
+  std::unique_ptr<THnD> mDh_jac_mll_minus_2gen_mll(myFile->Get<THnD>(("multi_data_histo_jac_mll_minus_2gen_" + mc_name_root + "_mll").c_str() ) );
+  std::unique_ptr<THnD> mDh_jac_diff_squared_mll(myFile->Get<THnD>(("multi_data_histo_jac_diff_squared_" + mc_name_root + "_mll").c_str() ) ); // needed for 1 analytical PDF for all k bins
+  std::unique_ptr<THnD> mDh_jac_diff_times_gen_mll(myFile->Get<THnD>(("multi_data_histo_jac_diff_times_gen_" + mc_name_root + "_mll").c_str() ) ); // needed for 1 analytical PDF for all k bins
   
-  THnD *mDh_diff_plus_offset=nullptr, *mDh_diff_minus_offset=nullptr, *mDh_jac_diff_squared_mll_diff=nullptr, *mDh_jac_diff_mll_diff=nullptr, *mDh_jac_diff_squared_mll=nullptr, *mDh_jac_diff_times_gen_mll=nullptr, *mDh_jac_mll_squared_mll=nullptr, *mDh_jac_mll_gen_squared_mll=nullptr, *mDh_jac_mll_times_gen_mll=nullptr, *mDh_jac_diff_mll=nullptr, *mDh_jac_mll_minus_2gen_mll=nullptr; 
+  THnD *mDh_diff_plus_offset=nullptr, *mDh_diff_minus_offset=nullptr, *mDh_jac_diff_squared_mll_diff=nullptr, *mDh_jac_diff_mll_diff=nullptr; 
   double mll_offset = 0.0; 
 
   if (mode_option.compare("validation") == 0) { 
     // Analytical jacobian mll_diff terms
     mDh_jac_diff_squared_mll_diff = myFile->Get<THnD>( ("multi_data_histo_jac_diff_squared_" + mc_name_root + "_mll_diff").c_str() ); // sum of mll_diff_squared in mll_diff bin
     mDh_jac_diff_mll_diff = myFile->Get<THnD>( ("multi_data_histo_jac_diff_" + mc_name_root + "_mll_diff").c_str() ); // sum of mll_diff in mll_diff bin
-
-    // mixed approach pdf
-    mDh_jac_mll_squared_mll =  myFile->Get<THnD>(("multi_data_histo_jac_mll_squared_" + mc_name_root + "_mll").c_str());
-    mDh_jac_mll_gen_squared_mll = myFile->Get<THnD>(("multi_data_histo_jac_mll_gen_squared_" + mc_name_root + "_mll").c_str());
-    mDh_jac_mll_times_gen_mll =  myFile->Get<THnD>(("multi_data_histo_jac_mll_times_gen_" + mc_name_root + "_mll").c_str());
-
-    // Jacobian mass one pdf for all k bins
-    mDh_jac_diff_squared_mll = myFile->Get<THnD>(("multi_data_histo_jac_diff_squared_" + mc_name_root + "_mll").c_str());
-    mDh_jac_diff_times_gen_mll = myFile->Get<THnD>(("multi_data_histo_jac_diff_times_gen_" + mc_name_root + "_mll").c_str());
-
-    // additive k bin dependent jacobian terms
-    mDh_jac_diff_mll = myFile->Get<THnD>(("multi_data_histo_jac_diff_" + mc_name_root + "_mll").c_str());
-    mDh_jac_mll_minus_2gen_mll = myFile->Get<THnD>(("multi_data_histo_jac_mll_minus_2gen_" + mc_name_root + "_mll").c_str());
-  
-    // Numerical jacobian terms
-    mDh_diff_plus_offset = myFile->Get<THnD>( ("multi_data_histo_diff_" + mc_name_root + "_plus_offset").c_str() );
-    mDh_diff_minus_offset = myFile->Get<THnD>( ("multi_data_histo_diff_" + mc_name_root + "_minus_offset").c_str() );
-    mll_offset = 0.1; //TODO change to not input by hand to match histmaker script
+   
+    // Numerical jacobian mll_diff terms
+    //mDh_diff_plus_offset = myFile->Get<THnD>( ("multi_data_histo_diff_" + mc_name_root + "_plus_offset").c_str() );
+    //mDh_diff_minus_offset = myFile->Get<THnD>( ("multi_data_histo_diff_" + mc_name_root + "_minus_offset").c_str() );
+    //mll_offset = 0.1; //TODO change to not input by hand to match histmaker script
   } 
  
   // Data
   THnD *mDh_mll_data=nullptr, *mDh_diff_data=nullptr;
   if (mode_option.compare("analysis") == 0) { 
-    std::unique_ptr<TFile> myFile2( TFile::Open( ("multiD_histo_"+ data_name_root +".root").c_str() ) );
+    std::unique_ptr<TFile> myFile2( TFile::Open( ("multiD_histo_"+ data_name_root +"_A_e_M_const.root").c_str() ) );
     mDh_mll_data = myFile2->Get<THnD>( ("multi_data_histo_mll_" + data_name_root).c_str() );
   } else if (mode_option.compare("validation") == 0){
     mDh_mll_data = myFile->Get<THnD>( ("multi_data_histo_mll_" + data_name_root).c_str() );
@@ -172,16 +162,16 @@ int sagitta_bin_optimise(){
   //--------------------------------------------------------------------------------------
   
   // Binning must match with 5D histogram
-  double ptlow=25.0, pthigh=55.0;
-  int nbinsmll_diff=16, nbinsmll=32, nbinseta=24, nbinspt=5;
-  vector<double> etabinranges, mllbinranges, ptbinranges{25.0, 33.327, 38.4302, 42.2782, 45.9389, 55.0};
+  double eta_low = -2.4, eta_high = 2.4, mll_diff_low = -7.0, mll_diff_high = 7.0, mll_low = 75.0, mll_high = 105.0;
+  int nbinsmll_diff=22, nbinsmll=32, nbinseta=24, nbinspt=5;
+  vector<double> etabinranges, mllbinranges, ptbinranges{25.0, 33.3239, 38.4288, 42.2772, 45.9387, 55.0}; //pT binning for y2016
     
   std::cout<<"\n etabinranges = [";
-  for (int i=0; i<=nbinseta; i++){etabinranges.push_back(-2.4 + i * 4.8/nbinseta); std::cout<<etabinranges[i]<<", ";}
+  for (int i=0; i<=nbinseta; i++){etabinranges.push_back(eta_low + i * (eta_high - eta_low)/nbinseta); std::cout<<etabinranges[i]<<", ";}
   std::cout<<"] \n";
 
   std::cout<<"\n mllbinranges = [";
-  for (int i=0; i<=nbinsmll; i++){mllbinranges.push_back(75.0 + i * (105.0 - 75.0)/nbinsmll); std::cout<<mllbinranges[i]<<", ";}
+  for (int i=0; i<=nbinsmll; i++){mllbinranges.push_back(mll_low + i * (mll_high - mll_low)/nbinsmll); std::cout<<mllbinranges[i]<<", ";}
   std::cout<<"] \n";
 
   //--------------------------------------------------------------------------------------
@@ -190,9 +180,8 @@ int sagitta_bin_optimise(){
 
   //TODO comment explain where the variables are needed
   double total_nevents=0.0, nevents=0.0, all_histos_count=0.0, remaining_nevents=0.0, empty_histos_count=0.0, hfrac=-1.0, efrac=-1.0; // to check number of passing events
-  double value_alpha, error_alpha, value_beta, error_beta, value_epsilon, error_epsilon, diff_squared, diff, evts_in_bin, error_evts_in_bin, error_diff_squared, error_diff, mll_minus_2gen, error_mll_minus_2gen, diff_times_gen, error_diff_times_gen, jac_b_weight, error_jac_b_weight, mll_squared, mll_gen_squared, mll_times_gen, error_mll_squared, error_mll_gen_squared, error_mll_times_gen; // for jac calculation
-  double mll_over_gen_all_squared, error_mll_over_gen_all_squared, mll_over_gen, error_mll_over_gen; // for jac mll calculation
-  double mean_mc, error_mean_mc, sigma_mc=0.0, error_sigma_mc, integral_mc, chi2_mc, mean_diff_over_gen, error_mean_diff_over_gen, sigma_diff_over_gen, error_sigma_diff_over_gen;
+  double value_alpha, error_alpha, value_beta, error_beta, value_epsilon, error_epsilon, diff_squared, diff, evts_in_bin, error_evts_in_bin, error_diff_squared, error_diff, mll_minus_2gen, error_mll_minus_2gen, diff_times_gen, error_diff_times_gen, jac_b_weight, error_jac_b_weight; // for jac calculation
+  double mean_mc, error_mean_mc, sigma_mc=0.0, error_sigma_mc, integral_mc, chi2_mc;
   double mean_diff_data = 1.0, error_mean_diff_data = 1.0, sigma_diff_data = 1.0, error_sigma_diff_data = 1.0, integral_diff_data = 1.0; //TODO just initialise with 0, are they called in analysis mode at all?
   double fit_beta_error, value_corrected, error_corrected, mean_corrected_diff, error_mean_corrected_diff, sigma_corrected_diff, error_sigma_corrected_diff;
   double max_hist_mll_diff, max_hist_mll;
@@ -237,11 +226,11 @@ int sagitta_bin_optimise(){
 
   // Histograms for jacobians inclusive in eta, pt
   
-  TH1D *jac_alpha_inclusive = new TH1D("jacobian_alpha_inclusive", "jacobian alpha inclusive in eta, pt", nbinsmll, 75.0, 105.0);
+  TH1D *jac_alpha_inclusive = new TH1D("jacobian_alpha_inclusive", "jacobian alpha inclusive in eta, pt", nbinsmll, mll_low, mll_high);
   jac_alpha_inclusive->GetXaxis()->SetTitle("mll");
   jac_alpha_inclusive->GetYaxis()->SetTitle("jacobian alpha");
 
-  TH1D *jac_beta_inclusive = new TH1D("jacobian_beta_inclusive", "jacobian beta inclusive in eta, pt", nbinsmll, 75.0, 105.0);
+  TH1D *jac_beta_inclusive = new TH1D("jacobian_beta_inclusive", "jacobian beta inclusive in eta, pt", nbinsmll, mll_low, mll_high);
   jac_beta_inclusive->GetXaxis()->SetTitle("mll");
   jac_beta_inclusive->GetYaxis()->SetTitle("jacobian beta");
 
@@ -342,27 +331,22 @@ int sagitta_bin_optimise(){
 
   // Histograms for fit constituents for each k bin
   auto mDh_proj_mll_mc = mDh_mll_mc->Projection(4);
-  auto mDh_proj_diff_over_gen = mDh_diff_over_gen->Projection(4);
   auto mDh_proj_diff_mc = mDh_diff_mc->Projection(4);
-  auto mDh_proj_jac_mll_over_gen_all_squared_mll = mDh_jac_mll_over_gen_all_squared_mll->Projection(4);
-  auto mDh_proj_jac_mll_over_gen_mll = mDh_jac_mll_over_gen_mll->Projection(4);  
   auto mDh_proj_mll_data = mDh_mll_data->Projection(4);
+  auto mDh_proj_jac_diff_mll = mDh_jac_diff_mll->Projection(4);
+  auto mDh_proj_jac_mll_minus_2gen_mll = mDh_jac_mll_minus_2gen_mll->Projection(4);
+  auto mDh_proj_jac_diff_times_gen_mll = mDh_jac_diff_times_gen_mll->Projection(4);
+  auto mDh_proj_jac_diff_squared_mll = mDh_jac_diff_squared_mll->Projection(4);
 
-  TH1D *mDh_proj_diff_data=nullptr, *mDh_proj_diff_plus_offset=nullptr, *mDh_proj_diff_minus_offset=nullptr, *mDh_proj_jac_diff_squared_mll_diff=nullptr, *mDh_proj_jac_diff_mll_diff=nullptr, *mDh_proj_jac_diff_times_gen_mll=nullptr, *mDh_proj_jac_diff_squared_mll=nullptr, *mDh_proj_jac_mll_squared_mll=nullptr, *mDh_proj_jac_mll_gen_squared_mll=nullptr, *mDh_proj_jac_mll_times_gen_mll=nullptr, *mDh_proj_jac_diff_mll=nullptr, *mDh_proj_jac_mll_minus_2gen_mll=nullptr;
+  TH1D *mDh_proj_diff_data=nullptr, *mDh_proj_diff_plus_offset=nullptr, *mDh_proj_diff_minus_offset=nullptr, *mDh_proj_jac_diff_squared_mll_diff=nullptr, *mDh_proj_jac_diff_mll_diff=nullptr;
   if (mode_option.compare("validation") == 0){
     mDh_proj_jac_diff_squared_mll_diff = mDh_jac_diff_squared_mll_diff->Projection(4);
     mDh_proj_jac_diff_mll_diff = mDh_jac_diff_mll_diff->Projection(4);
     mDh_proj_diff_data = mDh_diff_data->Projection(4);
-    mDh_proj_diff_plus_offset = mDh_diff_plus_offset->Projection(4);
-    mDh_proj_diff_minus_offset = mDh_diff_minus_offset->Projection(4);
-    mDh_proj_jac_diff_times_gen_mll = mDh_jac_diff_times_gen_mll->Projection(4);
-    mDh_proj_jac_diff_squared_mll = mDh_jac_diff_squared_mll->Projection(4);
-    mDh_proj_jac_mll_squared_mll = mDh_jac_mll_squared_mll->Projection(4);
-    mDh_proj_jac_mll_gen_squared_mll = mDh_jac_mll_gen_squared_mll->Projection(4);
-    mDh_proj_jac_mll_times_gen_mll = mDh_jac_mll_times_gen_mll->Projection(4);
-    mDh_proj_jac_diff_mll = mDh_jac_diff_mll->Projection(4);
-    mDh_proj_jac_mll_minus_2gen_mll = mDh_jac_mll_minus_2gen_mll->Projection(4);
+    //mDh_proj_diff_plus_offset = mDh_diff_plus_offset->Projection(4);
+    //mDh_proj_diff_minus_offset = mDh_diff_minus_offset->Projection(4);
   }
+
   //--------------------------------------------------------------------------------------
 
   // Files to write results
@@ -411,66 +395,48 @@ int sagitta_bin_optimise(){
 
   for (int pos_eta_bin=1; pos_eta_bin<=nbinseta; pos_eta_bin++){
     mDh_mll_mc->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
-    mDh_diff_over_gen->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     mDh_diff_mc->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
-    mDh_jac_mll_over_gen_all_squared_mll->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
-    mDh_jac_mll_over_gen_mll->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
-    mDh_mll_data->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);   
+    mDh_mll_data->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+    mDh_jac_diff_mll->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+    mDh_jac_mll_minus_2gen_mll->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+    mDh_jac_diff_times_gen_mll->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+    mDh_jac_diff_squared_mll->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     if (mode_option.compare("validation") == 0){
       mDh_jac_diff_squared_mll_diff->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
       mDh_jac_diff_mll_diff->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
-      mDh_diff_plus_offset->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
-      mDh_diff_minus_offset->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+      //mDh_diff_plus_offset->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
+      //mDh_diff_minus_offset->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
       mDh_diff_data->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
-      mDh_jac_diff_times_gen_mll->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
-      mDh_jac_diff_squared_mll->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
-      mDh_jac_mll_gen_squared_mll->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
-      mDh_jac_mll_squared_mll->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
-      mDh_jac_mll_times_gen_mll->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
-      mDh_jac_diff_mll->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
-      mDh_jac_mll_minus_2gen_mll->GetAxis(0)->SetRange(pos_eta_bin, pos_eta_bin);
     }
     for (int pos_pt_bin=1; pos_pt_bin<=nbinspt; pos_pt_bin++){   
       mDh_mll_mc->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
-      mDh_diff_over_gen->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_diff_mc->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
-      mDh_jac_mll_over_gen_all_squared_mll->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
-      mDh_jac_mll_over_gen_mll->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       mDh_mll_data->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);  
+      mDh_jac_diff_mll->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+      mDh_jac_mll_minus_2gen_mll->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+      mDh_jac_diff_times_gen_mll->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+      mDh_jac_diff_squared_mll->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       if (mode_option.compare("validation") == 0){
 	mDh_jac_diff_squared_mll_diff->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
 	mDh_jac_diff_mll_diff->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
-	mDh_diff_plus_offset->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
-	mDh_diff_minus_offset->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+	//mDh_diff_plus_offset->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
+	//mDh_diff_minus_offset->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
 	mDh_diff_data->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
-	mDh_jac_diff_times_gen_mll->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
-	mDh_jac_diff_squared_mll->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
-	mDh_jac_mll_gen_squared_mll->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
-	mDh_jac_mll_squared_mll->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
-	mDh_jac_mll_times_gen_mll->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
-	mDh_jac_diff_mll->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
-	mDh_jac_mll_minus_2gen_mll->GetAxis(1)->SetRange(pos_pt_bin, pos_pt_bin);
       }
       for (int neg_eta_bin=1; neg_eta_bin<=nbinseta; neg_eta_bin++){
 	mDh_mll_mc->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
-	mDh_diff_over_gen->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	mDh_diff_mc->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
-	mDh_jac_mll_over_gen_all_squared_mll->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
-	mDh_jac_mll_over_gen_mll->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	mDh_mll_data->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin); 
+	mDh_jac_diff_mll->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+	mDh_jac_mll_minus_2gen_mll->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+	mDh_jac_diff_times_gen_mll->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+	mDh_jac_diff_squared_mll->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	if (mode_option.compare("validation") == 0){
 	  mDh_jac_diff_squared_mll_diff->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	  mDh_jac_diff_mll_diff->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
-	  mDh_diff_plus_offset->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
-	  mDh_diff_minus_offset->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+	  //mDh_diff_plus_offset->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
+	  //mDh_diff_minus_offset->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	  mDh_diff_data->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
-	  mDh_jac_diff_times_gen_mll->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
-          mDh_jac_diff_squared_mll->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
-	  mDh_jac_mll_gen_squared_mll->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
-	  mDh_jac_mll_squared_mll->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
-	  mDh_jac_mll_times_gen_mll->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
-	  mDh_jac_diff_mll->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
-	  mDh_jac_mll_minus_2gen_mll->GetAxis(2)->SetRange(neg_eta_bin, neg_eta_bin);
 	} 
 	for (int neg_pt_bin=1; neg_pt_bin<=nbinspt; neg_pt_bin++){
 	  mDh_mll_mc->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
@@ -511,46 +477,19 @@ int sagitta_bin_optimise(){
 	                  
 	      //--------------------------------------------------------------------------
 	      // Set range of the remaining histograms
-	      mDh_diff_over_gen->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-	      mDh_jac_mll_over_gen_all_squared_mll->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-	      mDh_jac_mll_over_gen_mll->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	      mDh_mll_data->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	      mDh_jac_diff_mll->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	      mDh_jac_mll_minus_2gen_mll->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	      mDh_jac_diff_times_gen_mll->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+	      mDh_jac_diff_squared_mll->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	      if (mode_option.compare("validation") == 0){
 		mDh_jac_diff_squared_mll_diff->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 		mDh_jac_diff_mll_diff->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-		mDh_diff_plus_offset->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-		mDh_diff_minus_offset->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+		//mDh_diff_plus_offset->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
+		//mDh_diff_minus_offset->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 		mDh_diff_data->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-		mDh_jac_diff_times_gen_mll->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-		mDh_jac_diff_squared_mll->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-		mDh_jac_mll_gen_squared_mll->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-		mDh_jac_mll_squared_mll->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-		mDh_jac_mll_times_gen_mll->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-		mDh_jac_diff_mll->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
-		mDh_jac_mll_minus_2gen_mll->GetAxis(3)->SetRange(neg_pt_bin, neg_pt_bin);
 	      }
-	      //--------------------------------------------------------------------------
-	      // Diff over gen histograms
-	      //--------------------------------------------------------------------------
-
-	      // Project diff_over_gen histogram
-	      delete gROOT->FindObject( ("multi_data_histo_diff_" + mc_name_root + "_over_gen_proj_4").c_str() );
-	      mDh_proj_diff_over_gen = mDh_diff_over_gen->Projection(4);
-	      mDh_proj_diff_over_gen->GetXaxis()->SetTitle("mll_diff_over_gen [-]");
-	      mDh_proj_diff_over_gen->GetYaxis()->SetTitle("Events");
-	      mDh_proj_diff_over_gen->SetLineColor(kBlue);
-	      mDh_proj_diff_over_gen->SetStats(1);
-
-	      // Fit diff_over_gen
-	      fitresult = fitHisto(mDh_proj_diff_over_gen, 1, 4, 5);
-	      // Save these for mass alpha, beta fits 
-	      mean_diff_over_gen = fitresult[0]; 
-	      error_mean_diff_over_gen = fitresult[2];
-	      sigma_diff_over_gen = fitresult[1];
-	      error_sigma_diff_over_gen = fitresult[3];
-
-	      f_fits->WriteObject(mDh_proj_diff_over_gen, ("diff_over_gen" + name).c_str());
-	          
+	      	          
 	      //--------------------------------------------------------------------------
 	      // Diff histograms
 	      //--------------------------------------------------------------------------
@@ -563,7 +502,7 @@ int sagitta_bin_optimise(){
 	      mDh_proj_diff_mc->GetYaxis()->SetTitle("Events");
 	      mDh_proj_diff_mc->SetLineColor(kGreen);
 	      // Fit diff_mc
-	      fitresult = fitHisto(mDh_proj_diff_mc, 1, 8, 2);
+	      fitresult = fitHisto(mDh_proj_diff_mc, 1, 8, 5);
 	      if (fitresult[0] == -90.0 || fitresult[1] == -5.0){
 		std::cout<<"WARNING bad diff_mc fit "<< name.c_str() <<" \n";
 	      } 
@@ -598,7 +537,7 @@ int sagitta_bin_optimise(){
 		mDh_proj_diff_data->GetYaxis()->SetTitle("Events");
 		mDh_proj_diff_data->SetLineColor(kOrange+7);
 		// Fit diff_data
-		fitresult = fitHisto(mDh_proj_diff_data, 1, 95, 2);
+		fitresult = fitHisto(mDh_proj_diff_data, 1, 95, 5);
 		      
 		// Save these for pull histograms 
 		mean_diff_data = fitresult[0]; 
@@ -734,20 +673,20 @@ int sagitta_bin_optimise(){
 	      
 	      // Jacobian histogram alpha mass
 	      delete gROOT->FindObject("jacobian_alpha");
-	      TH1D *jac_alpha = new TH1D("jacobian_alpha", "jacobian alpha", nbinsmll, 75.0, 105.0);
+	      TH1D *jac_alpha = new TH1D("jacobian_alpha", "jacobian alpha", nbinsmll, mll_low, mll_high);
 	      jac_alpha->GetXaxis()->SetTitle("mll [GeV]");
 	      jac_alpha->GetYaxis()->SetTitle("jacobian [GeV]");
 	      
 	      // Jacobian histogram beta mass
 	      delete gROOT->FindObject("jacobian_beta");
-	      TH1D *jac_beta = new TH1D("jacobian_beta", "jacobian beta", nbinsmll, 75.0, 105.0);
+	      TH1D *jac_beta = new TH1D("jacobian_beta", "jacobian beta", nbinsmll, mll_low, mll_high);
 	      jac_beta->GetXaxis()->SetTitle("mll [GeV]");
 	      jac_beta->GetYaxis()->SetTitle("jacobian [GeV]");
 	      
 	      //--------------------------------------------------------------------------
 	      // Compute jacobians mass
-	      /*
-	      // Additive k bin dependent PDF WORKS ONLY IN VALIDATION for now, TODO make it for reco too
+	      
+	      // Additive k bin dependent PDF 
               // Needed for jacobian alpha mass
               title = "multi_data_histo_jac_diff_squared_" + mc_name_root + "_mll_proj_4";
               delete gROOT->FindObject(title.c_str());
@@ -810,61 +749,9 @@ int sagitta_bin_optimise(){
                 }
               }
               // Additive k bin dependent PDF above !!!
-	      */
+	      	      
 	      /*
-	      // Multiplicative k bin dependent PDF
-	      // Needed for jacobian alpha and beta mass
-	      title = "multi_data_histo_jac_mll_over_gen_all_squared_" + mc_name_root + "_mll_proj_4";
-	      delete gROOT->FindObject(title.c_str());
-	      mDh_proj_jac_mll_over_gen_all_squared_mll = mDh_jac_mll_over_gen_all_squared_mll->Projection(4);
-	      
-	      title = "multi_data_histo_jac_mll_over_gen_" + mc_name_root + "_mll_proj_4";
-	      delete gROOT->FindObject(title.c_str());
-	      mDh_proj_jac_mll_over_gen_mll = mDh_jac_mll_over_gen_mll->Projection(4);
-
-	      f_fits->WriteObject(mDh_proj_jac_mll_over_gen_mll, ("jac_mll_over_gen" + name).c_str());
-	      
-	      position_to_fill=0;
-	      for(int i=1; i<=nbinsmll; i++){
-		mll_over_gen_all_squared = mDh_proj_jac_mll_over_gen_all_squared_mll->GetBinContent(i);
-		error_mll_over_gen_all_squared = mDh_proj_jac_mll_over_gen_all_squared_mll->GetBinError(i); 
-		
-		mll_over_gen = mDh_proj_jac_mll_over_gen_mll->GetBinContent(i);
-		error_mll_over_gen = mDh_proj_jac_mll_over_gen_mll->GetBinError(i);
-		
-		if ( find(good_indices_mll.begin(), good_indices_mll.end(), i) != good_indices_mll.end() ){
-		  
-		  evts_in_bin = mDh_proj_mll_mc->GetBinContent(i);
-		  //TODO for debugging, delete after!!
-		  //mean_diff_over_gen = 0.0;
-
-		  // alpha mass
-		  value_alpha = (mll_over_gen_all_squared - 2.*(1. + mean_diff_over_gen)*mll_over_gen + evts_in_bin*(1. + mean_diff_over_gen)*(1. + mean_diff_over_gen))/(sigma_diff_over_gen*sigma_diff_over_gen) - evts_in_bin;
-		  // ! TODO add error on evts_in_bin
-		  error_alpha = 2./sigma_diff_over_gen/sigma_diff_over_gen * pow(error_mll_over_gen_all_squared*error_mll_over_gen_all_squared/4. + (1.+mean_diff_over_gen)*(1.+mean_diff_over_gen)*error_mll_over_gen*error_mll_over_gen + (value_alpha + evts_in_bin)*(value_alpha + evts_in_bin)*sigma_diff_over_gen*sigma_diff_over_gen*error_sigma_diff_over_gen*error_sigma_diff_over_gen + (evts_in_bin+evts_in_bin*mean_diff_over_gen-mll_over_gen)*(evts_in_bin+evts_in_bin*mean_diff_over_gen-mll_over_gen)*error_mll_over_gen*error_mll_over_gen, 0.5);
-		  J(position_to_fill,2) = value_alpha; //J.col(2) is alpha
-		  
-		  jac_alpha->SetBinContent(i, value_alpha);
-		  jac_alpha->SetBinError(i, error_alpha);
-		  jac_alpha_inclusive->Fill(mllbinranges[i-1], value_alpha);
-		  
-		  // beta mass
-		  value_beta = 1./sigma_diff_over_gen/sigma_diff_over_gen*((1.+mean_diff_over_gen)*mll_over_gen - evts_in_bin*(1.+mean_diff_over_gen)*(1.+mean_diff_over_gen));
-		  // ! TODO add error on evts_in_bin
-		  error_beta = 1./sigma_diff_over_gen/sigma_diff_over_gen*pow((1.+mean_diff_over_gen)*(1.+mean_diff_over_gen)*error_mll_over_gen*error_mll_over_gen + 4.*value_beta*value_beta*sigma_diff_over_gen*sigma_diff_over_gen*error_sigma_diff_over_gen*error_sigma_diff_over_gen + (mll_over_gen-2.*evts_in_bin*(1.+mean_diff_over_gen))*(mll_over_gen-2.*evts_in_bin*(1.+mean_diff_over_gen))*error_mean_diff_over_gen*error_mean_diff_over_gen, 0.5);
-		  J(position_to_fill,1) = value_beta; //J.col(1) is beta
-		  
-		  jac_beta->SetBinContent(i, value_beta);
-		  jac_beta->SetBinError(i, error_beta);
-		  jac_beta_inclusive->Fill(mllbinranges[i-1], value_beta);
-	        
-		  position_to_fill++;
-		  
-		}
-	      }
-	      */
-	      
-	      // ONE PDF for all k BIN!!! works only in validation
+	      // ONE PDF for all k BIN!!!
 	      // Needed for jacobian alpha mass
               title = "multi_data_histo_jac_diff_squared_" + mc_name_root + "_mll_proj_4";
               delete gROOT->FindObject(title.c_str());
@@ -913,67 +800,8 @@ int sagitta_bin_optimise(){
                 }
               }
 	      // ONE PDF for all k BIN!!! above
-	      
-	      
-	      /*
-              // MULTIPLICATIVE MIXED APPROACH PDF !!! works only in vlidation
-              // Needed for jacobian alpha and beta mass
-              title = "multi_data_histo_jac_mll_squared_" + mc_name_root + "_mll_proj_4";
-              delete gROOT->FindObject(title.c_str());
-              mDh_proj_jac_mll_squared_mll = mDh_jac_mll_squared_mll->Projection(4);
-              
-	      title = "multi_data_histo_jac_mll_gen_squared_" + mc_name_root + "_mll_proj_4";
-              delete gROOT->FindObject(title.c_str());
-              mDh_proj_jac_mll_gen_squared_mll = mDh_jac_mll_gen_squared_mll->Projection(4);
-
-              title = "multi_data_histo_jac_mll_times_gen_" + mc_name_root + "_mll_proj_4";
-              delete gROOT->FindObject(title.c_str());
-              mDh_proj_jac_mll_times_gen_mll = mDh_jac_mll_times_gen_mll->Projection(4);
-
-	      position_to_fill=0;
-              for(int i=1; i<=nbinsmll; i++){
-                //beta alpha mass
-                mll_squared = mDh_proj_jac_mll_squared_mll->GetBinContent(i);
-                error_mll_squared = mDh_proj_jac_mll_squared_mll->GetBinError(i);
-                
-		mll_gen_squared = mDh_proj_jac_mll_gen_squared_mll->GetBinContent(i);
-                error_mll_gen_squared = mDh_proj_jac_mll_gen_squared_mll->GetBinError(i);
-
-                mll_times_gen = mDh_proj_jac_mll_times_gen_mll->GetBinContent(i);
-                error_mll_times_gen = mDh_proj_jac_mll_times_gen_mll->GetBinError(i);
-
-                if ( find(good_indices_mll.begin(), good_indices_mll.end(), i) != good_indices_mll.end() ){
-
-                  evts_in_bin = mDh_proj_mll_mc->GetBinContent(i);
-		  //TODO for debugging, delete after!!
-                  //mean_diff_over_gen = 0.0;
-
-                  // alpha mass
-                  value_alpha =  (mll_squared  - 2.*(1.+mean_diff_over_gen)*mll_times_gen + (1.+mean_diff_over_gen)*(1.+mean_diff_over_gen)*mll_gen_squared) / (sigma_mc * sigma_mc) - evts_in_bin;
-		  // ! TODO add error on evts_in_bin
-		  error_alpha = pow(4.*sigma_mc*sigma_mc*pow(value_alpha+evts_in_bin,2)*error_sigma_mc*error_sigma_mc + 4.*pow((1.+mean_diff_over_gen)*mll_gen_squared-mll_times_gen,2)*error_mean_diff_over_gen*error_mean_diff_over_gen + error_mll_squared*error_mll_squared + 4.*(1.+mean_diff_over_gen)*(1.+mean_diff_over_gen)*error_mll_times_gen*error_mll_times_gen + pow(1.+mean_diff_over_gen,4)*error_mll_gen_squared*error_mll_gen_squared ,0.5)/(sigma_mc*sigma_mc);
-                  J(position_to_fill,2) = value_alpha; //J.col(2) is alpha
-
-                  jac_alpha->SetBinContent(i, value_alpha);
-                  jac_alpha->SetBinError(i, error_alpha);
-                  jac_alpha_inclusive->Fill(mllbinranges[i-1], value_alpha);
-
-                  // beta mass
-                  value_beta = ((1.+mean_diff_over_gen)*mll_times_gen-(1.+mean_diff_over_gen)*(1.+mean_diff_over_gen)*mll_gen_squared) / (sigma_mc * sigma_mc);
-                  // ! TODO add error on evts_in_bin
-		  error_beta = pow(4.*sigma_mc*sigma_mc*value_beta*value_beta*error_sigma_mc*error_sigma_mc + pow(mll_times_gen-2.*(1.+mean_diff_over_gen)*mll_gen_squared ,2)*error_mean_diff_over_gen*error_mean_diff_over_gen + (1.+mean_diff_over_gen)*(1.+mean_diff_over_gen)*error_mll_times_gen*error_mll_times_gen + pow(1.+mean_diff_over_gen,4)*error_mll_gen_squared*error_mll_gen_squared ,0.5)/(sigma_mc*sigma_mc); 
-                  J(position_to_fill,1) = value_beta; //J.col(1) is beta
-
-                  jac_beta->SetBinContent(i, value_beta);
-                  jac_beta->SetBinError(i, error_beta);
-                  jac_beta_inclusive->Fill(mllbinranges[i-1], value_beta);
-
-                  position_to_fill++;
-
-                }
-              }
-              // MIXED APPROACH PDF!!! above
-              */
+	      */
+	      	      
 	      if (position_to_fill != filled_bins_mll){ std::cout<<"PROBLEM: counting jac mass size \n"; }
 
 	      //--------------------------------------------------------------------------
@@ -1019,7 +847,7 @@ int sagitta_bin_optimise(){
               
 	      // Define corrected_mll histogram
 	      delete gROOT->FindObject("corrected_mll");
-	      TH1D *corrected_mll = new TH1D("corrected_mll", "corrected_mll", nbinsmll, 75.0, 105.0);
+	      TH1D *corrected_mll = new TH1D("corrected_mll", "corrected_mll", nbinsmll, mll_low, mll_high);
 	      corrected_mll->SetTitle(("mll " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
 	      corrected_mll->GetXaxis()->SetTitle("mll [GeV]");
 	      corrected_mll->GetYaxis()->SetTitle("Events");
@@ -1104,21 +932,21 @@ int sagitta_bin_optimise(){
 		
 		// Jacobian histogram alpha diff 
 		delete gROOT->FindObject("jacobian_alpha_control");
-		TH1D *jac_alpha_control = new TH1D("jacobian_alpha_control", "jacobian alpha", nbinsmll_diff, -5.0, 5.0);
+		TH1D *jac_alpha_control = new TH1D("jacobian_alpha_control", "jacobian alpha", nbinsmll_diff, mll_diff_low, mll_diff_high);
 		jac_alpha_control->GetXaxis()->SetTitle("mll_diff [GeV]");
 		jac_alpha_control->GetYaxis()->SetTitle("jacobian [GeV]");
 		
 		// Jacobian histogram epsilon diff
 		delete gROOT->FindObject("jacobian_epsilon_control");
-		TH1D *jac_epsilon_control = new TH1D("jacobian_epsilon_control", "jacobian epsilon", nbinsmll_diff, -5.0, 5.0);
+		TH1D *jac_epsilon_control = new TH1D("jacobian_epsilon_control", "jacobian epsilon", nbinsmll_diff, mll_diff_low, mll_diff_high);
 		jac_epsilon_control->GetXaxis()->SetTitle("mll_diff [GeV]");
 		jac_epsilon_control->GetYaxis()->SetTitle("jacobian [GeV]");
 	  
 		// Jacobian numerical histogram epsilon diff
-		delete gROOT->FindObject("jacobian_epsilon_control_num");
-		TH1D *jac_epsilon_control_num = new TH1D("jacobian_epsilon_control_num", "jacobian epsilon_num", nbinsmll_diff, -5.0, 5.0);
-		jac_epsilon_control_num->GetXaxis()->SetTitle("mll_diff [GeV]");
-		jac_epsilon_control_num->GetYaxis()->SetTitle("jacobian [GeV]");
+		//delete gROOT->FindObject("jacobian_epsilon_control_num");
+		//TH1D *jac_epsilon_control_num = new TH1D("jacobian_epsilon_control_num", "jacobian epsilon_num", nbinsmll_diff, mll_diff_low, mll_diff_high);
+		//jac_epsilon_control_num->GetXaxis()->SetTitle("mll_diff [GeV]");
+		//jac_epsilon_control_num->GetYaxis()->SetTitle("jacobian [GeV]");
 	  
 		//--------------------------------------------------------------------------
 		// Compute jacobians diff 
@@ -1131,12 +959,12 @@ int sagitta_bin_optimise(){
 		delete gROOT->FindObject(title.c_str());
 		mDh_proj_jac_diff_mll_diff = mDh_jac_diff_mll_diff->Projection(4);
 		// Needed for jacobian numerical epsilon diff
-		title = "multi_data_histo_diff_" + mc_name_root + "_plus_offset_proj_4";
-		delete gROOT->FindObject(title.c_str());
-		mDh_proj_diff_plus_offset = mDh_diff_plus_offset->Projection(4);
-		title = "multi_data_histo_diff_" + mc_name_root + "_minus_offset_proj_4";
-		delete gROOT->FindObject(title.c_str());
-		mDh_proj_diff_minus_offset = mDh_diff_minus_offset->Projection(4);
+		//title = "multi_data_histo_diff_" + mc_name_root + "_plus_offset_proj_4";
+		//delete gROOT->FindObject(title.c_str());
+		//mDh_proj_diff_plus_offset = mDh_diff_plus_offset->Projection(4);
+		//title = "multi_data_histo_diff_" + mc_name_root + "_minus_offset_proj_4";
+		//delete gROOT->FindObject(title.c_str());
+		//mDh_proj_diff_minus_offset = mDh_diff_minus_offset->Projection(4);
 		
 		position_to_fill = 0;
 		for(int i=1; i<=nbinsmll_diff; i++){
@@ -1167,16 +995,16 @@ int sagitta_bin_optimise(){
 		    jac_epsilon_control->SetBinError(i, error_epsilon);
 	      
 		    // epsilon diff numerical
-		    value_epsilon = (mDh_proj_diff_plus_offset->GetBinContent(i) - mDh_proj_diff_minus_offset->GetBinContent(i)) / (mll_offset * 2.0);
-		    error_epsilon = pow((pow(mDh_proj_diff_plus_offset->GetBinError(i),2) + pow(mDh_proj_diff_minus_offset->GetBinError(i),2)) / pow(mll_offset*2.0, 2), 0.5);
+		    //value_epsilon = (mDh_proj_diff_plus_offset->GetBinContent(i) - mDh_proj_diff_minus_offset->GetBinContent(i)) / (mll_offset * 2.0);
+		    //error_epsilon = pow((pow(mDh_proj_diff_plus_offset->GetBinError(i),2) + pow(mDh_proj_diff_minus_offset->GetBinError(i),2)) / pow(mll_offset*2.0, 2), 0.5);
 		    //---------------------------------------------//
 		    //---------------------------------------------//
 		    // ATTENTION, for the numerical jacobian, OVERWRITE J_control
 		    //J_control(position_to_fill,1) = value_epsilon;
 		    //---------------------------------------------//
 		    //---------------------------------------------//
-		    jac_epsilon_control_num->SetBinContent(i, value_epsilon);
-		    jac_epsilon_control_num->SetBinError(i, error_epsilon);
+		    //jac_epsilon_control_num->SetBinContent(i, value_epsilon);
+		    //jac_epsilon_control_num->SetBinError(i, error_epsilon);
 
 		    position_to_fill++;
 		    
@@ -1190,7 +1018,7 @@ int sagitta_bin_optimise(){
 		
 		f_fits->WriteObject(jac_alpha_control, ("jac_alpha_control" + name).c_str());
 		f_fits->WriteObject(jac_epsilon_control, ("jac_epsilon_control" + name).c_str());
-		f_fits->WriteObject(jac_epsilon_control_num, ("jac_epsilon_control_num" + name).c_str());
+		//f_fits->WriteObject(jac_epsilon_control_num, ("jac_epsilon_control_num" + name).c_str());
 	  
 		//--------------------------------------------------------------------------
 		
@@ -1239,7 +1067,7 @@ int sagitta_bin_optimise(){
 		//--------------------------------------------------------------------------
 		// Define corrected_diff histogram
 		delete gROOT->FindObject("corrected_diff");
-		TH1D *corrected_diff = new TH1D("corrected_diff", "corrected_diff", nbinsmll_diff, -5.0, 5.0);
+		TH1D *corrected_diff = new TH1D("corrected_diff", "corrected_diff", nbinsmll_diff, mll_diff_low, mll_diff_high);
 		corrected_diff->SetTitle(("mll diff " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
 		corrected_diff->GetXaxis()->SetTitle("mll_diff [GeV]");
 		corrected_diff->GetYaxis()->SetTitle("Events");
@@ -1270,7 +1098,7 @@ int sagitta_bin_optimise(){
 		c1->cd();
 		c1->cd(1);
 		
-		fitresult = fitHisto(corrected_diff, 1, 1, 2);
+		fitresult = fitHisto(corrected_diff, 1, 1, 5);
 	        
 		// Save for pull distribution epsilon_control
 		mean_corrected_diff = fitresult[0];
