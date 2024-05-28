@@ -501,7 +501,7 @@ int constants_fitter() {
     }
   }
   */
-  
+  /*
   //---------------------------------------------------------------------
   // inverse of {(1, 1, 1, 1, ...),(-1, 1, 0, 0, ...),(-1, 0, 1, 0, ...)}
   for(int j=0; j<n_eta_bins; j++){
@@ -515,7 +515,7 @@ int constants_fitter() {
       }
     }
   }
-  
+  */
   /*
   //-------------------------------------------------------------------  
   // inverse of {(1, 1, 1, 1, ...),(0, 1, 0, 0, ...),(0, 0, 1, 0, ...)}  
@@ -534,7 +534,7 @@ int constants_fitter() {
     }
   }
   */
-  /*
+  
   //identity e.g. M not decorrelated
   for(int j=0; j<n_eta_bins; j++){
     for(int i=0; i<n_eta_bins; i++){
@@ -545,7 +545,7 @@ int constants_fitter() {
       }
     }
   }
-  */
+  
   V_internal_to_physical.SetMatrixArray(V_internal_to_physical_elements.GetArray());
   
   std::cout<< "\n" << "VIntToPhys"<< "\n";
@@ -674,7 +674,7 @@ int constants_fitter() {
     //-----------------------------------------------
     // Get data
     
-    std::unique_ptr<TFile> inputFile( TFile::Open("mass_fits_control_histos_smear_beta_val_additive_k_bin_dependent_pdf.root") );
+    std::unique_ptr<TFile> inputFile( TFile::Open("InOutputFiles/mass_fits_control_histos_smear_beta_val_2016.root") );
     std::unique_ptr<TH1D> beta(inputFile->Get<TH1D>("beta"));
     std::unique_ptr<TH1D> bin_occupancy(inputFile->Get<TH1D>("bin_occupancy"));
     
@@ -865,7 +865,11 @@ int constants_fitter() {
   cout << "HasPosDefCovar : " << min.HasPosDefCovar() << std::endl;
   cout << "HasMadePosDefCovar : " << min.HasMadePosDefCovar() << std::endl;
   cout << min << "\n";
-
+  
+  cout << "\tHesse..." << endl;
+  MnHesse hesse(1);
+  hesse(fFCN, min);
+  
   vector<double> hessian = min.UserState().Hessian().Data();
   vector<double> covariance = min.UserState().Covariance().Data();
   
@@ -956,7 +960,7 @@ int constants_fitter() {
     //cout << "\n";
   }
   
-  unique_ptr<TFile> f_a( TFile::Open("constants_fitted_correlation.root", "RECREATE") );
+  unique_ptr<TFile> f_a( TFile::Open("InOutputFiles/constants_fitted_correlation.root", "RECREATE") );
 
   TCanvas *c4 = new TCanvas("c4","c4",800,600);
   hessian_hist->SetStats(0);
@@ -1005,14 +1009,14 @@ int constants_fitter() {
     
       for (int i=0; i<n_eta_bins; i++){
 	// A from -0.0002 to 0.0005 and back
-	//A_input_values[i] = (-7.0*4.0/n_eta_bins/n_eta_bins*(i - n_eta_bins/2)*(i - n_eta_bins/2) + 5.0)*0.0001;
-	A_input_values[i] = 0.0004;
+	A_input_values[i] = (-7.0*4.0/n_eta_bins/n_eta_bins*(i - n_eta_bins/2)*(i - n_eta_bins/2) + 5.0)*0.0001;
+	//A_input_values[i] = 0.0004;
 	// e from 0.01 to 0.001 and back
-	//e_input_values[i] = (9.0*4.0/n_eta_bins/n_eta_bins*(i - n_eta_bins/2)*(i - n_eta_bins/2) + 1.0)*0.001;
-	e_input_values[i] = 0.002;
+	e_input_values[i] = (9.0*4.0/n_eta_bins/n_eta_bins*(i - n_eta_bins/2)*(i - n_eta_bins/2) + 1.0)*0.001;
+	//e_input_values[i] = 0.002;
 	// M from 4*10^-5 to -2*10^-5 and back
-	//M_input_values[i] = (6.0*4.0/n_eta_bins/n_eta_bins*(i - n_eta_bins/2)*(i - n_eta_bins/2) - 2.0)*0.00001;
-	M_input_values[i] = 0.00001; 
+	M_input_values[i] = (6.0*4.0/n_eta_bins/n_eta_bins*(i - n_eta_bins/2)*(i - n_eta_bins/2) - 2.0)*0.00001;
+	//M_input_values[i] = 0.00001; 
       }
 
       dummy_pars_A->SetBinContent(i, A_input_values[i]);
@@ -1033,7 +1037,7 @@ int constants_fitter() {
     }
 }
 
-  unique_ptr<TFile> f_control( TFile::Open("constants_fitted.root", "RECREATE") ); 
+  unique_ptr<TFile> f_control( TFile::Open("InOutputFiles/constants_fitted.root", "RECREATE") ); 
 
   TCanvas *c1 = new TCanvas("c1","c1",800,600);
 

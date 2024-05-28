@@ -43,7 +43,7 @@ int multiDhist_producer(){
   
   string line;
 
-  ifstream file("MCFilenames_2016.txt");
+  ifstream file("InOutputFiles/MCFilenames_2016.txt");
   if (file.is_open()) {
     while (getline(file, line)) {
       chain.Add(line.c_str());
@@ -158,9 +158,11 @@ int multiDhist_producer(){
 		    e = e_values[eta_bin_idx];
 		    M = M_values[eta_bin_idx];
 		    if (GenPart_pdgId[k]>0){ //mu(-)
-		      smeared_curvature = 1./mean*(1. + A - e/mean - M*mean);
+		      smeared_curvature = ( (1.0+A) + pow( (1.0+A)*(1.0+A) + 4.0*e*(-1.0*M - 1./mean) ,0.5) )/2.0/e;
+		      if ((1.0+A)*(1.0+A) + 4.0*e*(-1.0*M - 1./mean) < 0 || smeared_curvature < 0 ){std::cout<<"\n"<<"WRONG CURVATURE";}
 		    } else { //mu(+)
-		      smeared_curvature = 1./mean*(1. + A - e/mean + M*mean);
+		      smeared_curvature = ( (1.0+A) + pow( (1.0+A)*(1.0+A) + 4.0*e*(M - 1./mean) ,0.5) )/2.0/e;
+		      if ((1.0+A)*(1.0+A) + 4.0*e*(M - 1./mean) < 0 || smeared_curvature < 0 ){std::cout<<"\n"<<"WRONG CURVATURE";}
 		    }
 		    smeared_mean = 1./smeared_curvature; 
 		    smear_beta_weight_first_term = TMath::Gaus(firstPt_smear, smeared_mean, width) / TMath::Gaus(firstPt_smear, mean, width);
@@ -183,9 +185,11 @@ int multiDhist_producer(){
                     e = e_values[eta_bin_idx];
                     M = M_values[eta_bin_idx];
 		    if (GenPart_pdgId[k]>0){ //mu(-)
-                      smeared_curvature = 1./mean*(1. + A - e/mean - M*mean);
-                    } else { //mu(+)
-                      smeared_curvature = 1./mean*(1. + A - e/mean + M*mean);
+		      smeared_curvature = ( (1.0+A) + pow( (1.0+A)*(1.0+A) + 4.0*e*(-1.0*M - 1./mean) ,0.5) )/2.0/e;
+		      if ((1.0+A)*(1.0+A) + 4.0*e*(-1.0*M - 1./mean) < 0 || smeared_curvature < 0 ){std::cout<<"\n"<<"WRONG CURVATURE";}
+		    } else { //mu(+)
+                      smeared_curvature = ( (1.0+A) + pow( (1.0+A)*(1.0+A) + 4.0*e*(M - 1./mean) ,0.5) )/2.0/e;
+		      if ((1.0+A)*(1.0+A) + 4.0*e*(M - 1./mean) < 0 || smeared_curvature < 0 ){std::cout<<"\n"<<"WRONG CURVATURE";}
                     }
 		    smeared_mean = 1./smeared_curvature;
 		    smear_beta_weight_second_term = TMath::Gaus(secondPt_smear, smeared_mean, width) / TMath::Gaus(secondPt_smear, mean, width); 
@@ -298,7 +302,7 @@ auto d7 = d6.Define("jacobian_weight_mll_diff_smear", "return mll_diff_smear*wei
     .Define("jacobian_weight_mll_diff_times_gen_reco", "return mll_diff_reco*mll_gen*weight;");
     
   //Save tree for debugging
-  //std::unique_ptr<TFile> f1( TFile::Open("snapshot_output.root", "RECREATE") );
+  //std::unique_ptr<TFile> f1( TFile::Open("InOutputFiles/snapshot_output.root", "RECREATE") );
   //d7.Snapshot("Events", "snapshot_output.root", {"GenPart_status", "GenPart_pt", "posPtSmearBetaVal", "negPtSmearBetaVal", "Muon_charge", "GenPart_pdgId", "GenPart_genPartIdxMother"});
   //f1->Close();
 
@@ -309,7 +313,7 @@ auto d7 = d6.Define("jacobian_weight_mll_diff_smear", "return mll_diff_smear*wei
   auto pt_smear = d7.Histo1D({"pt_smear", "pt smear beta = 1", 15, pt_low, pt_high},"posPtSmear","weight");
   auto pt_smear_beta_val = d7.Histo1D({"pt_smear_beta_val", "pt smear beta = 0.001", 15, pt_low, pt_high},"posPtSmear","smear_beta_weight");
 
-  std::unique_ptr<TFile> f2( TFile::Open("control_histo.root", "RECREATE") ); 
+  std::unique_ptr<TFile> f2( TFile::Open("InOutputFiles/control_histo.root", "RECREATE") ); 
   mll_smear->Write();
   mll_diff_smear->Write();
   mll_smear_beta_val->Write();
@@ -317,7 +321,7 @@ auto d7 = d6.Define("jacobian_weight_mll_diff_smear", "return mll_diff_smear*wei
   pt_smear_beta_val->Write();
   f2->Close();
 
-  std::unique_ptr<TFile> f3( TFile::Open("control_bin_histo.root", "RECREATE") );  
+  std::unique_ptr<TFile> f3( TFile::Open("InOutputFiles/control_bin_histo.root", "RECREATE") );  
 
   //pT bin optimisation starts
   auto pt_pos_uni = d7.Histo1D({"pt_pos_uni", "pt mu+", nbinspt*3, pt_low, pt_high},"posTrackPt");
@@ -345,14 +349,14 @@ auto d7 = d6.Define("jacobian_weight_mll_diff_smear", "return mll_diff_smear*wei
   f3->Close();
 
   /*
-  std::unique_ptr<TFile> f4( TFile::Open("multiD_histo_smear_beta_val_easy.root", "RECREATE") );
+  std::unique_ptr<TFile> f4( TFile::Open("InOutputFiles/multiD_histo_smear_beta_val_easy.root", "RECREATE") );
   // mll_diff_smear_beta_val_easy 
   auto mDh_diff_smear_beta_val_easy = d7.HistoND<float, float, float, float, float, double>({"multi_data_histo_diff_smear_beta_val_easy", "multi_data_histo_diff_smear_beta_val_easy", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll_diff}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mll_diffbinranges}}, {"posTrackEta","posPtSmear","negTrackEta","negPtSmear","mll_diff_smear","weight"});
   f4->WriteObject(mDh_diff_smear_beta_val_easy.GetPtr(), "multi_data_histo_diff_smear_beta_val_easy");
   f4->Close();
   */
   
-  std::unique_ptr<TFile> f5( TFile::Open("multiD_histo_smear.root", "RECREATE") ); 
+  std::unique_ptr<TFile> f5( TFile::Open("InOutputFiles/multiD_histo_smear.root", "RECREATE") ); 
   
   //--------------------------------------------------------------------------------------
   // Smear histograms
@@ -444,7 +448,7 @@ auto d7 = d6.Define("jacobian_weight_mll_diff_smear", "return mll_diff_smear*wei
   // Reco and gen histos
   //--------------------------------------------------------------------------------------
   
-  std::unique_ptr<TFile> f6( TFile::Open("multiD_histo_reco.root", "RECREATE") );
+  std::unique_ptr<TFile> f6( TFile::Open("InOutputFiles/multiD_histo_reco.root", "RECREATE") );
   
   // mll_reco
   auto mDh_reco = d7.HistoND<float, float, float, float, float, double>({"multi_data_histo_mll_reco", "multi_data_histo_mll_reco", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_reco","weight"});

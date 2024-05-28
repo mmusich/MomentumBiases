@@ -97,7 +97,7 @@ vector<double> fitHisto(TH1* histogram, int draw_option, int color, int nsigma){
 
 //--------------------------------------------------------------------------------------
 
-int sagitta_bin_optimise(){
+int mass_fitter(){
 
   double t1(0.);
   // Get start time
@@ -121,7 +121,16 @@ int sagitta_bin_optimise(){
   }
      
   // MC 
-  std::unique_ptr<TFile> myFile( TFile::Open( ("multiD_histo_"+ mc_name_root +"_2016.root").c_str() ) );
+  std::unique_ptr<TFile> myFile( TFile::Open( ("InOutputFiles/multiD_histo_"+ mc_name_root +"_2016.root").c_str() ) );
+  //--------------------------------------------------------------------------------------
+  // Binning must match with 5D histogram
+  double eta_low = -2.4, eta_high = 2.4, mll_diff_low = -7.0, mll_diff_high = 7.0, mll_low = 75.0, mll_high = 105.0;
+  int nbinsmll_diff=22, nbinsmll=32, nbinseta=24, nbinspt=5;
+  vector<double> etabinranges, mllbinranges, ptbinranges{25.0, 33.3239, 38.4288, 42.2772, 45.9387, 55.0}; //pT binning for y2016
+  for (int i=0; i<=nbinseta; i++){etabinranges.push_back(eta_low + i * (eta_high - eta_low)/nbinseta);}
+  for (int i=0; i<=nbinsmll; i++){mllbinranges.push_back(mll_low + i * (mll_high - mll_low)/nbinsmll);}
+  //--------------------------------------------------------------------------------------
+  
   std::unique_ptr<THnD> mDh_mll_mc(myFile->Get<THnD>( ("multi_data_histo_mll_" + mc_name_root).c_str() ) ); 
   std::unique_ptr<THnD> mDh_diff_mc(myFile->Get<THnD>( ("multi_data_histo_diff_" + mc_name_root).c_str() ) ); // reco-gen or smear-gen
   
@@ -148,7 +157,7 @@ int sagitta_bin_optimise(){
   // Data
   THnD *mDh_mll_data=nullptr, *mDh_diff_data=nullptr;
   if (mode_option.compare("analysis") == 0) { 
-    std::unique_ptr<TFile> myFile2( TFile::Open( ("multiD_histo_"+ data_name_root +"_A_e_M_const.root").c_str() ) );
+    std::unique_ptr<TFile> myFile2( TFile::Open( ("InOutputFiles/multiD_histo_"+ data_name_root +"_2016.root").c_str() ) );
     mDh_mll_data = myFile2->Get<THnD>( ("multi_data_histo_mll_" + data_name_root).c_str() );
   } else if (mode_option.compare("validation") == 0){
     mDh_mll_data = myFile->Get<THnD>( ("multi_data_histo_mll_" + data_name_root).c_str() );
@@ -156,24 +165,9 @@ int sagitta_bin_optimise(){
   }
   
   // Smear easy way
-  // std::unique_ptr<TFile> myFile3( TFile::Open("multiD_histo_smear_beta_val_easy.root") );
+  // std::unique_ptr<TFile> myFile3( TFile::Open("InOutputFiles/multiD_histo_smear_beta_val_easy.root") );
   // std::unique_ptr<THnD> mDh_diff_smear_beta_val_easy(myFile3->Get<THnD>("multi_data_histo_diff_smear_beta_val_easy")); //it's smeared_beta_val_easy - gen  
-  
-  //--------------------------------------------------------------------------------------
-  
-  // Binning must match with 5D histogram
-  double eta_low = -2.4, eta_high = 2.4, mll_diff_low = -7.0, mll_diff_high = 7.0, mll_low = 75.0, mll_high = 105.0;
-  int nbinsmll_diff=22, nbinsmll=32, nbinseta=24, nbinspt=5;
-  vector<double> etabinranges, mllbinranges, ptbinranges{25.0, 33.3239, 38.4288, 42.2772, 45.9387, 55.0}; //pT binning for y2016
     
-  std::cout<<"\n etabinranges = [";
-  for (int i=0; i<=nbinseta; i++){etabinranges.push_back(eta_low + i * (eta_high - eta_low)/nbinseta); std::cout<<etabinranges[i]<<", ";}
-  std::cout<<"] \n";
-
-  std::cout<<"\n mllbinranges = [";
-  for (int i=0; i<=nbinsmll; i++){mllbinranges.push_back(mll_low + i * (mll_high - mll_low)/nbinsmll); std::cout<<mllbinranges[i]<<", ";}
-  std::cout<<"] \n";
-
   //--------------------------------------------------------------------------------------
 
   // Variables declaration 
@@ -181,7 +175,7 @@ int sagitta_bin_optimise(){
   //TODO comment explain where the variables are needed
   double total_nevents=0.0, nevents=0.0, all_histos_count=0.0, remaining_nevents=0.0, empty_histos_count=0.0, hfrac=-1.0, efrac=-1.0; // to check number of passing events
   double value_alpha, error_alpha, value_beta, error_beta, value_epsilon, error_epsilon, diff_squared, diff, evts_in_bin, error_evts_in_bin, error_diff_squared, error_diff, mll_minus_2gen, error_mll_minus_2gen, diff_times_gen, error_diff_times_gen, jac_b_weight, error_jac_b_weight; // for jac calculation
-  double mean_mc, error_mean_mc, sigma_mc=0.0, error_sigma_mc, integral_mc, chi2_mc;
+  double mean_mc = 0.0, error_mean_mc = 0.0, sigma_mc=0.0, error_sigma_mc = 0.0, integral_mc, chi2_mc;
   double mean_diff_data = 1.0, error_mean_diff_data = 1.0, sigma_diff_data = 1.0, error_sigma_diff_data = 1.0, integral_diff_data = 1.0; //TODO just initialise with 0, are they called in analysis mode at all?
   double fit_beta_error, value_corrected, error_corrected, mean_corrected_diff, error_mean_corrected_diff, sigma_corrected_diff, error_sigma_corrected_diff;
   double max_hist_mll_diff, max_hist_mll;
@@ -189,6 +183,37 @@ int sagitta_bin_optimise(){
   string name, leg_entry, title;
   vector<double> fitresult;
 
+  // Save quantities relevant to control histograms in a TTree
+  std::unique_ptr<TFile> f_control_tree( TFile::Open("InOutputFiles/control_tree.root", "RECREATE") );
+  //auto control_tree = std::make_unique<TTree>("control_tree", "control_tree");
+  TTree *control_tree = new TTree("control_tree", "control_tree");
+  double fitted_beta = 0.0, fitted_beta_error = 0.0, fitted_alpha = 0.0, fitted_alpha_error = 0.0, fitted_nu = 0.0, fitted_nu_error = 0.0; 
+  double* nevents_ptr = &nevents;
+  double* fitted_beta_ptr = &fitted_beta;
+  double* fitted_beta_error_ptr = &fitted_beta_error;
+  double* fitted_alpha_ptr = &fitted_alpha;
+  double* fitted_alpha_error_ptr = &fitted_alpha_error;
+  double* fitted_nu_ptr = &fitted_nu;
+  double* fitted_nu_error_ptr = &fitted_nu_error;
+  double* mean_mc_ptr = &mean_mc;
+  double* error_mean_mc_ptr = &error_mean_mc;
+  double* sigma_mc_ptr = &sigma_mc;
+  double* error_sigma_mc_ptr = &error_sigma_mc;
+  string* name_ptr = &name;
+
+  control_tree->Branch("nevents", nevents_ptr);
+  control_tree->Branch("beta", fitted_beta_ptr);
+  control_tree->Branch("error_beta", fitted_beta_error_ptr);
+  control_tree->Branch("alpha", fitted_alpha_ptr);
+  control_tree->Branch("error_alpha", fitted_alpha_error_ptr);
+  control_tree->Branch("nu", fitted_nu_ptr);
+  control_tree->Branch("error_nu", fitted_nu_error_ptr);
+  control_tree->Branch("mean_mc", mean_mc_ptr);
+  control_tree->Branch("error_mean_mc", error_mean_mc_ptr);
+  control_tree->Branch("sigma_mc", sigma_mc_ptr);
+  control_tree->Branch("error_sigma_mc", error_sigma_mc_ptr);
+  control_tree->Branch("label", name_ptr);
+    
   // Histograms for mll_diff distribution properties
 
   title = mc_name_root + "-gen mll mean";
@@ -350,11 +375,11 @@ int sagitta_bin_optimise(){
   //--------------------------------------------------------------------------------------
 
   // Files to write results
-  title = "mass_fits_control_histos_" + data_name_root + ".root";
+  title = "InOutputFiles/mass_fits_control_histos_" + data_name_root + ".root";
   std::unique_ptr<TFile> f_control( TFile::Open(title.c_str(), "RECREATE") ); // histos inclusive in k bins
-  title = "mass_fits_" + data_name_root + ".root";
+  title = "InOutputFiles/mass_fits_" + data_name_root + ".root";
   std::unique_ptr<TFile> f_fits( TFile::Open(title.c_str(), "RECREATE") ); // histos per k bin
-  ofstream f_pass_reg("passed_regions.txt"); // to check if there are enough k bins to constrain all sagitta parameters TODO get from python
+  ofstream f_pass_reg("InOutputFiles/passed_regions.txt"); // to check if there are enough k bins to constrain all sagitta parameters TODO get from python
 
   // Canvas
   TCanvas *c1 = new TCanvas("c1","c1",800,600);
@@ -646,7 +671,7 @@ int sagitta_bin_optimise(){
 		}
 	      }
 	      if (filled_bins_mll < 3 ){
-		std::cout<< "WARNING not enough points in mll to fit nu, beta, alpha in "<< name.c_str() <<" \n";
+		std::cout<< "WARNING not enough points in mll to fit nu, beta, alpha in "<< name.c_str() <<". remaining_n_events still counts it in, empty_histos_count doesn't include it." << "\n";
 		continue;
 	      } 
 	      f_pass_reg << name << "\n";
@@ -827,19 +852,26 @@ int sagitta_bin_optimise(){
 	      Eigen::MatrixXd V_alpha = (J.col(2).transpose()*(V_inv_sqrt*V_inv_sqrt)*J.col(2)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
 	      
 	      // Write nu, beta, alpha mass
-	      nu->SetBinError(nu->Fill(name.c_str(), n_b_a_vector(0)), pow(V_nu(0,0),0.5));
-	      beta->SetBinError(beta->Fill(name.c_str(), n_b_a_vector(1)), pow(V_beta(0,0),0.5));
-	      alpha->SetBinError(alpha->Fill(name.c_str(), n_b_a_vector(2)), pow(V_alpha(0,0),0.5));
+	      fitted_nu = n_b_a_vector(0);
+	      fitted_nu_error = pow(V_nu(0,0),0.5);
+	      fitted_beta = n_b_a_vector(1);
+	      fitted_beta_error = pow(V_beta(0,0),0.5);
+	      fitted_alpha = n_b_a_vector(2);
+	      fitted_alpha_error = pow(V_alpha(0,0),0.5);
+	      	      
+	      nu->SetBinError(nu->Fill(name.c_str(), fitted_nu), fitted_nu_error);
+	      beta->SetBinError(beta->Fill(name.c_str(), fitted_beta), fitted_beta_error);
+	      alpha->SetBinError(alpha->Fill(name.c_str(), fitted_alpha), fitted_alpha_error);
 
 	      //--------------------------------------------------------------------------
 	      // Add fitted parameters to mass fit panel
 
 	      c1->cd(2); //TODO  #Delta?#beta=
-	      leg_entry = "Fit #Delta#beta=" + to_string(n_b_a_vector(1)).substr(0, 6) + "#pm" + to_string(pow(V_beta(0,0),0.5)).substr(0, 6);
+	      leg_entry = "Fit #Delta#beta=" + to_string(fitted_beta).substr(0, 6) + "#pm" + to_string(fitted_beta_error).substr(0, 6);
 	      leg2->AddEntry((TObject*)0, leg_entry.c_str(), "");
-	      leg_entry = "Fit #Delta#nu=" + to_string(n_b_a_vector(0)).substr(0, 6) + "#pm" + to_string(pow(V_nu(0,0),0.5)).substr(0, 6);
+	      leg_entry = "Fit #Delta#nu=" + to_string(fitted_nu).substr(0, 6) + "#pm" + to_string(fitted_nu_error).substr(0, 6);
 	      leg2->AddEntry((TObject*)0, leg_entry.c_str(), "");
-	      leg_entry = "Fit #Delta#alpha=" + to_string(n_b_a_vector(2)).substr(0, 6) + "#pm" + to_string(pow(V_alpha(0,0),0.5)).substr(0, 6);
+	      leg_entry = "Fit #Delta#alpha=" + to_string(fitted_alpha).substr(0, 6) + "#pm" + to_string(fitted_alpha_error).substr(0, 6);
 	      leg2->AddEntry((TObject*)0, leg_entry.c_str(), "");
 	
 	      //--------------------------------------------------------------------------
@@ -855,14 +887,14 @@ int sagitta_bin_optimise(){
 	      position_to_fill = 0;
 	      for(int i=1; i<=nbinsmll; i++){
 		if ( find(good_indices_mll.begin(), good_indices_mll.end(), i) != good_indices_mll.end() ){
-		  value_corrected = mDh_proj_mll_mc->GetBinContent(i) + n_b_a_vector(1)*J(position_to_fill,1) + n_b_a_vector(0)*J(position_to_fill,0) + n_b_a_vector(2)*J(position_to_fill,2);
+		  value_corrected = mDh_proj_mll_mc->GetBinContent(i) + fitted_beta*J(position_to_fill,1) + fitted_nu*J(position_to_fill,0) + fitted_alpha*J(position_to_fill,2);
 		  error_corrected = pow(
 					pow(mDh_proj_mll_mc->GetBinError(i),2) +
-					pow(n_b_a_vector(1)*jac_beta->GetBinError(i),2) +
+					pow(fitted_beta*jac_beta->GetBinError(i),2) +
 					pow(J(position_to_fill,1),2)*V_beta(0,0) +
-					pow(n_b_a_vector(0)*mDh_proj_mll_mc->GetBinError(i),2) +
+					pow(fitted_nu*mDh_proj_mll_mc->GetBinError(i),2) +
 					pow(J(position_to_fill,0),2)*V_nu(0,0) +
-					pow(n_b_a_vector(2)*jac_alpha->GetBinError(i),2) +
+					pow(fitted_alpha*jac_alpha->GetBinError(i),2) +
 					pow(J(position_to_fill,2),2)*V_alpha(0,0)
 				    ,0.5);
 
@@ -901,7 +933,7 @@ int sagitta_bin_optimise(){
 		  }
 		}
 		if (filled_bins_mll_diff < 3 ){ //TODO refine, maybe I want to carry on with mass fit
-		  std::cout<<"WARNING not enough points in mll_diff to fit nu, epsilon, alpha in "<< name.c_str() <<"\n";
+		  std::cout<<"WARNING not enough points in mll_diff to fit nu, epsilon, alpha in "<< name.c_str() <<". remaining_n_events still counts it in, empty_histos_count doesn't include it." << "\n";
 		  continue;
 		} 
 		
@@ -1142,6 +1174,10 @@ int sagitta_bin_optimise(){
 	      c1->cd();
 	      // Write plots per k bin
 	      f_fits->WriteObject(c1, name.c_str());
+
+	      // Fill control TTree
+	      control_tree->Fill();
+	      //std::cout<<"Filled tree in bin "<< name.c_str() <<" \n";
 	      
 	    }
 	  }
@@ -1156,6 +1192,8 @@ int sagitta_bin_optimise(){
   efrac = remaining_nevents / total_nevents;
   std::cout<<"CHECKPOINT: "<<stringify_name(nbinseta, nbinspt, nbinseta, nbinspt)<<" histos  empty/all="<< hfrac <<"; events remaining/all "<< efrac <<"\n";
 
+  f_control_tree->WriteObject(control_tree, "control_tree");
+  
   //--------------------------------------------------------------------------
   // Write remaining histograms 
 
