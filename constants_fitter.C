@@ -976,6 +976,10 @@ int constants_fitter() {
   TH1D *fitted_pars_e = new TH1D("fitted_pars_e", "e", n_eta_bins, -2.4, 2.4);
   TH1D *fitted_pars_M = new TH1D("fitted_pars_M", "M", n_eta_bins, -2.4, 2.4);
 
+  TH1D *pull_A = new TH1D("pull_A", "A", n_eta_bins, -2.4, 2.4);
+  TH1D *pull_e = new TH1D("pull_e", "e", n_eta_bins, -2.4, 2.4);
+  TH1D *pull_M = new TH1D("pull_M", "M", n_eta_bins, -2.4, 2.4);
+  
   for (int i=1; i<=n_eta_bins; i++){
     fitted_pars_A->SetBinContent(i, A_e_M_values[i-1]); 
     fitted_pars_A->SetBinError(i, A_e_M_errors[i-1]);
@@ -989,7 +993,7 @@ int constants_fitter() {
     if (mode_option.compare("analysis") == 0) {
 
       std::vector<double> A_input_values(n_eta_bins), e_input_values(n_eta_bins), M_input_values(n_eta_bins);
-    
+      
       for (int j=0; j<n_eta_bins; j++){
 	// A from -0.0002 to 0.0005 and back
 	A_input_values[j] = (-7.0*4.0/n_eta_bins/n_eta_bins*(j - n_eta_bins/2)*(j - n_eta_bins/2) + 5.0)*0.0001;
@@ -1008,8 +1012,15 @@ int constants_fitter() {
       dummy_pars_e->SetBinError(i, 1e-10);
       dummy_pars_M->SetBinContent(i, M_input_values[i-1]);
       dummy_pars_M->SetBinError(i, 1e-10);
-    }
 
+      pull_A->SetBinContent(i, (A_e_M_values[i-1] - A_input_values[i-1])/A_e_M_errors[i-1]);
+      pull_A->SetBinError(i, 1e-10);
+      pull_e->SetBinContent(i, (A_e_M_values[i-1+n_eta_bins] - e_input_values[i-1])/A_e_M_errors[i-1+n_eta_bins]);
+      pull_e->SetBinError(i, 1e-10);
+      pull_M->SetBinContent(i, (A_e_M_values[i-1+2*n_eta_bins] - M_input_values[i-1])/A_e_M_errors[i-1+2*n_eta_bins]);
+      pull_M->SetBinError(i, 1e-10);
+    }
+    
     if (mode_option.compare("closure_test") == 0) { 
       dummy_pars_A->SetBinContent(i, dummy_parameters[i-1]);
       dummy_pars_A->SetBinError(i, 1e-10);
@@ -1017,9 +1028,16 @@ int constants_fitter() {
       dummy_pars_e->SetBinError(i, 1e-10);
       dummy_pars_M->SetBinContent(i, dummy_parameters[i-1+2*n_eta_bins]);
       dummy_pars_M->SetBinError(i, 1e-10);
-    }
-}
 
+      pull_A->SetBinContent(i, (A_e_M_values[i-1] - dummy_parameters[i-1])/A_e_M_errors[i-1]);
+      pull_A->SetBinError(i, 1e-10);
+      pull_e->SetBinContent(i, (A_e_M_values[i-1+n_eta_bins] - dummy_parameters[i-1+n_eta_bins])/A_e_M_errors[i-1+n_eta_bins]);
+      pull_e->SetBinError(i, 1e-10);
+      pull_M->SetBinContent(i, (A_e_M_values[i-1+2*n_eta_bins] - dummy_parameters[i-1+2*n_eta_bins])/A_e_M_errors[i-1+2*n_eta_bins]);
+      pull_M->SetBinError(i, 1e-10);
+    }
+  }
+  
   unique_ptr<TFile> f_control( TFile::Open("InOutputFiles/constants_fitted.root", "RECREATE") ); 
 
   TCanvas *c1 = new TCanvas("c1","c1",800,600);
@@ -1054,6 +1072,14 @@ int constants_fitter() {
   leg1->Draw("SAME");
   leg1->Clear();
 
+  TCanvas *c01 = new TCanvas("c01","c01",800,600);
+
+  pull_A->GetYaxis()->SetNoExponent();
+  pull_A->SetStats(0);
+  pull_A->GetXaxis()->SetTitle("#eta");
+  pull_A->GetYaxis()->SetTitle("Pull");
+  pull_A->Draw("");
+
   TCanvas *c2 = new TCanvas("c2","c2",800,600);
 
   //fitted_pars_e->SetMinimum(-0.001);
@@ -1076,6 +1102,14 @@ int constants_fitter() {
   leg1->AddEntry(fitted_pars_e, "fitted par", "l");
   leg1->Draw("SAME");
   leg1->Clear();
+
+  TCanvas *c02 = new TCanvas("c02","c02",800,600);
+
+  pull_e->GetYaxis()->SetNoExponent();
+  pull_e->SetStats(0);
+  pull_e->GetXaxis()->SetTitle("#eta");
+  pull_e->GetYaxis()->SetTitle("Pull");
+  pull_e->Draw("");
   
   TCanvas *c3 = new TCanvas("c3","c3",800,600);
 
@@ -1098,10 +1132,21 @@ int constants_fitter() {
 
   leg1->AddEntry(fitted_pars_M, "fitted par", "l");
   leg1->Draw("SAME");
+
+  TCanvas *c03 = new TCanvas("c03","c03",800,600);
+
+  pull_M->GetYaxis()->SetNoExponent();
+  pull_M->SetStats(0);
+  pull_M->GetXaxis()->SetTitle("#eta");
+  pull_M->GetYaxis()->SetTitle("Pull");
+  pull_M->Draw("");
   
   f_control->WriteObject(c1, "A");
   f_control->WriteObject(c2, "e");
   f_control->WriteObject(c3, "M");
+  f_control->WriteObject(c01, "pull_A");
+  f_control->WriteObject(c02, "pull_e");
+  f_control->WriteObject(c03, "pull_M");
   
   return 0;
 }
