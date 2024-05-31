@@ -65,7 +65,7 @@ int multiDhist_producer(){
   int nbinsmll_diff_over_gen=32, nbinsmll_diff=22, nbinsmll=32, nbinseta=24, nbinspt=5;
   vector<double> etabinranges, ptbinranges, mllbinranges;
   vector<double> mll_diffbinranges, mll_diff_over_genbinranges;
-  vector<double> A_values(nbinseta), e_values(nbinseta), M_values(nbinseta);
+  vector<float> A_values(nbinseta), e_values(nbinseta), M_values(nbinseta);
 
   std::cout<<"\n etabinranges = [";
   for (int i=0; i<=nbinseta; i++){
@@ -153,21 +153,46 @@ int multiDhist_producer(){
 		    firstPt_smear = rans[nslot]->Gaus(mean, width);
 		    firstSmearTrack.SetPtEtaPhiM(firstPt_smear, GenPart_eta[k], GenPart_phi[k], rest_mass);
 		    //smear_beta_val, weight for beta != 1 use Eqn 22 in note AN2021_131_v5
-		    eta_bin_idx = GetEtaBin(GenPart_eta[k]);
+		    eta_bin_idx = GetEtaBin(Muon_eta[i]);
+		    if (eta_bin_idx < 0 || eta_bin_idx > 23){
+		      std::cout<<"\n"<<"WARNING eta out of bounds";
+		      pair_to_return = make_tuple(0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
+		      return pair_to_return ;
+		    }
 		    A = A_values[eta_bin_idx];
 		    e = e_values[eta_bin_idx];
 		    M = M_values[eta_bin_idx];
 		    if (GenPart_pdgId[k]>0){ //mu(-)
-		      smeared_curvature = ( (1.0+A) + pow( (1.0+A)*(1.0+A) + 4.0*e*(-1.0*M - 1./mean) ,0.5) )/2.0/e;
-		      if ((1.0+A)*(1.0+A) + 4.0*e*(-1.0*M - 1./mean) < 0 || smeared_curvature < 0 ){std::cout<<"\n"<<"WRONG CURVATURE";}
+		      if ( (1.0+A)*(1.0+A) + 4.0*e*(-1.0*M - 1.0/mean) >= 0.0 ){
+			smeared_curvature = ( -1.0*(1.0+A) + pow( (1.0+A)*(1.0+A) + 4.0*e*(-1.0*M - 1.0/mean) ,0.5) )/(-2.0)/e;
+			if (smeared_curvature < 0.0 || std::isnan(smeared_curvature)){
+			  std::cout<<"\n"<<"WARNING WRONG CURVATURE";
+			  pair_to_return = make_tuple(0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
+			  return pair_to_return ;
+			}
+		      } else {
+			std::cout<<"\n"<<"WARNING negative delta";
+			pair_to_return = make_tuple(0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
+			return pair_to_return ;
+		      }
 		    } else { //mu(+)
-		      smeared_curvature = ( (1.0+A) + pow( (1.0+A)*(1.0+A) + 4.0*e*(M - 1./mean) ,0.5) )/2.0/e;
-		      if ((1.0+A)*(1.0+A) + 4.0*e*(M - 1./mean) < 0 || smeared_curvature < 0 ){std::cout<<"\n"<<"WRONG CURVATURE";}
+		      if ( (1.0+A)*(1.0+A) + 4.0*e*(M - 1.0/mean) >= 0.0 ){
+			smeared_curvature = ( -1.0*(1.0+A) + pow( (1.0+A)*(1.0+A) + 4.0*e*(M - 1.0/mean) ,0.5) )/(-2.0)/e;
+			if (smeared_curvature < 0.0 || std::isnan(smeared_curvature)){
+			  std::cout<<"\n"<<"WARNING WRONG CURVATURE";
+			  pair_to_return = make_tuple(0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
+			  return pair_to_return ;
+			}
+                      } else {
+                        std::cout<<"\n"<<"WARNING negative delta";
+                        pair_to_return = make_tuple(0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
+                        return pair_to_return ;
+                      }
 		    }
-		    smeared_mean = 1./smeared_curvature; 
+		    smeared_mean = 1.0/smeared_curvature;
 		    smear_beta_weight_first_term = TMath::Gaus(firstPt_smear, smeared_mean, width) / TMath::Gaus(firstPt_smear, mean, width);
 		    firstPt_smear_beta_val = rans[nslot]->Gaus(smeared_mean, width);
-		            
+		    
 		    firstGenMatched = true;
 		    if(secondGenMatched == true){break;}
 		  } else if(pow(pow(GenPart_eta[k]-Muon_eta[j],2) + pow(TVector2::Phi_mpi_pi(GenPart_phi[k]-Muon_phi[j]),2),0.5)<0.3){
@@ -180,21 +205,46 @@ int multiDhist_producer(){
 		    secondPt_smear = rans[nslot]->Gaus(mean, width);
 		    secondSmearTrack.SetPtEtaPhiM(secondPt_smear, GenPart_eta[k], GenPart_phi[k], rest_mass);
 		    //smear_beta_val, weight for beta != 1
-		    eta_bin_idx = GetEtaBin(GenPart_eta[k]);
+		    eta_bin_idx = GetEtaBin(Muon_eta[j]);
+		    if (eta_bin_idx < 0 || eta_bin_idx > 23){
+                      std::cout<<"\n"<<"WARNING eta out of bounds";
+                      pair_to_return = make_tuple(0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
+                      return pair_to_return ;
+                    }
                     A = A_values[eta_bin_idx];
                     e = e_values[eta_bin_idx];
                     M = M_values[eta_bin_idx];
 		    if (GenPart_pdgId[k]>0){ //mu(-)
-		      smeared_curvature = ( (1.0+A) + pow( (1.0+A)*(1.0+A) + 4.0*e*(-1.0*M - 1./mean) ,0.5) )/2.0/e;
-		      if ((1.0+A)*(1.0+A) + 4.0*e*(-1.0*M - 1./mean) < 0 || smeared_curvature < 0 ){std::cout<<"\n"<<"WRONG CURVATURE";}
-		    } else { //mu(+)
-                      smeared_curvature = ( (1.0+A) + pow( (1.0+A)*(1.0+A) + 4.0*e*(M - 1./mean) ,0.5) )/2.0/e;
-		      if ((1.0+A)*(1.0+A) + 4.0*e*(M - 1./mean) < 0 || smeared_curvature < 0 ){std::cout<<"\n"<<"WRONG CURVATURE";}
+                      if ( (1.0+A)*(1.0+A) + 4.0*e*(-1.0*M - 1.0/mean) >= 0.0 ){
+                        smeared_curvature = ( -1.0*(1.0+A) + pow( (1.0+A)*(1.0+A) + 4.0*e*(-1.0*M - 1.0/mean) ,0.5) )/(-2.0)/e;
+                        if (smeared_curvature < 0.0 || std::isnan(smeared_curvature)){
+                          std::cout<<"\n"<<"WARNING WRONG CURVATURE";
+                          pair_to_return = make_tuple(0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
+                          return pair_to_return ;
+                        }
+                      } else {
+                        std::cout<<"\n"<<"WARNING negative delta";
+                        pair_to_return = make_tuple(0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
+                        return pair_to_return ;
+                      }
+                    } else { //mu(+)
+                      if ( (1.0+A)*(1.0+A) + 4.0*e*(M - 1.0/mean) >= 0.0 ){
+                        smeared_curvature = ( -1.0*(1.0+A) + pow( (1.0+A)*(1.0+A) + 4.0*e*(M - 1.0/mean) ,0.5) )/(-2.0)/e;
+                        if (smeared_curvature < 0.0 || std::isnan(smeared_curvature)){
+                          std::cout<<"\n"<<"WARNING WRONG CURVATURE";
+                          pair_to_return = make_tuple(0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
+                          return pair_to_return ;
+                        }
+                      } else {
+                        std::cout<<"\n"<<"WARNING negative delta";
+                        pair_to_return = make_tuple(0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
+                        return pair_to_return ;
+                      }
                     }
-		    smeared_mean = 1./smeared_curvature;
+		    smeared_mean = 1.0/smeared_curvature;
 		    smear_beta_weight_second_term = TMath::Gaus(secondPt_smear, smeared_mean, width) / TMath::Gaus(secondPt_smear, mean, width); 
 		    secondPt_smear_beta_val = rans[nslot]->Gaus(smeared_mean, width);
-		            
+		    
 		    secondGenMatched = true;
 		    if(firstGenMatched == true){break;}
 		  }
@@ -207,7 +257,9 @@ int multiDhist_producer(){
 	      motherSmear = firstSmearTrack + secondSmearTrack;
 	      mll_smear = motherSmear.M();
 	      smear_beta_weight = smear_beta_weight_first_term * smear_beta_weight_second_term;
-
+	      //if(std::isnan(smear_beta_weight)){
+	      //std::cout << "slot" << nslot << ": smear_beta_weight =" << smear_beta_weight << "; first smeared_mean =" << firstPt_smear_beta_val << "; first mean = " << firstPt_smear << "; second smeared_mean =" << secondPt_smear_beta_val << "; second mean = " << secondPt_smear << "\n";
+	      //}
 	      motherGen = firstGenTrack + secondGenTrack;
 	      float mll_gen = motherGen.M();
 	      //--------------------------------------------------------------------------------
