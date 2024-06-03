@@ -40,17 +40,34 @@ int multiDhist_producer(){
   TChain chain("Events");
   //chain.Add("/scratch/wmass/y2016/DYJetsToMuMu_H2ErratumFix_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MCPostVFP_TrackFitV722_NanoProdv6/240509_040854/0000/NanoV9MCPostVFP_1.root");
   //chain.Add("/scratch/wmass/y2016/DYJetsToMuMu_H2ErratumFix_PDFExt_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MCPostVFP_TrackFitV722_NanoProdv6/240509_041233/0000/NanoV9MCPostVFP_1.root");
+  //chain.Add("/scratch/wmass/y2017/DYJetsToMuMu_H2ErratumFix_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MC2017_TrackFitV722_NanoProdv3/NanoV9MC2017_1.root");
   
   string line;
-
-  ifstream file("InOutputFiles/MCFilenames_2016.txt");
+  /*
+  ifstream file("InOutputFiles/MCfilenames_2016.txt");
   if (file.is_open()) {
     while (getline(file, line)) {
       chain.Add(line.c_str());
     }
     file.close();
-  }  
+  }
 
+  ifstream file1("InOutputFiles/MCfilenames_2017.txt");
+  if (file1.is_open()) {
+    while (getline(file1, line)) {
+      chain.Add(line.c_str());
+    }
+    file1.close();
+  }
+  */
+  ifstream file2("InOutputFiles/MCfilenames_2018.txt");
+  if (file2.is_open()) {
+    while (getline(file2, line)) {
+      chain.Add(line.c_str());
+    }
+    file2.close();
+  } 
+  
   RDataFrame df(chain);
 
   auto d0 = df.Filter("HLT_IsoMu24 == 1")
@@ -84,19 +101,19 @@ int multiDhist_producer(){
   for (int i=0; i<=nbinsmll_diff_over_gen; i++) mll_diff_over_genbinranges.push_back(-0.1 + i*2.0*0.1/nbinsmll_diff_over_gen);
 
   for (int i=0; i<nbinseta; i++){
-    std::cout<< "\n" << "i: " << i << "\n";
+    //std::cout<< "\n" << "i: " << i << "\n";
     // A from -0.0002 to 0.0005 and back
     A_values[i] = (-7.0*4.0/nbinseta/nbinseta*(i - nbinseta/2)*(i - nbinseta/2) + 5.0)*0.0001;
     //A_values[i] = 0.0004; 
-    std::cout<< "A: " << A_values[i] << ", ";
+    //std::cout<< "A: " << A_values[i] << ", ";
     // e from 0.01 to 0.001 and back
     e_values[i] = (9.0*4.0/nbinseta/nbinseta*(i - nbinseta/2)*(i - nbinseta/2) + 1.0)*0.001;
     //e_values[i] = 0.002; 
-    std::cout<< "e: " << e_values[i] << ", ";
+    //std::cout<< "e: " << e_values[i] << ", ";
     // M from 4*10^-5 to -2*10^-5 and back
     M_values[i] = (6.0*4.0/nbinseta/nbinseta*(i - nbinseta/2)*(i - nbinseta/2) - 2.0)*0.00001;
     //M_values[i] = 0.00001; 
-    std::cout<< "M: " << M_values[i] << ", ";
+    //std::cout<< "M: " << M_values[i] << ", ";
   }
 
   auto GetEtaBin = [&](float eta)->int{
@@ -376,7 +393,7 @@ auto d7 = d6.Define("jacobian_weight_mll_diff_smear", "return mll_diff_smear*wei
   std::unique_ptr<TFile> f3( TFile::Open("InOutputFiles/control_bin_histo.root", "RECREATE") );  
 
   //pT bin optimisation starts
-  auto pt_pos_uni = d7.Histo1D({"pt_pos_uni", "pt mu+", nbinspt*3, pt_low, pt_high},"posTrackPt");
+  auto pt_pos_uni = d7.Histo1D({"pt_pos_uni", "pt mu+", nbinspt*3, pt_low, pt_high},"posTrackPt","weight");
   f3->WriteObject(pt_pos_uni.GetPtr(), "pt_pos_uni");
   // Get quartiles
   double xq[nbinspt+1], myptboundaries[nbinspt+1];
@@ -391,15 +408,33 @@ auto d7 = d6.Define("jacobian_weight_mll_diff_smear", "return mll_diff_smear*wei
   }
   std::cout<<"] \n";
 
+  // small uniform pt binning
+
+  vector<double> smallptunibinning;
+  for (int i=0; i<=nbinspt*10; i++){
+    smallptunibinning.push_back(pt_low + i * (pt_high - pt_low)/nbinspt/10);
+  }
+  
+  double mysmallptunibinning[smallptunibinning.size()];
+  for (int i=0; i<smallptunibinning.size(); i++){
+    mysmallptunibinning[i] = smallptunibinning[i];
+  }
+
   //TH1 in pT+ with variable bin size -> should be uniform
-  auto pt_pos = d7.Histo1D({"pt_pos", "pt mu+", nbinspt, myptboundaries},"posTrackPt");
+  auto pt_pos = d7.Histo1D({"pt_pos", "pt mu+", nbinspt, myptboundaries},"posTrackPt","weight");
   f3->WriteObject(pt_pos.GetPtr(), "pt_pos");
 
-  auto pt_eta_pos = d7.Histo2D({"pt_eta_pos", "pt eta mu+", nbinseta, myetaboundaries, nbinspt, myptboundaries},"posTrackEta", "posTrackPt");
+  auto pt_eta_pos = d7.Histo2D({"pt_eta_pos", "pt eta mu+", nbinseta, myetaboundaries, nbinspt, myptboundaries},"posTrackEta", "posTrackPt", "weight");
   f3->WriteObject(pt_eta_pos.GetPtr(), "pt_eta_pos");
+
+  auto pt_pos_bin = d7.Histo2D({"pt_pos_bin", "pt mu+ distr in bin", nbinspt*10, mysmallptunibinning, nbinspt, myptboundaries}, "posTrackPt", "posTrackPt", "weight");
+  f3->WriteObject(pt_pos_bin.GetPtr(), "pt_pos_bin");
+  
+  auto pt_neg_bin = d7.Histo2D({"pt_neg_bin", "pt mu- distr in bin", nbinspt*10, mysmallptunibinning, nbinspt, myptboundaries}, "negTrackPt", "negTrackPt", "weight");
+  f3->WriteObject(pt_neg_bin.GetPtr(), "pt_neg_bin");
   
   f3->Close();
-
+  return 0;
   /*
   std::unique_ptr<TFile> f4( TFile::Open("InOutputFiles/multiD_histo_smear_beta_val_easy.root", "RECREATE") );
   // mll_diff_smear_beta_val_easy 

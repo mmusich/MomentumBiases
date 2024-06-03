@@ -121,12 +121,12 @@ int mass_fitter(){
   }
      
   // MC 
-  std::unique_ptr<TFile> myFile( TFile::Open( ("InOutputFiles/multiD_histo_"+ mc_name_root +"_2016.root").c_str() ) );
+  std::unique_ptr<TFile> myFile( TFile::Open( ("InOutputFiles/multiD_histo_"+ mc_name_root +"_2018.root").c_str() ) );
   //--------------------------------------------------------------------------------------
   // Binning must match with 5D histogram
   double eta_low = -2.4, eta_high = 2.4, mll_diff_low = -7.0, mll_diff_high = 7.0, mll_low = 75.0, mll_high = 105.0;
   int nbinsmll_diff=22, nbinsmll=32, nbinseta=24, nbinspt=5;
-  vector<double> etabinranges, mllbinranges, ptbinranges{25.0, 33.3239, 38.4288, 42.2772, 45.9387, 55.0}; //pT binning for y2016
+  vector<double> etabinranges, mllbinranges, ptbinranges{25.0, 33.3368, 38.4425, 42.2839, 45.9397, 55.0}; //pT binning for y2018
   for (int i=0; i<=nbinseta; i++){etabinranges.push_back(eta_low + i * (eta_high - eta_low)/nbinseta);}
   for (int i=0; i<=nbinsmll; i++){mllbinranges.push_back(mll_low + i * (mll_high - mll_low)/nbinsmll);}
   //--------------------------------------------------------------------------------------
@@ -157,7 +157,7 @@ int mass_fitter(){
   // Data
   THnD *mDh_mll_data=nullptr, *mDh_diff_data=nullptr;
   if (mode_option.compare("analysis") == 0) { 
-    std::unique_ptr<TFile> myFile2( TFile::Open( ("InOutputFiles/multiD_histo_"+ data_name_root +"_2016.root").c_str() ) );
+    std::unique_ptr<TFile> myFile2( TFile::Open( ("InOutputFiles/multiD_histo_"+ data_name_root +".root").c_str() ) );
     mDh_mll_data = myFile2->Get<THnD>( ("multi_data_histo_mll_" + data_name_root).c_str() );
   } else if (mode_option.compare("validation") == 0){
     mDh_mll_data = myFile->Get<THnD>( ("multi_data_histo_mll_" + data_name_root).c_str() );

@@ -39,7 +39,7 @@ public:
   vector<int> getIndices(string bin_label) const; 
   double getK(const int pT_index) const;
   
-  const vector<double> pT_binning {25.0, 33.327, 38.4302, 42.2782, 45.9389, 55.0}; // pT binning goes here
+  const vector<double> pT_binning {25.0, 33.3368, 38.4425, 42.2839, 45.9397, 55.0}; // pT binning goes here, this is for 2018
   static constexpr double scaling_A = 0.001, scaling_e = 0.001 * 40.0, scaling_M = 0.001 / 40.0, scaling_e_prime = 0.001 / 0.01; // this scaling makes fitter parameters of order 1 
 
   vector<string> binLabels; // made public for the closure test
@@ -105,25 +105,23 @@ double TheoryFcn::operator()(const vector<double>& par) const {
   
   double k_middle = (1.0/pT_binning[n_pt_bins] + 1.0/pT_binning[0])/2.0;
 
-  //vector<double> physical_M_pars(n_eta_bins);
-  //TMatrixD internal_M_matrix(n_eta_bins,1), physical_M_matrix(n_eta_bins,1);
-  //TArrayD internal_M_elements(n_eta_bins);
-
-  //for(int j=0; j<n_eta_bins; j++){
-  //  for(int i=0; i<n_eta_bins; i++){
-  //    internal_M_elements[j] = par[2*n_eta_bins + j];
-  //  }
-  //}
+  vector<double> physical_M_pars(n_eta_bins);
+  TMatrixD internal_M_matrix(n_eta_bins,1), physical_M_matrix(n_eta_bins,1);
+  TArrayD internal_M_elements(n_eta_bins);
   
-  //internal_M_matrix.SetMatrixArray(internal_M_elements.GetArray());
-  //physical_M_matrix = TMatrixD(VIntToPhys,TMatrixD::kMult,internal_M_matrix);
+  for(int i=0; i<n_eta_bins; i++){
+    internal_M_elements[i] = par[2*n_eta_bins + i];
+  }
+  
+  internal_M_matrix.SetMatrixArray(internal_M_elements.GetArray());
+  physical_M_matrix = TMatrixD(VIntToPhys,TMatrixD::kMult,internal_M_matrix);
  
-  ////std::cout<< "\n" << "physical M array"<< "\n";
-  //for(int i=0; i<n_eta_bins; i++){
-  //  physical_M_pars[i] = TMatrixDColumn(physical_M_matrix,0)(i);
-  //  //std::cout<< " "<< physical_M_pars[i];
-  //}
-  ////std::cout<<"\n";
+  //std::cout<< "\n" << "physical M array"<< "\n";
+  for(int i=0; i<n_eta_bins; i++){
+    physical_M_pars[i] = TMatrixDColumn(physical_M_matrix,0)(i);
+    //std::cout<< " "<< physical_M_pars[i];
+  }
+  //std::cout<<"\n";
 
   for(unsigned int n(0); n < scaleSquared.size() ; n++) {
     bin_indices = getIndices(binLabels[n]); 
@@ -142,12 +140,12 @@ double TheoryFcn::operator()(const vector<double>& par) const {
     // (1 + A'(+) - e'(+)k' + M(+)/k)(1 + A'(-) - e'(-)k' - M(-)/k) and scaling of A,e,M
     //par[eta_pos_index] now has the meaning of A' rather than A
     //par[eta_pos_index + n_eta_bins] now has the meaning of e' rather than e
-    term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + n_eta_bins]*(k_plus - k_middle) + scaling_M*par[eta_pos_index + 2*n_eta_bins]/k_plus);
-    term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + n_eta_bins]*(k_minus - k_middle) - scaling_M*par[eta_neg_index + 2*n_eta_bins]/k_minus);
+    //term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + n_eta_bins]*(k_plus - k_middle) + scaling_M*par[eta_pos_index + 2*n_eta_bins]/k_plus);
+    //term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + n_eta_bins]*(k_minus - k_middle) - scaling_M*par[eta_neg_index + 2*n_eta_bins]/k_minus);
 
     // decorrelate A, e by shifting origin of k and decorrelate M by fitting a linear combination of physical parameters 
-    //term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + n_eta_bins]*(k_plus - k_middle) + scaling_M*physical_M_pars[eta_pos_index]/k_plus);
-    //term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + n_eta_bins]*(k_minus - k_middle) - scaling_M*physical_M_pars[eta_neg_index]/k_minus);
+    term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + n_eta_bins]*(k_plus - k_middle) + scaling_M*physical_M_pars[eta_pos_index]/k_plus);
+    term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + n_eta_bins]*(k_minus - k_middle) - scaling_M*physical_M_pars[eta_neg_index]/k_minus);
 
     my_func = term_pos*term_neg; 
     
@@ -183,20 +181,20 @@ vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
   
   int ndof = scaleSquared.size() - par.size();
 
-  //vector<double> physical_M_pars(n_eta_bins);
-  //TMatrixD internal_M_matrix(n_eta_bins,1), physical_M_matrix(n_eta_bins,1);
-  //TArrayD internal_M_elements(n_eta_bins);
+  vector<double> physical_M_pars(n_eta_bins);
+  TMatrixD internal_M_matrix(n_eta_bins,1), physical_M_matrix(n_eta_bins,1);
+  TArrayD internal_M_elements(n_eta_bins);
   
-  //for(int i=0; i<n_eta_bins; i++){
-  //  internal_M_elements[i] = par[2*n_eta_bins + i];
-  //}
+  for(int i=0; i<n_eta_bins; i++){
+    internal_M_elements[i] = par[2*n_eta_bins + i];
+  }
     
-  //internal_M_matrix.SetMatrixArray(internal_M_elements.GetArray());
-  //physical_M_matrix = TMatrixD(VIntToPhys,TMatrixD::kMult,internal_M_matrix);
+  internal_M_matrix.SetMatrixArray(internal_M_elements.GetArray());
+  physical_M_matrix = TMatrixD(VIntToPhys,TMatrixD::kMult,internal_M_matrix);
   
-  //for(int i=0; i<n_eta_bins; i++){
-  //  physical_M_pars[i] = TMatrixDColumn(physical_M_matrix,0)(i);
-  //}
+  for(int i=0; i<n_eta_bins; i++){
+    physical_M_pars[i] = TMatrixDColumn(physical_M_matrix,0)(i);
+  }
   
   for(unsigned int n(0); n < scaleSquared.size() ; n++) { // loops over measurements
     // TODO I need everything from the chi2 function, maybe better solution to this
@@ -216,12 +214,12 @@ vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
     // (1 + A'(+) - e'(+)k' + M(+)/k)(1 + A'(-) - e'(-)k' - M(-)/k) and scaling of A,e,M
     //par[eta_pos_index] now has the meaning of A' rather than A
     //par[eta_pos_index + n_eta_bins] now has the meaning of e' rather than e
-    term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + n_eta_bins]*(k_plus - k_middle) + scaling_M*par[eta_pos_index + 2*n_eta_bins]/k_plus);
-    term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + n_eta_bins]*(k_minus - k_middle) - scaling_M*par[eta_neg_index + 2*n_eta_bins]/k_minus);
+    //term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + n_eta_bins]*(k_plus - k_middle) + scaling_M*par[eta_pos_index + 2*n_eta_bins]/k_plus);
+    //term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + n_eta_bins]*(k_minus - k_middle) - scaling_M*par[eta_neg_index + 2*n_eta_bins]/k_minus);
 
     // decorrelate A, e by shifting origin of k and decorrelate M by fitting a linear combination of physical parameters
-    //term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + n_eta_bins]*(k_plus - k_middle) + scaling_M*physical_M_pars[eta_pos_index]/k_plus);
-    //term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + n_eta_bins]*(k_minus - k_middle) - scaling_M*physical_M_pars[eta_neg_index]/k_minus);
+    term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + n_eta_bins]*(k_plus - k_middle) + scaling_M*physical_M_pars[eta_pos_index]/k_plus);
+    term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + n_eta_bins]*(k_minus - k_middle) - scaling_M*physical_M_pars[eta_neg_index]/k_minus);
 
     local_func = term_pos*term_neg;
     
@@ -301,16 +299,16 @@ vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
 
   // -----------------------------------------------
   // Transform M terms to derivatives wrt M_internal
-  //for(int i=0; i<n_eta_bins; i++){
-  //  grad_wrt_M_physical_array[i] = grad[2*n_eta_bins + i];
-  //}
+  for(int i=0; i<n_eta_bins; i++){
+    grad_wrt_M_physical_array[i] = grad[2*n_eta_bins + i];
+  }
   
-  //grad_wrt_M_physical_matrix.SetMatrixArray(grad_wrt_M_physical_array.GetArray());
-  //grad_wrt_M_internal_matrix = TMatrixD(VPhysToInt,TMatrixD::kMult,grad_wrt_M_physical_matrix);
+  grad_wrt_M_physical_matrix.SetMatrixArray(grad_wrt_M_physical_array.GetArray());
+  grad_wrt_M_internal_matrix = TMatrixD(VPhysToInt,TMatrixD::kMult,grad_wrt_M_physical_matrix);
 
-  //for(int i=0; i<n_eta_bins; i++){
-  //  grad[2*n_eta_bins + i] = TMatrixDColumn(grad_wrt_M_internal_matrix,0)(i);
-  //}
+  for(int i=0; i<n_eta_bins; i++){
+    grad[2*n_eta_bins + i] = TMatrixDColumn(grad_wrt_M_internal_matrix,0)(i);
+  }
   // -----------------------------------------------
   
   return grad;
@@ -484,7 +482,7 @@ int constants_fitter() {
     }
   }
   */
-  /*
+  
   //---------------------------------------------------------------------
   // inverse of {(1, 1, 1, 1, ...),(-1, 1, 0, 0, ...),(-1, 0, 1, 0, ...)}
   for(int j=0; j<n_eta_bins; j++){
@@ -498,7 +496,7 @@ int constants_fitter() {
       }
     }
   }
-  */
+  
   /*
   //-------------------------------------------------------------------  
   // inverse of {(1, 1, 1, 1, ...),(0, 1, 0, 0, ...),(0, 0, 1, 0, ...)}  
@@ -511,13 +509,13 @@ int constants_fitter() {
       if (i == j){
         V_internal_to_physical_elements[j*n_eta_bins+i] = 1.0;
       } else {
-        V_internal_to_physical_elements[j*n_eta_bins+i] = 0;
+        V_internal_to_physical_elements[j*n_eta_bins+i] = 0.0;
       }
 
     }
   }
-  */
-  
+  /*
+  /*
   //identity e.g. M not decorrelated
   for(int j=0; j<n_eta_bins; j++){
     for(int i=0; i<n_eta_bins; i++){
@@ -528,7 +526,7 @@ int constants_fitter() {
       }
     }
   }
-  
+  */
   V_internal_to_physical.SetMatrixArray(V_internal_to_physical_elements.GetArray());
   
   //std::cout<< "\n" << "VIntToPhys"<< "\n";
@@ -543,8 +541,8 @@ int constants_fitter() {
   for(int i=0; i<n_eta_bins; i++){ // j = 0 <- row 0
     V_physical_to_internal_elements[i] = 1.0;
   }
-  //for(int j=1; j<n_eta_bins; j++){ // counts rows, j starts from 1
-  //  for(int i=0; i<n_eta_bins; i++){ // counts collumns
+  for(int j=1; j<n_eta_bins; j++){ // counts rows, j starts from 1
+    for(int i=0; i<n_eta_bins; i++){ // counts collumns
       /*
       //----------------------------------------------------------	
       // {(1, 1, 1, 1, ...),(1, -1, 0, 0, ...),(0, 1, -1, 0, ...)}	
@@ -553,10 +551,10 @@ int constants_fitter() {
       } else if ( i == j-1) {
 	V_physical_to_internal_elements[j*n_eta_bins+i] = 1.0;
       } else {
-	V_physical_to_internal_elements[j*n_eta_bins+i] = 0;
+	V_physical_to_internal_elements[j*n_eta_bins+i] = 0.0;
       }
       */
-      /*
+      
       //----------------------------------------------------------
       // {(1, 1, 1, 1, ...),(-1, 1, 0, 0, ...),(-1, 0, 1, 0, ...)} 
       if (i == j){
@@ -564,32 +562,32 @@ int constants_fitter() {
       } else if ( i == 0) {
         V_physical_to_internal_elements[j*n_eta_bins+i] = -1.0;
       } else {
-        V_physical_to_internal_elements[j*n_eta_bins+i] = 0;
+        V_physical_to_internal_elements[j*n_eta_bins+i] = 0.0;
       }
-      */
-      /*
+      
+      
       //--------------------------------------------------------	
       // {(1, 1, 1, 1, ...),(0, 1, 0, 0, ...),(0, 0, 1, 0, ...)}
-      if (i == j){
-        V_physical_to_internal_elements[j*n_eta_bins+i] = 1.0;
-      } else {
-        V_physical_to_internal_elements[j*n_eta_bins+i] = 0;
-      }
-      */
-  //}
-  //}
-  
+      //if (i == j){
+      //  V_physical_to_internal_elements[j*n_eta_bins+i] = 1.0;
+      //} else {
+      //  V_physical_to_internal_elements[j*n_eta_bins+i] = 0.0;
+      //}
+      
+  }
+  }
+  /*
   //identity e.g. M not decorrelated
   for(int j=0; j<n_eta_bins; j++){
     for(int i=0; i<n_eta_bins; i++){
       if (j == i){
-	V_internal_to_physical_elements[j*n_eta_bins+i] = 1.0;
+	V_physical_to_internal_elements[j*n_eta_bins+i] = 1.0;
       } else {
-	V_internal_to_physical_elements[j*n_eta_bins+i] = 0.0;
+	V_physical_to_internal_elements[j*n_eta_bins+i] = 0.0;
       }
     }
   }
-  
+  */
   V_physical_to_internal.SetMatrixArray(V_physical_to_internal_elements.GetArray());
   //std::cout<< "\n" << "VPhysToInt"<< "\n";
   //V_physical_to_internal.Print();
@@ -657,7 +655,7 @@ int constants_fitter() {
     //-----------------------------------------------
     // Get data
     
-    std::unique_ptr<TFile> inputFile( TFile::Open("InOutputFiles/mass_fits_control_histos_smear_beta_val_2016.root") );
+    std::unique_ptr<TFile> inputFile( TFile::Open("InOutputFiles/mass_fits_control_histos_smear_beta_val_2018.root") );
     std::unique_ptr<TH1D> beta(inputFile->Get<TH1D>("beta"));
     std::unique_ptr<TH1D> bin_occupancy(inputFile->Get<TH1D>("bin_occupancy"));
     
@@ -770,25 +768,25 @@ int constants_fitter() {
   vector<double> A_e_M_values(n_parameters), A_e_M_errors(n_parameters);
   double cov_prime;
   
-  //TMatrixD internal_M_matrix(n_eta_bins,1), internal_M_err_squared_matrix(n_eta_bins,1), physical_M_matrix(n_eta_bins,1), physical_M_err_squared_matrix(n_eta_bins,1);
-  //TArrayD internal_M_data(n_eta_bins), internal_M_error_squared_data(n_eta_bins);
-  //vector<double> physical_M_parameters(n_eta_bins), physical_M_errors(n_eta_bins);
+  TMatrixD internal_M_matrix(n_eta_bins,1), internal_M_err_matrix(n_eta_bins,1), physical_M_matrix(n_eta_bins,1), physical_M_err_matrix(n_eta_bins,1);
+  TArrayD internal_M_data(n_eta_bins), internal_M_error_data(n_eta_bins);
+  vector<double> physical_M_parameters(n_eta_bins), physical_M_errors(n_eta_bins);
   
-  //for(int i=0; i<n_eta_bins; i++){
-  //  internal_M_data[i] = min.UserState().Value(2*n_eta_bins + i);
-  //  internal_M_error_squared_data[i] = min.UserState().Error(2*n_eta_bins + i) * min.UserState().Error(2*n_eta_bins + i);
-  //}
+  for(int i=0; i<n_eta_bins; i++){
+    internal_M_data[i] = min.UserState().Value(2*n_eta_bins + i);
+    internal_M_error_data[i] = min.UserState().Error(2*n_eta_bins + i);
+  }
     
-  //internal_M_matrix.SetMatrixArray(internal_M_data.GetArray());
-  //physical_M_matrix = TMatrixD(V_internal_to_physical,TMatrixD::kMult,internal_M_matrix);
+  internal_M_matrix.SetMatrixArray(internal_M_data.GetArray());
+  physical_M_matrix = TMatrixD(V_internal_to_physical,TMatrixD::kMult,internal_M_matrix);
   
-  //internal_M_err_squared_matrix.SetMatrixArray(internal_M_error_squared_data.GetArray());
-  //physical_M_err_squared_matrix = TMatrixD(V_internal_to_physical,TMatrixD::kMult,internal_M_err_squared_matrix);
+  internal_M_err_matrix.SetMatrixArray(internal_M_error_data.GetArray());
+  physical_M_err_matrix = TMatrixD(V_internal_to_physical,TMatrixD::kMult,internal_M_err_matrix);
   
-  //for(int i=0; i<n_eta_bins; i++){
-  //  physical_M_parameters[i] = TMatrixDColumn(physical_M_matrix,0)(i);
-  //  physical_M_errors[i] =pow(TMatrixDColumn(physical_M_err_squared_matrix,0)(i), 0.5);
-  //}
+  for(int i=0; i<n_eta_bins; i++){
+    physical_M_parameters[i] = TMatrixDColumn(physical_M_matrix,0)(i);
+    physical_M_errors[i] =TMatrixDColumn(physical_M_err_matrix,0)(i);
+  }
 
   for (int i=0; i<n_parameters; i++){ 
     int whole = i / n_eta_bins;
@@ -804,9 +802,9 @@ int constants_fitter() {
     }
     else if (whole == 2) { // M
       //cout << i<<" " << physical_M_parameters[i - 2*n_eta_bins] * get<1>(getParameterNameAndScaling(i)) << "\n";
-      A_e_M_values[i] = min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i)); //physical_M_parameters[i - 2*n_eta_bins] * get<1>(getParameterNameAndScaling(i));
+      A_e_M_values[i] = physical_M_parameters[i - 2*n_eta_bins] * get<1>(getParameterNameAndScaling(i)); //min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i));
       //cout << i<<" " << A_e_M_values[i] << "\n";
-      A_e_M_errors[i] = min.UserState().Error(i) *get<1>(getParameterNameAndScaling(i)); //physical_M_errors[i - 2*n_eta_bins] * abs(get<1>(getParameterNameAndScaling(i)));
+      A_e_M_errors[i] = physical_M_errors[i - 2*n_eta_bins] * abs(get<1>(getParameterNameAndScaling(i))); //min.UserState().Error(i) *get<1>(getParameterNameAndScaling(i));
     }
   }
   
