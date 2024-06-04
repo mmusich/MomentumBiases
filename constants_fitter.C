@@ -378,7 +378,7 @@ tuple<string,double,string> getParameterNameAndScaling(int index){
     scaling = TheoryFcn::scaling_e_prime;
   }
   else if (whole == 2) {
-    name = "M" + to_string(rest);
+    name = "M_internal" + to_string(rest);
     physical_name = "M" + to_string(rest);
     scaling = TheoryFcn::scaling_M;
   }
@@ -482,7 +482,7 @@ int constants_fitter() {
     }
   }
   */
-  
+  /*
   //---------------------------------------------------------------------
   // inverse of {(1, 1, 1, 1, ...),(-1, 1, 0, 0, ...),(-1, 0, 1, 0, ...)}
   for(int j=0; j<n_eta_bins; j++){
@@ -496,7 +496,7 @@ int constants_fitter() {
       }
     }
   }
-  
+  */
   /*
   //-------------------------------------------------------------------  
   // inverse of {(1, 1, 1, 1, ...),(0, 1, 0, 0, ...),(0, 0, 1, 0, ...)}  
@@ -514,8 +514,8 @@ int constants_fitter() {
 
     }
   }
-  /*
-  /*
+  */
+  
   //identity e.g. M not decorrelated
   for(int j=0; j<n_eta_bins; j++){
     for(int i=0; i<n_eta_bins; i++){
@@ -526,7 +526,7 @@ int constants_fitter() {
       }
     }
   }
-  */
+  
   V_internal_to_physical.SetMatrixArray(V_internal_to_physical_elements.GetArray());
   
   //std::cout<< "\n" << "VIntToPhys"<< "\n";
@@ -538,11 +538,11 @@ int constants_fitter() {
   TMatrixD V_physical_to_internal(n_eta_bins, n_eta_bins);
   TArrayD V_physical_to_internal_elements(n_eta_bins*n_eta_bins);
 
-  for(int i=0; i<n_eta_bins; i++){ // j = 0 <- row 0
-    V_physical_to_internal_elements[i] = 1.0;
-  }
-  for(int j=1; j<n_eta_bins; j++){ // counts rows, j starts from 1
-    for(int i=0; i<n_eta_bins; i++){ // counts collumns
+  //for(int i=0; i<n_eta_bins; i++){ // j = 0 <- row 0
+  // V_physical_to_internal_elements[i] = 1.0;
+  //}
+  //for(int j=1; j<n_eta_bins; j++){ // counts rows, j starts from 1
+  //  for(int i=0; i<n_eta_bins; i++){ // counts collumns
       /*
       //----------------------------------------------------------	
       // {(1, 1, 1, 1, ...),(1, -1, 0, 0, ...),(0, 1, -1, 0, ...)}	
@@ -554,7 +554,7 @@ int constants_fitter() {
 	V_physical_to_internal_elements[j*n_eta_bins+i] = 0.0;
       }
       */
-      
+      /*
       //----------------------------------------------------------
       // {(1, 1, 1, 1, ...),(-1, 1, 0, 0, ...),(-1, 0, 1, 0, ...)} 
       if (i == j){
@@ -564,7 +564,7 @@ int constants_fitter() {
       } else {
         V_physical_to_internal_elements[j*n_eta_bins+i] = 0.0;
       }
-      
+      */
       
       //--------------------------------------------------------	
       // {(1, 1, 1, 1, ...),(0, 1, 0, 0, ...),(0, 0, 1, 0, ...)}
@@ -574,9 +574,9 @@ int constants_fitter() {
       //  V_physical_to_internal_elements[j*n_eta_bins+i] = 0.0;
       //}
       
-  }
-  }
-  /*
+  //}
+  //}
+  
   //identity e.g. M not decorrelated
   for(int j=0; j<n_eta_bins; j++){
     for(int i=0; i<n_eta_bins; i++){
@@ -587,7 +587,7 @@ int constants_fitter() {
       }
     }
   }
-  */
+  
   V_physical_to_internal.SetMatrixArray(V_physical_to_internal_elements.GetArray());
   //std::cout<< "\n" << "VPhysToInt"<< "\n";
   //V_physical_to_internal.Print();
@@ -791,12 +791,14 @@ int constants_fitter() {
   for (int i=0; i<n_parameters; i++){ 
     int whole = i / n_eta_bins;
 
-    if (whole == 0) { // scaling_A*par[A] = scaling_A_prime*par[A_prime] + scaling_e*par[e]*k_middle = scaling_A_prime*par[A_prime] + scaling_e_prime*par[e_prime]*k_middle
+    //term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + n_eta_bins]*(k_plus - k_middle) + scaling_M*physical_M_pars[eta_pos_index]/k_plus);
+    if (whole == 0) { // A = scaling_A_prime*par[A_prime] + scaling_e_prime*par[e_prime]*k_middle
       cov_prime = min.UserState().Covariance().Data()[(i+n_eta_bins)*(i+n_eta_bins+1)/2.0 + i];
+      //corr_hist->SetBinContent(bin, covariance[(i_temp-1)*(i_temp)/2+(j_temp-1)] / min.UserState().Error(i-1) / min.UserState().Error(j-1));
       A_e_M_values[i] = min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i)) + min.UserState().Value(i+n_eta_bins) * get<1>(getParameterNameAndScaling(i+n_eta_bins)) * k_middle;
       A_e_M_errors[i] = pow(pow(get<1>(getParameterNameAndScaling(i)),2)*pow(min.UserState().Error(i),2)+pow(get<1>(getParameterNameAndScaling(i+n_eta_bins))*k_middle,2)*pow(min.UserState().Error(i+n_eta_bins),2)+2.0*get<1>(getParameterNameAndScaling(i))*get<1>(getParameterNameAndScaling(i+n_eta_bins))*k_middle*cov_prime, 0.5); // with cov[A',e']
     }
-    else if (whole == 1) { // scaling_e*par[e] = scaling_e_prime*par[e_prime]
+    else if (whole == 1) { // e = scaling_e_prime*par[e_prime]
       A_e_M_values[i] = min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i));
       A_e_M_errors[i] = min.UserState().Error(i) * abs(get<1>(getParameterNameAndScaling(i)));
     }
@@ -857,29 +859,31 @@ int constants_fitter() {
   TH2D *hessian_hist = new TH2D("hessian_hist", "Hessian", n_parameters, 0, n_parameters, n_parameters, 0, n_parameters);
   TH2D *covariance_hist = new TH2D("covariance_hist", "Covariance", n_parameters, 0, n_parameters, 0, n_parameters);
   TH2D *corr_hist = new TH2D("corr_hist", "Correlation", n_parameters, 0, n_parameters, n_parameters, 0, n_parameters);
- 
+
+  TH2D *corr_physical_hist = new TH2D("corr_physical_hist", "Correlation physical parameters", n_parameters, 0, n_parameters, n_parameters, 0, n_parameters);
+  
   int bin, i_temp, j_temp, bin_x, bin_y;
-  for (int i=1; i<=n_parameters; i++){
+  for (int i=1; i<=n_parameters; i++){ // counts x axis bins left to right
     hessian_hist->GetXaxis()->SetBinLabel(i,get<0>(getParameterNameAndScaling(i-1)).c_str());
     hessian_hist->GetYaxis()->SetBinLabel(i,get<0>(getParameterNameAndScaling(n_parameters-i)).c_str());
     covariance_hist->GetXaxis()->SetBinLabel(i,get<0>(getParameterNameAndScaling(i-1)).c_str());
     covariance_hist->GetYaxis()->SetBinLabel(i,get<0>(getParameterNameAndScaling(n_parameters-i)).c_str());
     corr_hist->GetXaxis()->SetBinLabel(i,get<0>(getParameterNameAndScaling(i-1)).c_str());
     corr_hist->GetYaxis()->SetBinLabel(i,get<0>(getParameterNameAndScaling(n_parameters-i)).c_str());
-    for (int j=1; j<=i; j++){
+    for (int j=1; j<=i; j++){ // counts y axis bins, n_parameters+1-j counts bins up to down
       //if ((i<=n_eta_bins || i>n_eta_bins*2) && (j<=n_eta_bins || j>n_eta_bins*2)){ //TODO remove if and else block when fitting 3 pars
 	bin = hessian_hist->GetBin(i, n_parameters+1-j);
 	i_temp = i; // i_temp = (i > n_eta_bins*2) ? i - n_eta_bins : i; //TODO when fitting 3 pars i_temp can be just i
 	j_temp = j; // j_temp = (j > n_eta_bins*2) ? j - n_eta_bins : j; //TODO when fitting 3 pars j_temp can be just j
 	hessian_hist->SetBinContent(bin, hessian[(i_temp-1)*(i_temp)/2+(j_temp-1)]); 
 	covariance_hist->SetBinContent(bin, covariance[(i_temp-1)*(i_temp)/2+(j_temp-1)]); 
-	corr_hist->SetBinContent(bin, covariance[(i_temp-1)*(i_temp)/2+(j_temp-1)] / min.UserState().Error(i-1) / min.UserState().Error(j-1));
+	corr_hist->SetBinContent(bin, covariance[(i_temp-1)*(i_temp)/2+(j_temp-1)] / min.UserState().Error(i-1) / min.UserState().Error(j-1)); // TODO when fitting 2 pars is i i_temp, j j_temp?
 	
 	bin = hessian_hist->GetBin(j, n_parameters+1-i); 
 	
 	hessian_hist->SetBinContent(bin, hessian[(i_temp-1)*(i_temp)/2+(j_temp-1)]); 
 	covariance_hist->SetBinContent(bin, covariance[(i_temp-1)*(i_temp)/2+(j_temp-1)]); 
-	corr_hist->SetBinContent(bin, covariance[(i_temp-1)*(i_temp)/2+(j_temp-1)] / min.UserState().Error(i-1) / min.UserState().Error(j-1));
+	corr_hist->SetBinContent(bin, covariance[(i_temp-1)*(i_temp)/2+(j_temp-1)] / min.UserState().Error(i-1) / min.UserState().Error(j-1)); // TODO when fitting 2 pars is i i_temp, j j_temp?
       
 	//} else {
 	//bin = hessian_hist->GetBin(i, n_parameters+1-j); 
@@ -930,6 +934,56 @@ int constants_fitter() {
     //cout << "\n";
   }
 
+  TMatrixD U_internal_to_physical(n_parameters, n_parameters); // TODO what if n_parameters != 3*netabins?
+  TArrayD U_internal_to_physical_elements(n_parameters*n_parameters);
+
+  for(int j=0; j<n_eta_bins*3; j++){ // counts rows 
+    if (j<n_eta_bins){ // A rows
+      for(int i=0; i<n_eta_bins*3; i++){ 
+	if(i == j){
+	  U_internal_to_physical_elements[j*n_eta_bins*3+i] = get<1>(getParameterNameAndScaling(i));  // A collumns non empty
+	} else if (i >= n_eta_bins && i == j + n_eta_bins && i < n_eta_bins*2){
+	  U_internal_to_physical_elements[j*n_eta_bins*3+i] = get<1>(getParameterNameAndScaling(i))*k_middle; // e collumns non empty
+	} else {
+	  U_internal_to_physical_elements[j*n_eta_bins*3+i] = 0.0; // M collumns and the rest
+	}
+      }
+    } else if(j<2*n_eta_bins){ // e rows
+      for(int i=0; i<n_eta_bins*3; i++){
+        if(i == j){
+          U_internal_to_physical_elements[j*n_eta_bins*3+i] = get<1>(getParameterNameAndScaling(i));  // e collumns non empty
+        } else {
+          U_internal_to_physical_elements[j*n_eta_bins*3+i] = 0.0; // the rest
+        }
+      }
+    } else if(j<3*n_eta_bins){ // M rows
+      for(int i=0; i<n_eta_bins*3; i++){
+        if(i == j){
+          U_internal_to_physical_elements[j*n_eta_bins*3+i] = get<1>(getParameterNameAndScaling(i));  // M collumns non empty // TODO this is insufficient if you decorrelate M
+        } else {
+          U_internal_to_physical_elements[j*n_eta_bins*3+i] = 0.0; // the rest
+        }
+      }
+    } else {std::cout << "\n" << "Miscounted U";}
+  }
+
+  U_internal_to_physical.SetMatrixArray(U_internal_to_physical_elements.GetArray());
+  U_internal_to_physical.Print();
+
+  TMatrixD left_term(n_parameters, n_parameters), covariance_matrix_physical(n_parameters, n_parameters);
+  
+  left_term = TMatrixD(U_internal_to_physical,TMatrixD::kMult,Covariance_matrix);
+  covariance_matrix_physical = TMatrixD(left_term, TMatrixD::kMultTranspose,U_internal_to_physical);
+
+  for(int i=1; i<=n_parameters; i++){
+    corr_physical_hist->GetXaxis()->SetBinLabel(i,get<2>(getParameterNameAndScaling(i-1)).c_str());
+    corr_physical_hist->GetYaxis()->SetBinLabel(i,get<2>(getParameterNameAndScaling(n_parameters-i)).c_str());
+    for(int j=1; j<=n_parameters; j++){
+      bin = corr_physical_hist->GetBin(i, n_parameters-j+1);
+      corr_physical_hist->SetBinContent(bin, covariance_matrix_physical(i-1,j-1) / A_e_M_errors[i-1] / A_e_M_errors[j-1]); 
+    }
+  }
+
   //cout << "Correlation: " << "\n";
 
   TMatrixTSym<double> Corr_matrix(n_parameters, corr_ar, "F"); //need option F to unroll collumn wise //TODO pass by ptr
@@ -957,7 +1011,10 @@ int constants_fitter() {
   corr_hist->Draw("COLZ text");
   f_a->WriteObject(c5, "corr_hist");
 
-  
+  corr_physical_hist->SetStats(0);
+  corr_physical_hist->Draw("COLZ text");
+  f_a->WriteObject(c5, "corr_physical_hist");
+    
   cout << "\n" << "Fitted A' [ ], e' [GeV], M [GeV^-1] parameters: " << "\n";
   for (unsigned int i(0); i<upar.Params().size(); i++) {
     cout <<"par[" << i << "]: " << get<0>(getParameterNameAndScaling(i)) << " fitted to: "<< min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i)) << " +/- " << min.UserState().Error(i) * abs(get<1>(getParameterNameAndScaling(i))) << "\n";
