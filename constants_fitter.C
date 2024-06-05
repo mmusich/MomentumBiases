@@ -974,7 +974,11 @@ int constants_fitter() {
   
   left_term = TMatrixD(U_internal_to_physical,TMatrixD::kMult,Covariance_matrix);
   covariance_matrix_physical = TMatrixD(left_term, TMatrixD::kMultTranspose,U_internal_to_physical);
-
+  
+  //TMatrixD U_internal_to_physical_transpose(TMatrixD::kTransposed,U_internal_to_physical);
+  //left_term = TMatrixD(U_internal_to_physical_transpose, TMatrixD::kMult, Covariance_matrix);
+  //covariance_matrix_physical = TMatrixD(left_term, TMatrixD::kMult,U_internal_to_physical);
+  
   for(int i=1; i<=n_parameters; i++){
     corr_physical_hist->GetXaxis()->SetBinLabel(i,get<2>(getParameterNameAndScaling(i-1)).c_str());
     corr_physical_hist->GetYaxis()->SetBinLabel(i,get<2>(getParameterNameAndScaling(n_parameters-i)).c_str());
@@ -1092,6 +1096,17 @@ int constants_fitter() {
       pull_M->SetBinError(i, 1e-10);
     }
   }
+
+  unique_ptr<TFile> f_for_plotting( TFile::Open("InOutputFiles/constants_fitted_for_plotting.root", "RECREATE") );
+  f_for_plotting->WriteObject(fitted_pars_A, "fitted_pars_A");
+  f_for_plotting->WriteObject(fitted_pars_e, "fitted_pars_e");
+  f_for_plotting->WriteObject(fitted_pars_M, "fitted_pars_M");
+  f_for_plotting->WriteObject(dummy_pars_A, "dummy_pars_A");
+  f_for_plotting->WriteObject(dummy_pars_e, "dummy_pars_e");
+  f_for_plotting->WriteObject(dummy_pars_M, "dummy_pars_M");
+  f_for_plotting->WriteObject(pull_A, "pull_A");
+  f_for_plotting->WriteObject(pull_e, "pull_e");
+  f_for_plotting->WriteObject(pull_M, "pull_M");
   
   unique_ptr<TFile> f_control( TFile::Open("InOutputFiles/constants_fitted.root", "RECREATE") ); 
 
