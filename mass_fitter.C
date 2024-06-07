@@ -121,12 +121,12 @@ int mass_fitter(){
   }
      
   // MC 
-  std::unique_ptr<TFile> myFile( TFile::Open( ("InOutputFiles/multiD_histo_"+ mc_name_root +"_2018.root").c_str() ) );
+  std::unique_ptr<TFile> myFile( TFile::Open( ("InOutputFiles/multiD_histo_"+ mc_name_root +"_2016.root").c_str() ) );
   //--------------------------------------------------------------------------------------
   // Binning must match with 5D histogram
   double eta_low = -2.4, eta_high = 2.4, mll_diff_low = -7.0, mll_diff_high = 7.0, mll_low = 75.0, mll_high = 105.0;
   int nbinsmll_diff=22, nbinsmll=32, nbinseta=24, nbinspt=5;
-  vector<double> etabinranges, mllbinranges, ptbinranges{25.0, 33.3368, 38.4425, 42.2839, 45.9397, 55.0}; //pT binning for y2018
+  vector<double> etabinranges, mllbinranges, ptbinranges{25.0, 33.2009, 38.3066, 42.2407, 46.0547, 55.0}; //pT binning for y2016
   for (int i=0; i<=nbinseta; i++){etabinranges.push_back(eta_low + i * (eta_high - eta_low)/nbinseta);}
   for (int i=0; i<=nbinsmll; i++){mllbinranges.push_back(mll_low + i * (mll_high - mll_low)/nbinsmll);}
   //--------------------------------------------------------------------------------------
