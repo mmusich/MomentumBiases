@@ -140,10 +140,12 @@ int multiDhist_producer(){
     //std::cout<< "\n" << "i: " << i << "\n";
     // A from -0.0002 to 0.0005 and back
     A_values[i] = (-7.0*4.0/nbinseta/nbinseta*(i - nbinseta/2)*(i - nbinseta/2) + 5.0)*0.0001;
+    //A_values[i] = 0.0;
     //A_values[i] = 0.0004; 
     //std::cout<< "A: " << A_values[i] << ", ";
     // e from 0.01 to 0.001 and back
     e_values[i] = (9.0*4.0/nbinseta/nbinseta*(i - nbinseta/2)*(i - nbinseta/2) + 1.0)*0.001;
+    //e_values[i] = 0.0;
     //e_values[i] = 0.002; 
     //std::cout<< "e: " << e_values[i] << ", ";
     // M from 4*10^-5 to -2*10^-5 and back
@@ -167,7 +169,7 @@ int multiDhist_producer(){
     std::tuple<int,int,float,float,float,float,float,float,float,float,float,float,float,float> temp, pair_to_return;
     float rest_mass = 0.105658; // muMass = 0.105658 GeV
     float firstPt_reco, secondPt_reco, mll_reco, firstPt_smear, secondPt_smear, mll_smear, firstPt_gen, secondPt_gen, mll_gen, firstPt_smear_beta_val, secondPt_smear_beta_val, smear_beta_weight;
-    float smear_pt, mean, width, smeared_mean, smeared_curvature, smear_beta_weight_first_term, smear_beta_weight_second_term;
+    float smear_pt, mean, width, smeared_mean, smeared_width, smeared_curvature, smear_beta_weight_first_term, smear_beta_weight_second_term;
     //float A = 0.0004, e = 0.002, M = 0.00001; //for now constant per eta bin
     float A, e, M;
     int eta_bin_idx;
@@ -209,6 +211,7 @@ int multiDhist_producer(){
 		    e = e_values[eta_bin_idx];
 		    M = M_values[eta_bin_idx];
 		    if (GenPart_pdgId[k]>0){ //mu(-)
+		      
 		      if ( (1.0+A)*(1.0+A) + 4.0*e*(-1.0*M - 1.0/mean) >= 0.0 ){
 			smeared_curvature = ( -1.0*(1.0+A) + pow( (1.0+A)*(1.0+A) + 4.0*e*(-1.0*M - 1.0/mean) ,0.5) )/(-2.0)/e;
 			if (smeared_curvature < 0.0 || std::isnan(smeared_curvature)){
@@ -221,7 +224,10 @@ int multiDhist_producer(){
 			pair_to_return = make_tuple(0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
 			return pair_to_return ;
 		      }
+		      
+		      //smeared_curvature = 1.0/mean + M; //for M only
 		    } else { //mu(+)
+		      
 		      if ( (1.0+A)*(1.0+A) + 4.0*e*(M - 1.0/mean) >= 0.0 ){
 			smeared_curvature = ( -1.0*(1.0+A) + pow( (1.0+A)*(1.0+A) + 4.0*e*(M - 1.0/mean) ,0.5) )/(-2.0)/e;
 			if (smeared_curvature < 0.0 || std::isnan(smeared_curvature)){
@@ -234,10 +240,13 @@ int multiDhist_producer(){
                         pair_to_return = make_tuple(0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
                         return pair_to_return ;
                       }
+		      
+		      //smeared_curvature = 1.0/mean - M; //for M only
 		    }
 		    smeared_mean = 1.0/smeared_curvature;
-		    smear_beta_weight_first_term = TMath::Gaus(firstPt_smear, smeared_mean, width) / TMath::Gaus(firstPt_smear, mean, width);
-		    firstPt_smear_beta_val = rans[nslot]->Gaus(smeared_mean, width);
+		    smeared_width = width*1.0; // 0% bias
+		    smear_beta_weight_first_term = TMath::Gaus(firstPt_smear, smeared_mean, smeared_width) / TMath::Gaus(firstPt_smear, mean, width);
+		    firstPt_smear_beta_val = rans[nslot]->Gaus(smeared_mean, smeared_width);
 		    
 		    firstGenMatched = true;
 		    if(secondGenMatched == true){break;}
@@ -261,6 +270,7 @@ int multiDhist_producer(){
                     e = e_values[eta_bin_idx];
                     M = M_values[eta_bin_idx];
 		    if (GenPart_pdgId[k]>0){ //mu(-)
+		      
                       if ( (1.0+A)*(1.0+A) + 4.0*e*(-1.0*M - 1.0/mean) >= 0.0 ){
                         smeared_curvature = ( -1.0*(1.0+A) + pow( (1.0+A)*(1.0+A) + 4.0*e*(-1.0*M - 1.0/mean) ,0.5) )/(-2.0)/e;
                         if (smeared_curvature < 0.0 || std::isnan(smeared_curvature)){
@@ -273,7 +283,10 @@ int multiDhist_producer(){
                         pair_to_return = make_tuple(0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
                         return pair_to_return ;
                       }
+		      
+		      //smeared_curvature = 1.0/mean + M; // for M only
                     } else { //mu(+)
+		      
                       if ( (1.0+A)*(1.0+A) + 4.0*e*(M - 1.0/mean) >= 0.0 ){
                         smeared_curvature = ( -1.0*(1.0+A) + pow( (1.0+A)*(1.0+A) + 4.0*e*(M - 1.0/mean) ,0.5) )/(-2.0)/e;
                         if (smeared_curvature < 0.0 || std::isnan(smeared_curvature)){
@@ -286,10 +299,13 @@ int multiDhist_producer(){
                         pair_to_return = make_tuple(0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
                         return pair_to_return ;
                       }
+		      
+		      //smeared_curvature = 1.0/mean - M; // for M only
                     }
 		    smeared_mean = 1.0/smeared_curvature;
-		    smear_beta_weight_second_term = TMath::Gaus(secondPt_smear, smeared_mean, width) / TMath::Gaus(secondPt_smear, mean, width); 
-		    secondPt_smear_beta_val = rans[nslot]->Gaus(smeared_mean, width);
+		    smeared_width = width*1.0; // 0% bias
+		    smear_beta_weight_second_term = TMath::Gaus(secondPt_smear, smeared_mean, smeared_width) / TMath::Gaus(secondPt_smear, mean, width); 
+		    secondPt_smear_beta_val = rans[nslot]->Gaus(smeared_mean, smeared_width);
 		    
 		    secondGenMatched = true;
 		    if(firstGenMatched == true){break;}
@@ -488,11 +504,11 @@ int multiDhist_producer(){
     pt_smear_beta_val->Write();
     f2->Close();
     
-    std::unique_ptr<TFile> f3( TFile::Open("InOutputFiles/control_bin_histo.root", "RECREATE") );  
+    //std::unique_ptr<TFile> f3( TFile::Open("InOutputFiles/control_bin_histo.root", "RECREATE") );  
     
     //pT bin optimisation starts
     auto pt_pos_uni = d_mc->Histo1D({"pt_pos_uni", "pt mu+", nbinspt*3, pt_low, pt_high},"posTrackPt","weight");
-    f3->WriteObject(pt_pos_uni.GetPtr(), "pt_pos_uni");
+    //f3->WriteObject(pt_pos_uni.GetPtr(), "pt_pos_uni");
     // Get quartiles
     double xq[nbinspt+1], myptboundaries[nbinspt+1];
     for (int i=0;i<=nbinspt;i++) xq[i] = float(i)/nbinspt;
@@ -517,7 +533,7 @@ int multiDhist_producer(){
     for (int i=0; i<smallptunibinning.size(); i++){
       mysmallptunibinning[i] = smallptunibinning[i];
     }
-    
+    /*
     //TH1 in pT+ with variable bin size -> should be uniform
     auto pt_pos = d_mc->Histo1D({"pt_pos", "pt mu+", nbinspt, myptboundaries},"posTrackPt","weight");
     f3->WriteObject(pt_pos.GetPtr(), "pt_pos");
@@ -532,7 +548,7 @@ int multiDhist_producer(){
     f3->WriteObject(pt_neg_bin.GetPtr(), "pt_neg_bin");
     
     f3->Close();
-    
+    */
     /*
       std::unique_ptr<TFile> f4( TFile::Open("InOutputFiles/multiD_histo_smear_beta_val_easy.root", "RECREATE") );
       // mll_diff_smear_beta_val_easy 
@@ -659,7 +675,7 @@ int multiDhist_producer(){
     // mll_reco weighted by jacobian_weight_mll_over_gen_reco
     //auto mDh_jac_mll_over_gen_reco_mll = d_mc->HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_mll_over_gen_reco_mll", "multi_data_histo_jac_mll_over_gen_reco_mll", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_reco","jacobian_weight_mll_over_gen_reco"});
     //f6->WriteObject(mDh_jac_mll_over_gen_reco_mll.GetPtr(), "multi_data_histo_jac_mll_over_gen_reco_mll"); 
-    
+    /*
     // mll_reco weighted by jacobian_weight_mll_diff_times_gen_reco
     auto mDh_jac_diff_times_gen_reco_mll = d_mc->HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_diff_times_gen_reco_mll", "multi_data_histo_jac_diff_times_gen_reco_mll", 5, {nbinseta, nbinspt, nbinseta, nbinspt, nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}}, {"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_reco","jacobian_weight_mll_diff_times_gen_reco"});
     f6->WriteObject(mDh_jac_diff_times_gen_reco_mll.GetPtr(), "multi_data_histo_jac_diff_times_gen_reco_mll");
@@ -675,7 +691,7 @@ int multiDhist_producer(){
     // mll_reco weighted by jacobian_weight_mll_minus_2gen_reco
     auto mDh_jac_mll_minus_2gen_reco_mll = d_mc->HistoND<float, float, float, float, float, double>({"multi_data_histo_jac_mll_minus_2gen_reco_mll", "multi_data_histo_jac_mll_minus_2gen_reco_mll", 5, {nbinseta,nbinspt, nbinseta, nbinspt,nbinsmll}, {etabinranges, ptbinranges, etabinranges, ptbinranges, mllbinranges}},{"posTrackEta","posTrackPt","negTrackEta","negTrackPt","mll_reco","jacobian_weight_mll_minus_2gen_reco"});
     f6->WriteObject(mDh_jac_mll_minus_2gen_reco_mll.GetPtr(), "multi_data_histo_jac_mll_minus_2gen_reco_mll");
-    
+    */
     f6->Close();
   } else if (mode_option.compare("data") == 0) {
 

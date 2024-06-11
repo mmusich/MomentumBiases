@@ -655,9 +655,10 @@ int constants_fitter() {
     //-----------------------------------------------
     // Get data
     
-    std::unique_ptr<TFile> inputFile( TFile::Open("InOutputFiles/mass_fits_control_histos_smear_beta_val_2018.root") );
+    std::unique_ptr<TFile> inputFile( TFile::Open("InOutputFiles/mass_fits_control_histos_smear_beta_val_2016.root") );
     std::unique_ptr<TH1D> beta(inputFile->Get<TH1D>("beta"));
     std::unique_ptr<TH1D> bin_occupancy(inputFile->Get<TH1D>("bin_occupancy"));
+    std::unique_ptr<TH1D> gaus_integral(inputFile->Get<TH1D>("gaus_integral"));
     
     int n_data_points_initial = beta->GetEntries();
     n_data_points = 0;
@@ -665,7 +666,7 @@ int constants_fitter() {
     std::cout << "\n" << n_data_points_initial <<" entries initially in beta histogram";
     
     for(int i=0; i<n_data_points_initial; i++){
-      if( bin_occupancy->GetBinContent(i+1) > 0.0 ){
+      if( bin_occupancy->GetBinContent(i+1) > 300.0 && gaus_integral->GetBinContent(i+1) > 0.8 ){
 	scale_squared_values.push_back((1.0 + beta->GetBinContent(i+1))*(1.0 + beta->GetBinContent(i+1)));
 	scale_squared_error_values.push_back(2*abs(1.0 + beta->GetBinContent(i+1))*(beta->GetBinError(i+1)));
 	labels.push_back(beta->GetXaxis()->GetLabels()->At(i)->GetName());
@@ -718,6 +719,7 @@ int constants_fitter() {
     for (int i=0; i<n_parameters/3; i++){
       //upar.Add(Form("param%d",i), dummy_parameters[i] / 0.001, par_error); // divided by scaling_A = 0.001
       upar.Add(Form("param%d",i), start, par_error); // A_internal starts from 0 for now
+      //upar.Add(Form("param%d",i), start); // A_internal set constant to 0
     }
     for (int i=n_parameters/3; i<2*n_parameters/3; i++){
       //upar.Add(Form("param%d",i), dummy_parameters[i] / (0.001 / 0.01), par_error); // divided by scaling_e_prime = 0.001 / 0.01
@@ -733,6 +735,7 @@ int constants_fitter() {
     
     for (int i=0; i<n_parameters/3; i++){ 
       upar.Add(Form("param%d",i), start, par_error); // A_internal
+      //upar.Add(Form("param%d",i), start); // A_internal const
     }
     for (int i=n_parameters/3; i<2*n_parameters/3; i++){ // e_internal
       upar.Add(Form("param%d",i), start, par_error);
@@ -968,7 +971,7 @@ int constants_fitter() {
   }
 
   U_internal_to_physical.SetMatrixArray(U_internal_to_physical_elements.GetArray());
-  U_internal_to_physical.Print();
+  //U_internal_to_physical.Print();
 
   TMatrixD left_term(n_parameters, n_parameters), covariance_matrix_physical(n_parameters, n_parameters);
   

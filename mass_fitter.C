@@ -121,7 +121,7 @@ int mass_fitter(){
   }
      
   // MC 
-  std::unique_ptr<TFile> myFile( TFile::Open( ("InOutputFiles/multiD_histo_"+ mc_name_root +"_2016.root").c_str() ) );
+  std::unique_ptr<TFile> myFile( TFile::Open( ("InOutputFiles/multiD_histo_"+ mc_name_root +"_2016.root").c_str() ) ); 
   //--------------------------------------------------------------------------------------
   // Binning must match with 5D histogram
   double eta_low = -2.4, eta_high = 2.4, mll_diff_low = -7.0, mll_diff_high = 7.0, mll_low = 75.0, mll_high = 105.0;
@@ -590,7 +590,7 @@ int mass_fitter(){
 	      leg1->SetHeader(leg_entry.c_str(),"C");
                     
 	      leg1->AddEntry(mDh_proj_diff_mc, "smeared-gen, #beta_pT=1, #alpha=1", "l");
-	      if (mode_option.compare("validation") == 0) leg1->AddEntry(mDh_proj_diff_data, "smeared-gen, #beta_pT!=1, #alpha=1, by weight", "l");
+	      if (mode_option.compare("validation") == 0) leg1->AddEntry(mDh_proj_diff_data, "smeared-gen, #beta_pT!=1, #alpha=1", "l");
 	      leg_entry = "green fit: #mu=" + to_string(mean_mc).substr(0, 5) + ", #sigma=" + to_string(sigma_mc).substr(0, 5);
 	      leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
 	                  
@@ -636,9 +636,10 @@ int mass_fitter(){
 
 	      //--------------------------------------------------------------------------
 	      // Start drawing mll
-	                  
+	      
 	      max_hist_mll = max_hist_mll * 1.3;
-	                  
+
+	      mDh_proj_mll_mc->SetMaximum(max_hist_mll);
 	      mDh_proj_mll_mc->Draw("HIST");
 	      mDh_proj_mll_data->Draw("HIST SAME");
 
@@ -651,7 +652,7 @@ int mass_fitter(){
 	      leg2->AddEntry(mDh_proj_mll_data, "smeared, #beta!=1", "l"); 
             
 	      c1->cd();
-            
+	      
 	      //--------------------------------------------------------------------------
 	      // Start mass fit
 	      //--------------------------------------------------------------------------
@@ -664,13 +665,13 @@ int mass_fitter(){
 	      filled_bins_mll=0;
 	      vector<int> good_indices_mll;
 	      for(int i=1; i<=nbinsmll; i++){
-		//asking jacobian to be average over at least 10 events
-		if (mDh_proj_mll_mc->GetBinContent(i) >= 10 && mDh_proj_mll_data->GetBinContent(i) > 0){ //TODO refine the other criterium
+		//asking jacobian to be average over at least 20 events
+		if (mDh_proj_mll_mc->GetBinContent(i) >= 20 && mDh_proj_mll_data->GetBinContent(i) > 0){ //TODO refine the other criterium
 		  good_indices_mll.push_back(i);
 		  filled_bins_mll++;
 		}
 	      }
-	      if (filled_bins_mll < 3 ){
+	      if (filled_bins_mll < 5 ){
 		std::cout<< "WARNING not enough points in mll to fit nu, beta, alpha in "<< name.c_str() <<". remaining_n_events still counts it in, empty_histos_count doesn't include it." << "\n";
 		continue;
 	      } 
@@ -906,14 +907,17 @@ int mass_fitter(){
 	      }
 	      if (position_to_fill != filled_bins_mll){ std::cout<<"PROBLEM: counting corrected mll bins \n"; }
 	      
-	      // Draw corrected_mll in mass fit panel
+	      //--------------------------------------------------------------------------
+              // Draw mll
+	      
 	      c1->cd();
-	      c1->cd(2);
+              c1->cd(2);
 	      corrected_mll->Draw("HIST SAME");
 	      
+              // Legend
 	      leg2->AddEntry(corrected_mll, "corrected mll", "l");
 	      leg2->Draw("");
-
+	      
 	      if (mode_option.compare("validation") == 0){
 
 		//--------------------------------------------------------------------------
@@ -926,13 +930,13 @@ int mass_fitter(){
 		filled_bins_mll_diff=0;
 		vector<int> good_indices_mll_diff;
 		for(int i=1; i<=nbinsmll_diff; i++){
-		  //asking jacobian to be average over at least 10 events
-		  if( mDh_proj_diff_mc->GetBinContent(i) >= 10 && mDh_proj_diff_data->GetBinContent(i) > 0 ){ // TODO refine the other criterium
+		  //asking jacobian to be average over at least 20 events
+		  if( mDh_proj_diff_mc->GetBinContent(i) >= 20 && mDh_proj_diff_data->GetBinContent(i) > 0 ){ // TODO refine the other criterium
 		    good_indices_mll_diff.push_back(i);
 		    filled_bins_mll_diff++;
 		  }
 		}
-		if (filled_bins_mll_diff < 3 ){ //TODO refine, maybe I want to carry on with mass fit
+		if (filled_bins_mll_diff < 5 ){ //TODO refine, maybe I want to carry on with mass fit
 		  std::cout<<"WARNING not enough points in mll_diff to fit nu, epsilon, alpha in "<< name.c_str() <<". remaining_n_events still counts it in, empty_histos_count doesn't include it." << "\n";
 		  continue;
 		} 
