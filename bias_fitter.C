@@ -66,7 +66,7 @@ string stringify_name(int a, int b, int c, int d){
 string stringify_title(int a, int b, int c, int d, vector<double> e, vector<double> p){
   string comma = ",";
   string txt1 = "#eta+ in [", txt2="] pT+ in [", txt3="] #eta- in [", txt4="] pT- in [", txt5 = "]";
-  return txt1+to_string(e[a-1]).substr(0,4)+comma+to_string(e[a]).substr(0,4)+txt2+to_string(p[b-1]).substr(0,4)+comma+to_string(p[b]).substr(0,4)+txt3+to_string(e[c-1]).substr(0,4)+comma+to_string(e[c]).substr(0,4)+txt4+to_string(p[d-1]).substr(0,4)+comma+to_string(p[d]).substr(0,4)+txt5;
+  return txt1+to_string(e[a]).substr(0,4)+comma+to_string(e[a+1]).substr(0,4)+txt2+to_string(p[b]).substr(0,4)+comma+to_string(p[b+1]).substr(0,4)+txt3+to_string(e[c]).substr(0,4)+comma+to_string(e[c+1]).substr(0,4)+txt4+to_string(p[d]).substr(0,4)+comma+to_string(p[d+1]).substr(0,4)+txt5;
 }
 
 // Function for Gaussian fit and integral 
@@ -154,10 +154,10 @@ int bias_fitter(){
   // Define dataframe
   
   TChain chain("Events");
-  chain.Add("/scratch/wmass/y2016/DYJetsToMuMu_H2ErratumFix_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MCPostVFP_TrackFitV722_NanoProdv6/240509_040854/0000/NanoV9MCPostVFP_1.root");
-  chain.Add("/scratch/wmass/y2016/DYJetsToMuMu_H2ErratumFix_PDFExt_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MCPostVFP_TrackFitV722_NanoProdv6/240509_041233/0000/NanoV9MCPostVFP_1.root");
+  //chain.Add("/scratch/wmass/y2016/DYJetsToMuMu_H2ErratumFix_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MCPostVFP_TrackFitV722_NanoProdv6/240509_040854/0000/NanoV9MCPostVFP_1.root");
+  //chain.Add("/scratch/wmass/y2016/DYJetsToMuMu_H2ErratumFix_PDFExt_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MCPostVFP_TrackFitV722_NanoProdv6/240509_041233/0000/NanoV9MCPostVFP_1.root");
   //chain.Add("/scratch/wmass/y2017/DYJetsToMuMu_H2ErratumFix_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MC2017_TrackFitV722_NanoProdv3/NanoV9MC2017_1.root");
-  /*
+  
   string line;
   
   ifstream file("InOutputFiles/MCFilenames_2016.txt");
@@ -167,7 +167,7 @@ int bias_fitter(){
     }
     file.close();
   }
-  */
+  
   RDataFrame df(chain); // TODO write for analysis mode, will need 2 data frames, but honestly should be a different script that people use
 
   // Random numbers for pairs
@@ -216,8 +216,13 @@ int bias_fitter(){
   for (int i=0; i<mll_diffbinranges.size(); i++){
     mymll_diffboundaries[i] = mll_diffbinranges[i];
   }
+
   
   for (int i=0; i<=nbinsmll; i++) mllbinranges.push_back(mll_low + i*(mll_high-mll_low)/nbinsmll);
+  double mymllboundaries[mllbinranges.size()];
+  for (int i=0; i<mllbinranges.size(); i++){
+    mymllboundaries[i] = mllbinranges[i];
+  }
   for (int i=0; i<=nbinsmll_diff_over_gen; i++) mll_diff_over_genbinranges.push_back(-0.1 + i*2.0*0.1/nbinsmll_diff_over_gen);
 
   int nbins = nbinseta*nbinseta*nbinspt*nbinspt;
@@ -559,6 +564,18 @@ int bias_fitter(){
   };
 
   //dlast = std::make_unique<RNode>(dlast->Define("bin_index_reco", GetEtaPtEtaPtBin ,{"posTrackEta", "posTrackPt", "negTrackEta", "negTrackPt"}));
+
+  // Choose validation/analysis mode //TODO decide if we keep this in this script
+  string mode_option("validation"), mc_name_root, data_name_root;
+
+  // Input files
+  if (mode_option.compare("analysis") == 0) {
+    mc_name_root = "reco";
+    data_name_root = "data2016";
+  } else if (mode_option.compare("validation") == 0){
+    mc_name_root = "smear";
+    data_name_root = "smear_beta_val";
+  }
   
   auto d_mc = std::make_unique<RNode>(df);
   auto d_sim_data = std::make_unique<RNode>(df);  
@@ -567,17 +584,17 @@ int bias_fitter(){
   
   dlast = std::make_unique<RNode>(dlast->Define("mll_gen","return get<8>(pairs);"));
   dlast = std::make_unique<RNode>(dlast->Define("mll_diff_reco","return mll_reco - mll_gen;"));
-  dlast = std::make_unique<RNode>(dlast->Define("mll_smear","return get<5>(pairs);"));
-  dlast = std::make_unique<RNode>(dlast->Define("mll_diff_smear","return mll_smear - mll_gen;"));
   dlast = std::make_unique<RNode>(dlast->Define("posPtSmear","return get<6>(pairs);"));
   dlast = std::make_unique<RNode>(dlast->Filter("posPtSmear >= 25.0 && posPtSmear < 55.0")); // TODO write a filter function with [&] to use pt_high rather than value directly
   dlast = std::make_unique<RNode>(dlast->Define("negPtSmear","return get<7>(pairs);"));
   dlast = std::make_unique<RNode>(dlast->Filter("negPtSmear >= 25.0 && negPtSmear < 55.0"));
-  dlast = std::make_unique<RNode>(dlast->Define("smear_beta_weight","return get<11>(pairs)*weight;"));
+  dlast = std::make_unique<RNode>(dlast->Define("mll_smear","return get<5>(pairs);"));
+  dlast = std::make_unique<RNode>(dlast->Define("mll_diff_smear","return mll_smear - mll_gen;"));
   dlast = std::make_unique<RNode>(dlast->Define("posPtSmearBetaVal","return get<12>(pairs);"));
   dlast = std::make_unique<RNode>(dlast->Filter("posPtSmearBetaVal >= 25.0 && posPtSmearBetaVal < 55.0"));
   dlast = std::make_unique<RNode>(dlast->Define("negPtSmearBetaVal","return get<13>(pairs);"));
   dlast = std::make_unique<RNode>(dlast->Filter("negPtSmearBetaVal >= 25.0 && negPtSmearBetaVal < 55.0"));
+  dlast = std::make_unique<RNode>(dlast->Define("smear_beta_weight","return get<11>(pairs)*weight;"));
   
   dlast = std::make_unique<RNode>(dlast->Define("bin_index_smear", GetEtaPtEtaPtBin ,{"posTrackEta", "posPtSmear", "negTrackEta", "negPtSmear"}));
   dlast = std::make_unique<RNode>(dlast->Define("bin_index_smear_beta_val", GetEtaPtEtaPtBin ,{"posTrackEta", "posPtSmearBetaVal", "negTrackEta", "negPtSmearBetaVal"}));
@@ -586,12 +603,105 @@ int bias_fitter(){
   d_sim_data = std::make_unique<RNode>(dlast->Filter("event%2==1"));
   d_mc = std::make_unique<RNode>(dlast->Filter("event%2==0"));
 
+  // take MC frame and fit diff smear per k bin, save results in a histo
+
+  // MC diff
+  auto mll_diff_smear_diffbin_4Dbin = d_mc->Histo2D({"mll_diff_smear_diffbin_4Dbin", "mll_diff_smear_diffbin_4Dbin", nbinsmll_diff, mymll_diffboundaries, nbins, mybinsboundaries},"mll_diff_smear", "bin_index_smear", "weight");
+
+  auto mDh_diff_mc_ptr = mll_diff_smear_diffbin_4Dbin;
+  auto mDh_proj_diff_mc = mDh_diff_mc_ptr->ProjectionX("mDh_proj_diff_mc", 0, 1, "e");
+
+  double evt_threshold = 300.0;
+  int pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin;
+  vector<double> fitresult;
+
+  TH1D *mean_diff_by_idx = new TH1D("mean_diff_by_idx", "mean_diff_by_idx", nbins, 0, nbins);
+  TH1D *sigma_diff_by_idx = new TH1D("sigma_smear_by_idx", "mean_diff_by_idx", nbins, 0, nbins);
+
+  cout << "\n" << "First loop over 4D bins starts" << "\n";
+  for (int multi_dim_bin=0; multi_dim_bin<nbins; multi_dim_bin++){
+    
+    pos_eta_bin = multi_dim_bin/(nbinspt*nbinseta*nbinspt);
+    pos_pt_bin = (multi_dim_bin%(nbinspt*nbinseta*nbinspt))/(nbinseta*nbinspt);
+    neg_eta_bin = ((multi_dim_bin%(nbinspt*nbinseta*nbinspt))%(nbinseta*nbinspt))/nbinspt;
+    neg_pt_bin = ((multi_dim_bin%(nbinspt*nbinseta*nbinspt))%(nbinseta*nbinspt))%nbinspt;
+    
+    delete gROOT->FindObject("mDh_proj_diff_mc");
+    mDh_proj_diff_mc = mDh_diff_mc_ptr->ProjectionX("mDh_proj_diff_mc", multi_dim_bin+1, multi_dim_bin+1, "e");
+    if (mDh_proj_diff_mc->Integral(1,nbinsmll_diff) >= evt_threshold){
+      
+      // Fit diff_mc
+      fitresult = fitHisto(mDh_proj_diff_mc, 0, 8, 5);
+      if (fitresult[0] == -90.0 || fitresult[1] == -5.0){
+	std::cout<<"WARNING bad diff_mc fit "<<" \n";
+      }
+      mean_diff_by_idx->SetBinContent(multi_dim_bin+1, fitresult[0]);
+      mean_diff_by_idx->SetBinError(multi_dim_bin+1, fitresult[2]);
+      sigma_diff_by_idx->SetBinContent(multi_dim_bin+1, fitresult[1]);
+      sigma_diff_by_idx->SetBinError(multi_dim_bin+1, fitresult[3]);
+            
+    } else {
+      mean_diff_by_idx->SetBinContent(multi_dim_bin+1, -10.0);
+      mean_diff_by_idx->SetBinError(multi_dim_bin+1, 5.0);
+      sigma_diff_by_idx->SetBinContent(multi_dim_bin+1, -10.0);
+      sigma_diff_by_idx->SetBinError(multi_dim_bin+1, 5.0);
+    }
+  }
+  
+  // define jacobians with the info from that histo
+  auto jacobian_weight_alpha_mass = [&](int multi_dim_bin, float m_reco, float m_gen, double MC_weight)->float{
+
+    float mean_MC, sigma_MC;
+    mean_MC = mean_diff_by_idx->GetBinContent(multi_dim_bin+1);
+    sigma_MC = sigma_diff_by_idx->GetBinContent(multi_dim_bin+1);
+    
+    float jac_alpha = (m_reco-(mean_MC+m_gen))*(m_reco-(mean_MC+m_gen))/sigma_MC/sigma_MC-1.0;
+    return jac_alpha*MC_weight;
+  };
+
+  auto jacobian_weight_beta_mass = [&](int multi_dim_bin, float m_reco, float m_gen, double MC_weight)->float{
+ 
+    float mean_MC, sigma_MC;
+    mean_MC = mean_diff_by_idx->GetBinContent(multi_dim_bin+1);
+    sigma_MC = sigma_diff_by_idx->GetBinContent(multi_dim_bin+1);
+
+    float jac_beta = (m_reco-(mean_MC+m_gen))*(mean_MC+m_gen)/sigma_MC/sigma_MC;
+    return jac_beta*MC_weight;
+  };
+  
+  auto jacobian_weight_alpha_diff = [&](int multi_dim_bin, float m_diff, double MC_weight)->float{
+
+    float mean_MC, sigma_MC;
+    mean_MC = mean_diff_by_idx->GetBinContent(multi_dim_bin+1);
+    sigma_MC = sigma_diff_by_idx->GetBinContent(multi_dim_bin+1);
+    
+    float jac_alpha = (m_diff-mean_MC)*(m_diff-mean_MC)/sigma_MC/sigma_MC - 1.0;
+    return jac_alpha*MC_weight;
+  };
+
+  auto jacobian_weight_epsilon_diff = [&](int multi_dim_bin, float m_diff, double MC_weight)->float{
+
+    float mean_MC, sigma_MC;
+    mean_MC = mean_diff_by_idx->GetBinContent(multi_dim_bin+1);
+    sigma_MC = sigma_diff_by_idx->GetBinContent(multi_dim_bin+1);
+    
+    float jac_epsilon = (m_diff-mean_MC)/sigma_MC/sigma_MC;
+    return jac_epsilon*MC_weight;
+  };
+  
   // Jacobians TODO if you don't save individual jac terms, save the entire jacobian (4 validation, 2 ana) in pairs fct
   // Smear
-  d_mc = std::make_unique<RNode>(d_mc->Define("jacobian_weight_mll_diff_smear", "return mll_diff_smear*weight;"));
-  d_mc = std::make_unique<RNode>(d_mc->Define("jacobian_weight_mll_diff_squared_smear","return mll_diff_smear*mll_diff_smear*weight;"));
-  d_mc = std::make_unique<RNode>(d_mc->Define("jacobian_weight_mll_minus_2gen_smear","return (mll_smear-2.0*mll_gen)*weight;"));
-  d_mc = std::make_unique<RNode>(d_mc->Define("jacobian_weight_mll_diff_times_gen_smear", "return mll_diff_smear*mll_gen*weight;"));
+
+  // Additive k bin dependent PDF
+  d_mc = std::make_unique<RNode>(d_mc->Define("jacobian_weight_mll_alpha_smear", jacobian_weight_alpha_mass, {"bin_index_smear", "mll_smear","mll_gen","weight"}));
+  d_mc = std::make_unique<RNode>(d_mc->Define("jacobian_weight_mll_beta_smear", jacobian_weight_beta_mass, {"bin_index_smear", "mll_smear","mll_gen","weight"}));
+  d_mc = std::make_unique<RNode>(d_mc->Define("jacobian_weight_mll_diff_alpha_smear", jacobian_weight_alpha_diff, {"bin_index_smear", "mll_diff_smear","weight"}));
+  d_mc = std::make_unique<RNode>(d_mc->Define("jacobian_weight_mll_diff_epsilon_smear", jacobian_weight_epsilon_diff, {"bin_index_smear", "mll_diff_smear","weight"}));
+
+  // ONE PDF for all k BIN
+  // TODO define it too if you want
+  //
+  
   // Reco
   //d_mc = std::make_unique<RNode>(d_mc->Define("jacobian_weight_mll_diff_reco", "return mll_diff_reco*weight;"));
   //d_mc = std::make_unique<RNode>(d_mc->Define("jacobian_weight_mll_diff_squared_reco","return mll_diff_reco*mll_diff_reco*weight;"));
@@ -599,31 +709,29 @@ int bias_fitter(){
   //d_mc = std::make_unique<RNode>(d_mc->Define("jacobian_weight_mll_diff_times_gen_reco", "return mll_diff_reco*mll_gen*weight;"));
   
   // save 2d histo of mll diff, mass, jacobian terms vs bin_index_(smear/smear_beta_val)
-  //NOTE in analysis mode we only need mass jacobians, so 4 2D histos, so it might be worth it saving jac terms over running over the TTree again
 
   // binned in mll_diff
-  // MC
-  auto mll_diff_smear_diffbin_4Dbin = d_mc->Histo2D({"mll_diff_smear_diffbin_4Dbin", "mll_diff_smear_diffbin_4Dbin", nbinsmll_diff, mymll_diffboundaries, nbins, mybinsboundaries},"mll_diff_smear", "bin_index_smear", "weight");
-  // Jac
-  auto jac_weight_mll_diff_smear_diffbin_4Dbin = d_mc->Histo2D({"jac_weight_mll_diff_smear_diffbin_4Dbin", "jac_weight_mll_diff_smear_diffbin_4Dbin", nbinsmll_diff, mymll_diffboundaries, nbins, mybinsboundaries},"jacobian_weight_mll_diff_smear", "bin_index_smear");
-  auto jac_weight_mll_diff_squared_smear_diffbin_4Dbin = d_mc->Histo2D({"jac_weight_mll_diff_squared_smear_diffbin_4Dbin", "jac_weight_mll_diff_squared_smear_diffbin_4Dbin", nbinsmll_diff, mymll_diffboundaries, nbins, mybinsboundaries},"jacobian_weight_mll_diff_squared_smear", "bin_index_smear");
+  // MC above already
+  // Jac, mll_diff weighted by jac
+  auto jac_weight_mll_diff_alpha_smear_diffbin_4Dbin = d_mc->Histo2D({"jac_weight_mll_diff_alpha_smear_diffbin_4Dbin", "jac_weight_mll_diff_alpha_smear_diffbin_4Dbin", nbinsmll_diff, mymll_diffboundaries, nbins, mybinsboundaries}, "mll_diff_smear", "bin_index_smear", "jacobian_weight_mll_diff_alpha_smear");
+  auto jac_weight_mll_diff_epsilon_smear_diffbin_4Dbin = d_mc->Histo2D({"jac_weight_mll_diff_epsilon_smear_diffbin_4Dbin", "jac_weight_mll_diff_epsilon_smear_diffbin_4Dbin", nbinsmll_diff, mymll_diffboundaries, nbins, mybinsboundaries}, "mll_diff_smear", "bin_index_smear", "jacobian_weight_mll_diff_epsilon_smear");
   // Dummy data
   auto mll_diff_smear_beta_val_diffbin_4Dbin = d_sim_data->Histo2D({"mll_diff_smear_beta_val_diffbin_4Dbin", "mll_diff_smear_beta_val_diffbin_4Dbin", nbinsmll_diff, mymll_diffboundaries, nbins, mybinsboundaries},"mll_diff_smear", "bin_index_smear_beta_val", "smear_beta_weight");
   
   // binned in mll
   // MC
   auto mll_smear_mllbin_4Dbin = d_mc->Histo2D({"mll_smear_mllbin_4Dbin", "mll_smear_mllbin_4Dbin", nbinsmll, mymllboundaries, nbins, mybinsboundaries},"mll_smear", "bin_index_smear", "weight");
-  // Jac
-  auto jac_weight_mll_diff_smear_mllbin_4Dbin = d_mc->Histo2D({"jac_weight_mll_diff_smear_mllbin_4Dbin", "jac_weight_mll_diff_smear_mllbin_4Dbin", nbinsmll, mymllboundaries, nbins, mybinsboundaries},"jacobian_weight_mll_diff_smear", "bin_index_smear");
-  auto jac_weight_mll_diff_squared_smear_mllbin_4Dbin = d_mc->Histo2D({"jac_weight_mll_diff_squared_smear_mllbin_4Dbin", "jac_weight_mll_diff_squared_smear_mllbin_4Dbin", nbinsmll, mymllboundaries, nbins, mybinsboundaries},"jacobian_weight_mll_diff_squared_smear", "bin_index_smear");
-  auto jac_weight_mll_minus_2gen_smear_mllbin_4Dbin = d_mc->Histo2D({"jac_weight_mll_minus_2gen_smear_mllbin_4Dbin", "jac_weight_mll_minus_2gen_smear_mllbin_4Dbin", nbinsmll, mymllboundaries, nbins, mybinsboundaries},"jacobian_weight_mll_minus_2gen_smear", "bin_index_smear");
-  auto jac_weight_mll_diff_times_gen_smear_mllbin_4Dbin = d_mc->Histo2D({"jac_weight_mll_diff_times_gen_smear_mllbin_4Dbin", "jac_weight_mll_diff_times_gen_smear_mllbin_4Dbin", nbinsmll, mymllboundaries, nbins, mybinsboundaries},"jacobian_weight_mll_diff_times_gen_smear", "bin_index_smear");
+  // Jac, mll weighted by jac
+  auto jac_weight_mll_alpha_smear_mllbin_4Dbin = d_mc->Histo2D({"jac_weight_mll_alpha_smear_mllbin_4Dbin", "jac_weight_mll_alpha_smear_mllbin_4Dbin", nbinsmll, mymllboundaries, nbins, mybinsboundaries},"mll_smear","bin_index_smear","jacobian_weight_mll_alpha_smear");
+  auto jac_weight_mll_beta_smear_mllbin_4Dbin = d_mc->Histo2D({"jac_weight_mll_beta_smear_mllbin_4Dbin", "jac_weight_mll_beta_smear_mllbin_4Dbin", nbinsmll, mymllboundaries, nbins, mybinsboundaries},"mll_smear", "bin_index_smear", "jacobian_weight_mll_beta_smear");
   // Dummy data
   auto mll_smear_beta_val_mllbin_4Dbin = d_sim_data->Histo2D({"mll_smear_beta_val_mllbin_4Dbin", "mll_smear_beta_val_mllbin_4Dbin", nbinsmll, mymllboundaries, nbins, mybinsboundaries},"mll_smear", "bin_index_smear_beta_val", "smear_beta_weight");
   
   std::unique_ptr<TFile> fz( TFile::Open("InOutputFiles/test.root", "RECREATE") );
   mll_diff_smear_diffbin_4Dbin->Write();
   mll_smear_mllbin_4Dbin->Write();
+  jac_weight_mll_alpha_smear_mllbin_4Dbin->Write();
+  jac_weight_mll_beta_smear_mllbin_4Dbin->Write();
   fz->Close();
     
   //--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -634,45 +742,264 @@ int bias_fitter(){
 
   //TODO comment explain where the variables are needed
   double total_nevents=0.0, nevents=0.0, all_histos_count=0.0, remaining_nevents=0.0, empty_histos_count=0.0, hfrac=-1.0, efrac=-1.0; // to check number of passing events
-  double value_alpha, error_alpha, value_beta, error_beta, value_epsilon, error_epsilon, diff_squared, diff, evts_in_bin, error_evts_in_bin, error_diff_squared, error_diff, mll_minus_2gen, error_mll_minus_2gen, diff_times_gen, error_diff_times_gen, jac_b_weight, error_jac_b_weight; // for jac calculation
+  double value_alpha, error_alpha, value_beta, error_beta, value_epsilon, error_epsilon; // for jac calculation
   double mean_mc = 0.0, error_mean_mc = 0.0, sigma_mc=0.0, error_sigma_mc = 0.0, integral_mc, chi2_mc;
   double mean_diff_data = 1.0, error_mean_diff_data = 1.0, sigma_diff_data = 1.0, error_sigma_diff_data = 1.0, integral_diff_data = 1.0; //TODO just initialise with 0, are they called in analysis mode at all?
   double fit_beta_error, value_corrected, error_corrected, mean_corrected_diff, error_mean_corrected_diff, sigma_corrected_diff, error_sigma_corrected_diff;
   double max_hist_mll_diff, max_hist_mll;
   int filled_bins_mll, filled_bins_mll_diff, position_to_fill;
-  string name, leg_entry, title;
-  vector<double> fitresult;
+  string leg_entry, name, title;
   
-  auto mDh_proj_diff_mc = mll_diff_smear_diffbin_4Dbin->ProjectionX("mDh_proj_diff_mc", 0, 1, "e");
-  auto mDh_proj_mll_mc = mll_smear_mllbin_4Dbin->ProjectionX("mDh_proj_mll_mc", 0, 1, "e");
-  auto mDh_proj_jac_diff_mll = jac_weight_mll_diff_smear_mllbin_4Dbin->ProjectionX("mDh_proj_jac_diff_mll", 0, 1, "e");
-  auto mDh_proj_jac_mll_minus_2gen_mll = jac_weight_mll_minus_2gen_smear_mllbin_4Dbin->ProjectionX("mDh_proj_jac_mll_minus_2gen_mll", 0, 1, "e");
-  auto mDh_proj_jac_diff_times_gen_mll = jac_weight_mll_diff_times_gen_smear_mllbin_4Dbin->ProjectionX("mDh_proj_jac_diff_times_gen_mll", 0, 1, "e");
-  auto mDh_proj_jac_diff_squared_mll = jac_weight_mll_diff_squared_smear_mllbin_4Dbin->ProjectionX("mDh_proj_jac_diff_squared_mll", 0, 1, "e");
-  auto mDh_proj_mll_data = mll_smear_beta_val_mllbin_4Dbin->ProjectionX("mDh_proj_mll_data", 0, 1, "e");
+  auto mDh_mll_mc_ptr = mll_smear_mllbin_4Dbin;
+  auto mDh_proj_mll_mc = mDh_mll_mc_ptr->ProjectionX("mDh_proj_mll_mc", 0, 1, "e");
+
+  auto mDh_jac_alpha_mll_ptr = jac_weight_mll_alpha_smear_mllbin_4Dbin;
+  auto mDh_proj_jac_alpha_mll = mDh_jac_alpha_mll_ptr->ProjectionX("mDh_proj_jac_alpha_mll", 0, 1, "e");
+
+  auto mDh_jac_beta_mll_ptr = jac_weight_mll_beta_smear_mllbin_4Dbin;
+  auto mDh_proj_jac_beta_mll = mDh_jac_beta_mll_ptr->ProjectionX("mDh_proj_jac_beta_mll", 0, 1, "e");
+
+  auto mDh_mll_data_ptr = mll_smear_beta_val_mllbin_4Dbin;
+  auto mDh_proj_mll_data = mDh_mll_data_ptr->ProjectionX("mDh_proj_mll_data", 0, 1, "e");
+
+  auto mDh_jac_alpha_diff_ptr = jac_weight_mll_diff_alpha_smear_diffbin_4Dbin;
+  auto mDh_proj_jac_alpha_diff = mDh_jac_alpha_diff_ptr->ProjectionX("mDh_proj_jac_alpha_diff", 0, 1, "e");
+
+  auto mDh_jac_epsilon_diff_ptr = jac_weight_mll_diff_epsilon_smear_diffbin_4Dbin;
+  auto mDh_proj_jac_epsilon_diff = mDh_jac_epsilon_diff_ptr->ProjectionX("mDh_proj_jac_epsilon_diff", 0, 1, "e");
+
+  auto mDh_diff_data_ptr = mll_diff_smear_beta_val_diffbin_4Dbin;
+  auto mDh_proj_diff_data = mDh_diff_data_ptr->ProjectionX("mDh_proj_diff_data", 0, 1, "e");
+
+  // Save quantities relevant to control histograms in a TTree
+  std::unique_ptr<TFile> f_control_tree( TFile::Open("InOutputFiles/control_tree.root", "RECREATE") );
+  //auto control_tree = std::make_unique<TTree>("control_tree", "control_tree");
+  TTree *control_tree = new TTree("control_tree", "control_tree");
+  double fitted_beta = 0.0, fitted_beta_error = 0.0, fitted_alpha = 0.0, fitted_alpha_error = 0.0, fitted_nu = 0.0, fitted_nu_error = 0.0; 
+  double* nevents_ptr = &nevents;
+  double* fitted_beta_ptr = &fitted_beta;
+  double* fitted_beta_error_ptr = &fitted_beta_error;
+  double* fitted_alpha_ptr = &fitted_alpha;
+  double* fitted_alpha_error_ptr = &fitted_alpha_error;
+  double* fitted_nu_ptr = &fitted_nu;
+  double* fitted_nu_error_ptr = &fitted_nu_error;
+  double* mean_mc_ptr = &mean_mc;
+  double* error_mean_mc_ptr = &error_mean_mc;
+  double* sigma_mc_ptr = &sigma_mc;
+  double* error_sigma_mc_ptr = &error_sigma_mc;
+  string* name_ptr = &name;
+
+  control_tree->Branch("nevents", nevents_ptr);
+  control_tree->Branch("beta", fitted_beta_ptr);
+  control_tree->Branch("error_beta", fitted_beta_error_ptr);
+  control_tree->Branch("alpha", fitted_alpha_ptr);
+  control_tree->Branch("error_alpha", fitted_alpha_error_ptr);
+  control_tree->Branch("nu", fitted_nu_ptr);
+  control_tree->Branch("error_nu", fitted_nu_error_ptr);
+  control_tree->Branch("mean_mc", mean_mc_ptr);
+  control_tree->Branch("error_mean_mc", error_mean_mc_ptr);
+  control_tree->Branch("sigma_mc", sigma_mc_ptr);
+  control_tree->Branch("error_sigma_mc", error_sigma_mc_ptr);
+  control_tree->Branch("label", name_ptr);
     
-  auto mDh_proj_jac_diff_squared_mll_diff = jac_weight_mll_diff_squared_smear_diffbin_4Dbin->ProjectionX("mDh_proj_jac_diff_squared_mll_diff", 0, 1, "e");
-  auto mDh_proj_jac_diff_mll_diff = jac_weight_mll_diff_smear_diffbin_4Dbin->ProjectionX("mDh_proj_jac_diff_mll_diff", 0, 1, "e");
-  auto mDh_proj_diff_data = mll_diff_smear_beta_val_diffbin_4Dbin->ProjectionX("mDh_proj_diff_data", 0, 1, "e");
-    
-  // for each projection for bin_idx check stats, fit, save mean rms
-  for (int i=1; i<10; i++){ // TODOD i<nbins
+  // Histograms for mll_diff distribution properties
+
+  title = mc_name_root + "-gen mll mean";
+  TH1D *mean_diff = new TH1D("mean_diff", title.c_str(), 3, 0, 3);
+  mean_diff->SetCanExtend(TH1::kAllAxes);
+  //mean_diff->SetMarkerStyle(kPlus);
+  mean_diff->GetXaxis()->SetTitle("Bin number");
+  title = mc_name_root + "-gen mll mean [GeV]";
+  mean_diff->GetYaxis()->SetTitle(title.c_str());
+
+  title = mc_name_root + "-gen mll sigma";
+  TH1D *sigma_diff = new TH1D("sigma_smear", title.c_str(), 3, 0, 3);
+  sigma_diff->SetCanExtend(TH1::kAllAxes);
+  sigma_diff->GetXaxis()->SetTitle("Bin number");
+  title = mc_name_root + "-gen mll sigma [GeV]";
+  sigma_diff->GetYaxis()->SetTitle(title.c_str());
+  
+  TH1D *occupancy = new TH1D("bin_occupancy", "Events in mll_diff", 3, 0, 3);
+  occupancy->SetCanExtend(TH1::kAllAxes);
+  occupancy->SetMarkerStyle(kPlus);
+  occupancy->SetMarkerColor(kBlue);
+  occupancy->SetLineColor(kBlue);
+  occupancy->GetXaxis()->SetTitle("Bin number");
+  occupancy->GetYaxis()->SetTitle("Events");
+
+  // Histograms for mll distribution properties
+
+  TH1D *gaus_integral = new TH1D("gaus_integral", "mll integral 75.5-105.0", 3, 0, 3);
+  gaus_integral->SetCanExtend(TH1::kAllAxes);
+  gaus_integral->SetMarkerStyle(kPlus);
+  gaus_integral->SetMarkerColor(kBlue);
+  gaus_integral->SetLineColor(kBlue);
+  gaus_integral->GetXaxis()->SetTitle("Bin number");
+  gaus_integral->GetYaxis()->SetTitle("integral [evts]");
+
+  // Histograms for jacobians inclusive in eta, pt
+  
+  TH1D *jac_alpha_inclusive = new TH1D("jacobian_alpha_inclusive", "jacobian alpha inclusive in eta, pt", nbinsmll, mll_low, mll_high);
+  jac_alpha_inclusive->GetXaxis()->SetTitle("mll");
+  jac_alpha_inclusive->GetYaxis()->SetTitle("jacobian alpha");
+
+  TH1D *jac_beta_inclusive = new TH1D("jacobian_beta_inclusive", "jacobian beta inclusive in eta, pt", nbinsmll, mll_low, mll_high);
+  jac_beta_inclusive->GetXaxis()->SetTitle("mll");
+  jac_beta_inclusive->GetYaxis()->SetTitle("jacobian beta");
+
+  // Histograms for pull of fitted variables per k bin
+
+  TH1D *alpha = new TH1D("alpha", "#Delta#alpha", 3, 0, 3);
+  alpha->SetCanExtend(TH1::kAllAxes);
+  alpha->SetMarkerStyle(kPlus);
+  alpha->SetMarkerColor(kBlue);
+  alpha->GetXaxis()->SetTitle("Bin number");
+  alpha->GetYaxis()->SetTitle("#alpha");
+
+  TH1D *beta = new TH1D("beta", "#Delta#beta", 3, 0, 3);
+  beta->SetCanExtend(TH1::kAllAxes);
+  beta->SetMarkerStyle(kPlus);
+  beta->SetMarkerColor(kBlue);
+  beta->GetXaxis()->SetTitle("Bin number");
+  beta->GetYaxis()->SetTitle("#Delta#beta");
+
+  TH1D *nu = new TH1D("nu", "#Delta#nu", 3, 0, 3);
+  nu->SetCanExtend(TH1::kAllAxes);
+  nu->SetMarkerStyle(kPlus);
+  nu->SetMarkerColor(kBlue);
+  nu->GetXaxis()->SetTitle("Bin number");
+  nu->GetYaxis()->SetTitle("#nu");
+
+  TH1D *alpha_control=nullptr, *epsilon_control=nullptr, *nu_control=nullptr, *epsilon_test1=nullptr;
+  TH2D *epsilon_test2=nullptr;
+  
+  alpha_control = new TH1D("alpha_control", "alpha from mll_diff", 3, 0, 3);
+  alpha_control->SetCanExtend(TH1::kAllAxes);
+  alpha_control->SetMarkerStyle(kPlus);
+  alpha_control->SetMarkerColor(kBlue);
+  alpha_control->GetXaxis()->SetTitle("Bin number");
+  alpha_control->GetYaxis()->SetTitle("#alpha");
+
+  epsilon_control = new TH1D("epsilon_control", "epsilon from mll_diff", 3, 0, 3);
+  epsilon_control->SetCanExtend(TH1::kAllAxes);
+  epsilon_control->SetMarkerStyle(kPlus);
+  epsilon_control->SetMarkerColor(kBlack);
+  epsilon_control->GetXaxis()->SetTitle("Bin number");
+  epsilon_control->GetYaxis()->SetTitle("#epsilon");
+
+  nu_control = new TH1D("nu_control", "nu from mll_diff", 3, 0, 3);
+  nu_control->SetCanExtend(TH1::kAllAxes);
+  nu_control->SetMarkerStyle(kPlus);
+  nu_control->SetMarkerColor(kBlue);
+  nu_control->GetXaxis()->SetTitle("Bin number");
+  nu_control->GetYaxis()->SetTitle("#nu");
+  
+  epsilon_test1 = new TH1D("epsilon_test1", " (mean_yellow - mean_green) / sigma_green", 3, 0, 3);
+  epsilon_test1->SetCanExtend(TH1::kAllAxes);
+  epsilon_test1->SetMarkerStyle(kPlus);
+  epsilon_test1->SetMarkerColor(kBlue);
+  epsilon_test1->GetXaxis()->SetTitle("Bin number");
+  epsilon_test1->GetYaxis()->SetTitle("Pull");
+  
+  epsilon_test2 = new TH2D("epsilon_test2", "epsilon_test2", 8, 0.1, 0.4, 8, -3.0, 3.0);
+  epsilon_test2->GetXaxis()->SetTitle("abs((mean_yellow - mean_green) / sigma_green)");
+  epsilon_test2->GetYaxis()->SetTitle("((mean_yellow - mean_green) - epsilon) / error_epsilon");
+
+  // Histograms for pull distributions
+
+  double limit_p = 3.0, limit_m = -3.0;
+  int bins = (limit_p - limit_m)/0.1;
+
+  TH1D *pull_alpha_control=nullptr, *pull_nu_control=nullptr, *pull_epsilon_control=nullptr, *pull_epsilon_control1=nullptr, *pull_epsilon_control2=nullptr;
+  
+  pull_alpha_control = new TH1D("pull_alpha_control", " ((sigma_yellow - sigma_green) - sigma_green*Delta_alpha) / error_alpha ", bins, limit_m, limit_p);
+  pull_alpha_control->GetXaxis()->SetTitle("Pull");
+  pull_alpha_control->GetYaxis()->SetTitle("Events");
+  
+  pull_nu_control = new TH1D("pull_nu_control", " ((integral_yellow - integral_green) - integral_green*Delta_nu) / error_nu ", bins, limit_m, limit_p);
+  pull_nu_control->GetXaxis()->SetTitle("Pull");
+  pull_nu_control->GetYaxis()->SetTitle("Events");
+  
+  pull_epsilon_control = new TH1D("pull_epsilon_control", " ((mean_yellow - mean_green) - epsilon) / error_epsilon (freeze none) ", bins, limit_m, limit_p);
+  pull_epsilon_control->GetXaxis()->SetTitle("Pull");
+  pull_epsilon_control->GetYaxis()->SetTitle("Events");
+  
+  pull_epsilon_control1 = new TH1D("pull_epsilon_control1", " ((mean_yellow - mean_green) - epsilon) / error_epsilon (freeze nu) ", bins, limit_m, limit_p);
+  pull_epsilon_control1->GetXaxis()->SetTitle("Pull");
+  pull_epsilon_control1->GetYaxis()->SetTitle("Events");
+  
+  pull_epsilon_control2 = new TH1D("pull_epsilon_control2", " ((mean_yellow - mean_green) - epsilon) / error_epsilon (freeze nu, alpha) ", bins, limit_m, limit_p);
+  pull_epsilon_control2->GetXaxis()->SetTitle("Pull");
+  pull_epsilon_control2->GetYaxis()->SetTitle("Events");
+
+  //--------------------------------------------------------------------------------------
+  // Files to write results
+  title = "InOutputFiles/mass_fits_control_histos_" + data_name_root + ".root";
+  std::unique_ptr<TFile> f_control( TFile::Open(title.c_str(), "RECREATE") ); // histos inclusive in k bins
+  title = "InOutputFiles/mass_fits_" + data_name_root + ".root";
+  std::unique_ptr<TFile> f_fits( TFile::Open(title.c_str(), "RECREATE") ); // histos per k bin
+  ofstream f_pass_reg("InOutputFiles/passed_regions.txt"); // to check if there are enough k bins to constrain all sagitta parameters TODO get from python
+  
+  // Canvas
+  TCanvas *c1 = new TCanvas("c1","c1",800,600);
+  gStyle->SetOptStat(0);
+  c1->Divide(2,1);
+
+  auto leg1 = new TLegend(0.58, 0.68, 0.90, 0.90);
+  auto leg2 = new TLegend(0.58, 0.68, 0.90, 0.90);
+
+  leg1->SetFillStyle(0);
+  leg1->SetBorderSize(0);
+  leg1->SetTextSize(0.015);
+  leg1->SetFillColor(10);
+  leg1->SetNColumns(1);
+  leg1->SetHeader("");
+
+  leg2->SetFillStyle(0);
+  leg2->SetBorderSize(0);
+  leg2->SetTextSize(0.015);
+  leg2->SetFillColor(10);
+  leg2->SetNColumns(1);
+  leg2->SetHeader("");
+
+  //--------------------------------------------------------------------------------------
+  // Prepare counting events in mll_diff
+
+  total_nevents = 0.0;
+  all_histos_count = 0.0;
+  empty_histos_count = 0.0;
+  hfrac = -1.0;  
+  efrac = -1.0;
+  remaining_nevents = 0.0;
+
+  //--------------------------------------------------------------------------------------  
+  // Loop over 4D bins
+  
+  cout << "\n" << "Loop over 4D bins starts" << "\n";
+  for (int multi_dim_bin=0; multi_dim_bin<nbins; multi_dim_bin++){ 
 
     all_histos_count++;
 
+    pos_eta_bin = multi_dim_bin/(nbinspt*nbinseta*nbinspt);
+    pos_pt_bin = (multi_dim_bin%(nbinspt*nbinseta*nbinspt))/(nbinseta*nbinspt);
+    neg_eta_bin = ((multi_dim_bin%(nbinspt*nbinseta*nbinspt))%(nbinseta*nbinspt))/nbinspt;
+    neg_pt_bin = ((multi_dim_bin%(nbinspt*nbinseta*nbinspt))%(nbinseta*nbinspt))%nbinspt;
+    
     // Require enough stats in diff_mc for sigma_MC fit
     delete gROOT->FindObject("mDh_proj_diff_mc");
-    mDh_proj_diff_mc = mll_diff_smear_diffbin_4Dbin->ProjectionX("mDh_proj_diff_mc", i, i+1, "e");
+    mDh_proj_diff_mc = mDh_diff_mc_ptr->ProjectionX("mDh_proj_diff_mc", multi_dim_bin+1, multi_dim_bin+1, "e");
     nevents = mDh_proj_diff_mc->Integral(1,nbinsmll_diff); 
+    total_nevents += nevents;
     
-    if (nevents < 300.0){ // reject low stats
+    if (nevents < evt_threshold){ // reject low stats 
       empty_histos_count++;
+
     } else {
 
       // Require most of mll_mc Gaussian to be in fit window
       // TODO and require same from mll_data
       delete gROOT->FindObject( "mDh_proj_mll_mc" );
-      mDh_proj_mll_mc = mll_smear_mllbin_4Dbin->ProjectionX("mDh_proj_mll_mc", i, i+1, "e");
+      mDh_proj_mll_mc = mDh_mll_mc_ptr->ProjectionX("mDh_proj_mll_mc", multi_dim_bin+1, multi_dim_bin+1, "e");
       mDh_proj_mll_mc->GetXaxis()->SetTitle("mll [GeV]");
       mDh_proj_mll_mc->GetYaxis()->SetTitle("Events");
       fitresult = fitHisto(mDh_proj_mll_mc, 0, 8, 5);
@@ -680,26 +1007,687 @@ int bias_fitter(){
       if (fitresult[4] < 0.75){ // reject small gaus integral 
 	empty_histos_count++;
       } else {
-	// do mlldiff fits, save mean, rms, in a histo
 
-	// do mlldiff fits, save alpha, beta, nu in a histo
+	name = stringify_name(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin);
+	//std::cout<< name <<"\n";
+	//f_pass_reg << name << "\n"; do this after you check there are at least 3 points in mass jacobian
+	                  
+	remaining_nevents += nevents;      
+	occupancy->SetBinError(occupancy->Fill(name.c_str(), nevents), 100);
+	gaus_integral->SetBinError(gaus_integral->Fill(name.c_str(), fitresult[4]), 0.01);
 	
-	// do mass fits, save alpha, beta, nu in a histo
+	//--------------------------------------------------------------------------
+	// Diff histograms
+	//--------------------------------------------------------------------------
+	
+	//--------------------------------------------------------------------------
+	// diff_mc histogram
+	
+	// Already projected diff_mc
+	mDh_proj_diff_mc->GetXaxis()->SetTitle("mll_diff [GeV]");
+	mDh_proj_diff_mc->GetYaxis()->SetTitle("Events");
+	mDh_proj_diff_mc->SetLineColor(kGreen);
+	// Fit diff_mc
+	fitresult = fitHisto(mDh_proj_diff_mc, 1, 8, 5);
+	if (fitresult[0] == -90.0 || fitresult[1] == -5.0){
+	  std::cout<<"WARNING bad diff_mc fit "<< name.c_str() <<" \n";
+	} 
+	mean_diff->SetBinError(mean_diff->Fill(name.c_str(), fitresult[0]), fitresult[2]);
+	sigma_diff->SetBinError(sigma_diff->Fill(name.c_str(), fitresult[1]), fitresult[3]);
+	
+	// Save for nu, beta/epsilon, alpha fit //TODO specify is for diff?
+	mean_mc = fitresult[0];
+	if (mean_diff_by_idx->GetBinContent(multi_dim_bin+1) != mean_mc) cout << " mean_diff_by_idx->GetBinContent(multi_dim_bin+1) != mean_mc "<< name.c_str() << mean_diff_by_idx->GetBinContent(multi_dim_bin+1) <<" "<< mean_mc <<"\n";
+	error_mean_mc = fitresult[2];
+	sigma_mc = fitresult[1];
+	error_sigma_mc = fitresult[3];
+	chi2_mc = fitresult[5];
+	
+	//-----------------------------------------------
+	// Prepare to draw mll_diff panel
+	
+	c1->cd(1); 
+	max_hist_mll_diff = -1.0;      
+	
+	if(max_hist_mll_diff < mDh_proj_diff_mc->GetBinContent(mDh_proj_diff_mc->GetMaximumBin())){
+	  max_hist_mll_diff = mDh_proj_diff_mc->GetBinContent(mDh_proj_diff_mc->GetMaximumBin());
+	}
+	
+	//--------------------------------------------------------------------------
+	// diff_data histogram 
+	
+	if (mode_option.compare("validation") == 0){
+	  // Project diff_data histogram
+	  delete gROOT->FindObject("mDh_proj_diff_data");
+	  mDh_proj_diff_data = mDh_diff_data_ptr->ProjectionX("mDh_proj_diff_data", multi_dim_bin+1, multi_dim_bin+1, "e");
+	  mDh_proj_diff_data->GetXaxis()->SetTitle("mll_diff [GeV]");
+	  mDh_proj_diff_data->GetYaxis()->SetTitle("Events");
+	  mDh_proj_diff_data->SetLineColor(kOrange+7);
+	  // Fit diff_data
+	  fitresult = fitHisto(mDh_proj_diff_data, 1, 95, 5);
+		      
+	  // Save these for pull histograms 
+	  mean_diff_data = fitresult[0]; 
+	  error_mean_diff_data = fitresult[2];
+	  sigma_diff_data = fitresult[1];
+	  error_sigma_diff_data = fitresult[3];
+		
+	  if(max_hist_mll_diff < mDh_proj_diff_data->GetBinContent(mDh_proj_diff_data->GetMaximumBin())){
+	    max_hist_mll_diff = mDh_proj_diff_data->GetBinContent(mDh_proj_diff_data->GetMaximumBin());
+	  }
+	} 
+
+	//--------------------------------------------------------------------------
+	// Start drawing mll_diff 
+	                  
+	max_hist_mll_diff = max_hist_mll_diff * 1.3;
+	mDh_proj_diff_mc->SetMaximum(max_hist_mll_diff);
+	mDh_proj_diff_mc->SetTitle(("mll diff " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
+	mDh_proj_diff_mc->Draw("HIST");
+	if (mode_option.compare("validation") == 0) mDh_proj_diff_data->Draw("HIST SAME");
+	
+	// Legend
+	leg1->Clear();
+	leg_entry = "Region " + name + ": " + nevents + " events";
+	leg1->SetHeader(leg_entry.c_str(),"C");
+                    
+	leg1->AddEntry(mDh_proj_diff_mc, "smeared-gen, #beta_pT=1, #alpha=1", "l");
+	if (mode_option.compare("validation") == 0) leg1->AddEntry(mDh_proj_diff_data, "smeared-gen, #beta_pT!=1, #alpha=1", "l");
+	leg_entry = "green fit: #mu=" + to_string(mean_mc).substr(0, 5) + ", #sigma=" + to_string(sigma_mc).substr(0, 5);
+	leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
+	
+	//--------------------------------------------------------------------------
+	// Mll histograms
+	//--------------------------------------------------------------------------
+	
+	//--------------------------------------------------------------------------
+	// Prepare to draw mll panel
+	
+	c1->cd();
+	c1->cd(2); 
+	max_hist_mll = -1.0;
+	
+	//--------------------------------------------------------------------------
+	// mll mc histogram
+
+	// Already projected and fitted mll mc
+	mDh_proj_mll_mc->SetTitle(("mll "+ stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
+	mDh_proj_mll_mc->GetXaxis()->SetTitle("mll [GeV]");
+	mDh_proj_mll_mc->GetYaxis()->SetTitle("Events");
+	mDh_proj_mll_mc->SetLineColor(kGreen);
+	                  
+	if(max_hist_mll < mDh_proj_mll_mc->GetBinContent(mDh_proj_mll_mc->GetMaximumBin())){
+	  max_hist_mll = mDh_proj_mll_mc->GetBinContent(mDh_proj_mll_mc->GetMaximumBin());
+	}
+
+	//--------------------------------------------------------------------------
+	// mll data
+	                  
+	// Project mll data
+	delete gROOT->FindObject("mDh_proj_mll_data");
+	mDh_proj_mll_data = mDh_mll_data_ptr->ProjectionX("mDh_proj_mll_data", multi_dim_bin+1, multi_dim_bin+1, "e");
+	mDh_proj_mll_data->GetXaxis()->SetTitle("mll [GeV]");
+	mDh_proj_mll_data->GetYaxis()->SetTitle("Events");
+	mDh_proj_mll_data->SetLineColor(kOrange+7);
+	// Fit mll data
+	//fitresult = fitHisto(mDh_proj_mll_data, 0, 5, 5);
+              
+	if(max_hist_mll < mDh_proj_mll_data->GetBinContent(mDh_proj_mll_data->GetMaximumBin())){
+	  max_hist_mll = mDh_proj_mll_data->GetBinContent(mDh_proj_mll_data->GetMaximumBin());
+	}
+
+	//--------------------------------------------------------------------------
+	// Start drawing mll
+	      
+	max_hist_mll = max_hist_mll * 1.3;
+
+	mDh_proj_mll_mc->SetMaximum(max_hist_mll);
+	mDh_proj_mll_mc->Draw("HIST");
+	mDh_proj_mll_data->Draw("HIST SAME");
+
+	// Legend 
+	leg2->Clear();
+	leg_entry = "Region " + name + ": " + nevents + " events";
+	leg2->SetHeader(leg_entry.c_str(),"C"); 
+	
+	leg2->AddEntry(mDh_proj_mll_mc, "smeared, #beta=1", "l"); //TODO automatise labels
+	leg2->AddEntry(mDh_proj_mll_data, "smeared, #beta!=1", "l"); 
+        
+	c1->cd();
+	
+	//--------------------------------------------------------------------------
+	// Start mass fit
+	//--------------------------------------------------------------------------
+	
+	//--------------------------------------------------------------------------
+	// Fill vectors and variance for minimisation
+	
+	// Find mll bins with defined jacobian
+	
+	filled_bins_mll=0;
+	vector<int> good_indices_mll;
+	for(int i=1; i<=nbinsmll; i++){
+	  //asking jacobian to be average over at least 20 events
+	  if (mDh_proj_mll_mc->GetBinContent(i) >= 20 && mDh_proj_mll_data->GetBinContent(i) > 0){ //TODO refine the other criterium
+	    good_indices_mll.push_back(i);
+	    filled_bins_mll++;
+	  }
+	}
+	if (filled_bins_mll < 5 ){
+	  std::cout<< "WARNING not enough points in mll to fit nu, beta, alpha in "<< name.c_str() <<". remaining_n_events still counts it in, empty_histos_count doesn't include it." << "\n";
+	  continue;
+	} 
+	f_pass_reg << name << "\n";
+	      
+	// Declare mass vectors, jacobians and variance
+	      
+	VectorXd h_data_minus_mc_mll_vector(filled_bins_mll);
+	Eigen::MatrixXd V_inv_sqrt(filled_bins_mll, filled_bins_mll), J(filled_bins_mll, 3); //J.col(0) is nu, (1) is beta, (2) is alpha
+
+	V_inv_sqrt = MatrixXd::Zero(filled_bins_mll, filled_bins_mll);
+	position_to_fill=0;
+	for(int i=1; i<=nbinsmll; i++){
+	  if ( find(good_indices_mll.begin(), good_indices_mll.end(), i) != good_indices_mll.end() ){
+	    h_data_minus_mc_mll_vector(position_to_fill) = mDh_proj_mll_data->GetBinContent(i) - mDh_proj_mll_mc->GetBinContent(i);
+	    J(position_to_fill,0) = mDh_proj_mll_mc->GetBinContent(i); //J.col(0) is nu
+	    V_inv_sqrt(position_to_fill,position_to_fill) = 1.0 / mDh_proj_mll_data->GetBinError(i); // 1/sqrt(data_stat**2) 
+	    position_to_fill++;
+	  }
+	}
+	if (position_to_fill != filled_bins_mll){ std::cout<<"problem counting vector size \n"; }
+	
+	//--------------------------------------------------------------------------
+	// Define jacobian histograms
+	      
+	// Jacobian histogram alpha mass
+	delete gROOT->FindObject("jacobian_alpha");
+	TH1D *jac_alpha = new TH1D("jacobian_alpha", "jacobian alpha", nbinsmll, mll_low, mll_high);
+	jac_alpha->GetXaxis()->SetTitle("mll [GeV]");
+	jac_alpha->GetYaxis()->SetTitle("jacobian [GeV]");
+	      
+	// Jacobian histogram beta mass
+	delete gROOT->FindObject("jacobian_beta");
+	TH1D *jac_beta = new TH1D("jacobian_beta", "jacobian beta", nbinsmll, mll_low, mll_high);
+	jac_beta->GetXaxis()->SetTitle("mll [GeV]");
+	jac_beta->GetYaxis()->SetTitle("jacobian [GeV]");
+	
+	//--------------------------------------------------------------------------
+	// Compute jacobians mass
+		
+	delete gROOT->FindObject("mDh_proj_jac_alpha_mll");
+	mDh_proj_jac_alpha_mll = mDh_jac_alpha_mll_ptr->ProjectionX("mDh_proj_jac_alpha_mll", multi_dim_bin+1, multi_dim_bin+1, "e");
+	
+	delete gROOT->FindObject("mDh_proj_jac_beta_mll");
+        mDh_proj_jac_beta_mll = mDh_jac_beta_mll_ptr->ProjectionX("mDh_proj_jac_beta_mll", multi_dim_bin+1, multi_dim_bin+1, "e");
+	
+	position_to_fill=0;
+	for(int i=1; i<=nbinsmll; i++){
+	  if ( find(good_indices_mll.begin(), good_indices_mll.end(), i) != good_indices_mll.end() ){
+	    
+	    // alpha mass
+	    value_alpha = mDh_proj_jac_alpha_mll->GetBinContent(i);
+	    error_alpha = mDh_proj_jac_alpha_mll->GetBinError(i);
+	    J(position_to_fill,2) = value_alpha; //J.col(2) is alpha
+	    
+	    jac_alpha->SetBinContent(i, value_alpha);
+	    jac_alpha->SetBinError(i, error_alpha);
+	    jac_alpha_inclusive->Fill(mllbinranges[i-1], value_alpha);
+	    
+	    // beta mass
+	    value_beta = mDh_proj_jac_beta_mll->GetBinContent(i);
+	    error_beta = mDh_proj_jac_beta_mll->GetBinError(i);
+	    J(position_to_fill,1) = value_beta; //J.col(1) is beta
+	    
+	    jac_beta->SetBinContent(i, value_beta);
+	    jac_beta->SetBinError(i, error_beta);
+	    jac_beta_inclusive->Fill(mllbinranges[i-1], value_beta);
+	    
+	    position_to_fill++;
+	    
+	  }
+	}
+				
+	if (position_to_fill != filled_bins_mll){ std::cout<<"PROBLEM: counting jac mass size \n"; }
+
+	//--------------------------------------------------------------------------
+	// Write jacobian histograms
+	
+	f_fits->WriteObject(jac_alpha, ("jac_alpha" + name).c_str());
+	f_fits->WriteObject(jac_beta, ("jac_beta" + name).c_str());
+	
+	//--------------------------------------------------------------------------
+	// Solve for nu, beta, alpha mass
+	//--------------------------------------------------------------------------
+	
+	// Solve for nu, beta, alpha mass
+	Eigen::MatrixXd A = V_inv_sqrt*J;
+	Eigen::MatrixXd b = V_inv_sqrt*h_data_minus_mc_mll_vector;
+	// ATTENTION: n_b_a_vector contains nu, beta, alpha
+	Eigen::VectorXd n_b_a_vector = A.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);
+	
+	// Error on nu, beta, alpha mass
+	Eigen::MatrixXd V_nu = (J.col(0).transpose()*(V_inv_sqrt*V_inv_sqrt)*J.col(0)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
+	Eigen::MatrixXd V_beta = (J.col(1).transpose()*(V_inv_sqrt*V_inv_sqrt)*J.col(1)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
+	fit_beta_error = pow(V_beta(0,0),0.5); // save for closure test
+	Eigen::MatrixXd V_alpha = (J.col(2).transpose()*(V_inv_sqrt*V_inv_sqrt)*J.col(2)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
+	
+	// Write nu, beta, alpha mass
+	fitted_nu = n_b_a_vector(0);
+	fitted_nu_error = pow(V_nu(0,0),0.5);
+	fitted_beta = n_b_a_vector(1);
+	fitted_beta_error = pow(V_beta(0,0),0.5);
+	fitted_alpha = n_b_a_vector(2);
+	fitted_alpha_error = pow(V_alpha(0,0),0.5);
+	
+	nu->SetBinError(nu->Fill(name.c_str(), fitted_nu), fitted_nu_error);
+	beta->SetBinError(beta->Fill(name.c_str(), fitted_beta), fitted_beta_error);
+	alpha->SetBinError(alpha->Fill(name.c_str(), fitted_alpha), fitted_alpha_error);
+	
+	//--------------------------------------------------------------------------
+	// Add fitted parameters to mass fit panel
+	
+	c1->cd(2); //TODO  #Delta?#beta=
+	leg_entry = "Fit #Delta#beta=" + to_string(fitted_beta).substr(0, 6) + "#pm" + to_string(fitted_beta_error).substr(0, 6);
+	leg2->AddEntry((TObject*)0, leg_entry.c_str(), "");
+	leg_entry = "Fit #Delta#nu=" + to_string(fitted_nu).substr(0, 6) + "#pm" + to_string(fitted_nu_error).substr(0, 6);
+	leg2->AddEntry((TObject*)0, leg_entry.c_str(), "");
+	leg_entry = "Fit #Delta#alpha=" + to_string(fitted_alpha).substr(0, 6) + "#pm" + to_string(fitted_alpha_error).substr(0, 6);
+	leg2->AddEntry((TObject*)0, leg_entry.c_str(), "");
+	
+	//--------------------------------------------------------------------------
+	// Apply fitted nu, beta, alpha correction mass
+        
+	// Define corrected_mll histogram
+	delete gROOT->FindObject("corrected_mll");
+	TH1D *corrected_mll = new TH1D("corrected_mll", "corrected_mll", nbinsmll, mll_low, mll_high);
+	corrected_mll->SetTitle(("mll " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
+	corrected_mll->GetXaxis()->SetTitle("mll [GeV]");
+	corrected_mll->GetYaxis()->SetTitle("Events");
+	
+	position_to_fill = 0;
+	for(int i=1; i<=nbinsmll; i++){
+	  if ( find(good_indices_mll.begin(), good_indices_mll.end(), i) != good_indices_mll.end() ){
+	    value_corrected = mDh_proj_mll_mc->GetBinContent(i) + fitted_beta*J(position_to_fill,1) + fitted_nu*J(position_to_fill,0) + fitted_alpha*J(position_to_fill,2);
+	    error_corrected = pow(
+				  pow(mDh_proj_mll_mc->GetBinError(i),2) +
+				  pow(fitted_beta*jac_beta->GetBinError(i),2) +
+				  pow(J(position_to_fill,1),2)*V_beta(0,0) +
+				  pow(fitted_nu*mDh_proj_mll_mc->GetBinError(i),2) +
+				  pow(J(position_to_fill,0),2)*V_nu(0,0) +
+				  pow(fitted_alpha*jac_alpha->GetBinError(i),2) +
+				  pow(J(position_to_fill,2),2)*V_alpha(0,0)
+			      ,0.5);
+
+	    corrected_mll->SetBinContent(i, value_corrected);
+	    corrected_mll->SetBinError(i, error_corrected);
+
+	    position_to_fill++;
+	  }
+	}
+	if (position_to_fill != filled_bins_mll){ std::cout<<"PROBLEM: counting corrected mll bins \n"; }
+	      
+	//--------------------------------------------------------------------------
+	// Draw mll
+	      
+	c1->cd();
+	c1->cd(2);
+	corrected_mll->Draw("HIST SAME");
+	      
+	// Legend
+	leg2->AddEntry(corrected_mll, "corrected mll", "l");
+	leg2->Draw("");
+	      
+	if (mode_option.compare("validation") == 0){
+	  
+	  //--------------------------------------------------------------------------
+	  // Start diff fit
+	  //--------------------------------------------------------------------------
+	  
+	  //--------------------------------------------------------------------------
+	  // Find mll_diff bins with defined jacobian
+		
+	  filled_bins_mll_diff=0;
+	  vector<int> good_indices_mll_diff;
+	  for(int i=1; i<=nbinsmll_diff; i++){
+	    //asking jacobian to be average over at least 20 events
+	    if( mDh_proj_diff_mc->GetBinContent(i) >= 20 && mDh_proj_diff_data->GetBinContent(i) > 0 ){ // TODO refine the other criterium
+	      good_indices_mll_diff.push_back(i);
+	      filled_bins_mll_diff++;
+	    }
+	  }
+	  if (filled_bins_mll_diff < 5 ){ //TODO refine, maybe I want to carry on with mass fit
+	    std::cout<<"WARNING not enough points in mll_diff to fit nu, epsilon, alpha in "<< name.c_str() <<". remaining_n_events still counts it in, empty_histos_count doesn't include it." << "\n";
+	    continue;
+	  } 
+		
+	  // Declare mll_diff vectors, jacobians and variance
+	  VectorXd h_data_minus_mc_diff_vector(filled_bins_mll_diff);
+	  Eigen::MatrixXd V_inv_sqrt_control(filled_bins_mll_diff, filled_bins_mll_diff), J_control(filled_bins_mll_diff, 3); //J_control.col(0) is nu, (1) is epsilon, (2) is alpha 
+		
+	  V_inv_sqrt_control = MatrixXd::Zero(filled_bins_mll_diff, filled_bins_mll_diff);
+	  position_to_fill = 0;
+	  integral_diff_data = 0.0;
+	  integral_mc = 0.0;
+	  
+	  for(int i=1; i<=nbinsmll_diff; i++){
+	    if( find(good_indices_mll_diff.begin(), good_indices_mll_diff.end(), i) != good_indices_mll_diff.end() ){
+	      h_data_minus_mc_diff_vector(position_to_fill) = mDh_proj_diff_data->GetBinContent(i) - mDh_proj_diff_mc->GetBinContent(i);
+	      J_control(position_to_fill,0) = mDh_proj_diff_mc->GetBinContent(i); //J_control.col(0) is nu
+	      V_inv_sqrt_control(position_to_fill,position_to_fill) = 1.0 / mDh_proj_diff_data->GetBinError(i); // 1/sqrt(data_stat**2)
+	      integral_diff_data += mDh_proj_diff_data->GetBinContent(i);
+	      integral_mc += mDh_proj_diff_mc->GetBinContent(i);
+	      
+	      position_to_fill++;
+	    }
+	  }
+	  if (position_to_fill != filled_bins_mll_diff){ std::cout<<"problem counting vector size \n"; }
+	  
+	  //--------------------------------------------------------------------------
+	  // Define jacobian histograms
+		
+	  // Jacobian histogram alpha diff 
+	  delete gROOT->FindObject("jacobian_alpha_control");
+	  TH1D *jac_alpha_control = new TH1D("jacobian_alpha_control", "jacobian alpha", nbinsmll_diff, mll_diff_low, mll_diff_high);
+	  jac_alpha_control->GetXaxis()->SetTitle("mll_diff [GeV]");
+	  jac_alpha_control->GetYaxis()->SetTitle("jacobian [GeV]");
+	  
+	  // Jacobian histogram epsilon diff
+	  delete gROOT->FindObject("jacobian_epsilon_control");
+	  TH1D *jac_epsilon_control = new TH1D("jacobian_epsilon_control", "jacobian epsilon", nbinsmll_diff, mll_diff_low, mll_diff_high);
+	  jac_epsilon_control->GetXaxis()->SetTitle("mll_diff [GeV]");
+	  jac_epsilon_control->GetYaxis()->SetTitle("jacobian [GeV]");
+	  
+	  //--------------------------------------------------------------------------
+	  // Compute jacobians diff 
+		
+	  delete gROOT->FindObject("mDh_proj_jac_alpha_diff");
+          mDh_proj_jac_alpha_diff = mDh_jac_alpha_diff_ptr->ProjectionX("mDh_proj_jac_alpha_diff", multi_dim_bin+1, multi_dim_bin+1, "e");
+	  
+	  delete gROOT->FindObject("mDh_proj_jac_epsilon_diff");
+	  mDh_proj_jac_epsilon_diff = mDh_jac_epsilon_diff_ptr->ProjectionX("mDh_proj_jac_epsilon_diff", multi_dim_bin+1, multi_dim_bin+1, "e");
+	  	  
+	  position_to_fill = 0;
+	  for(int i=1; i<=nbinsmll_diff; i++){
+	    if ( find(good_indices_mll_diff.begin(), good_indices_mll_diff.end(), i) != good_indices_mll_diff.end() ){
+	      // alpha diff
+	      value_alpha = mDh_proj_jac_alpha_diff->GetBinContent(i);
+	      error_alpha = mDh_proj_jac_alpha_diff->GetBinError(i);
+	      
+	      J_control(position_to_fill,2) = value_alpha; //J_control.col(2) is for alpha
+	      jac_alpha_control->SetBinContent(i, value_alpha);
+	      jac_alpha_control->SetBinError(i, error_alpha);
+		    
+	      // epsilon diff
+	      value_epsilon = mDh_proj_jac_epsilon_diff->GetBinContent(i);
+	      error_epsilon = mDh_proj_jac_epsilon_diff->GetBinError(i);
+		    
+	      J_control(position_to_fill,1) = value_epsilon; //J_control.col(1) is for epsilon
+	      jac_epsilon_control->SetBinContent(i, value_epsilon);
+	      jac_epsilon_control->SetBinError(i, error_epsilon);
+	      
+	      position_to_fill++;
+	      
+	    } 
+	  }
+	  
+	  if (position_to_fill != filled_bins_mll_diff){ std::cout<<"PROBLEM: counting jac diff size \n"; }
+		
+	  //--------------------------------------------------------------------------
+	  // Write jacobian histograms
+		
+	  f_fits->WriteObject(jac_alpha_control, ("jac_alpha_control" + name).c_str());
+	  f_fits->WriteObject(jac_epsilon_control, ("jac_epsilon_control" + name).c_str());
+	  	  
+	  //--------------------------------------------------------------------------
+		
+	  // Solve for nu, epsilon, alpha diff 
+	  Eigen::MatrixXd A_control = V_inv_sqrt_control*J_control;
+	  Eigen::MatrixXd b_control = V_inv_sqrt_control*h_data_minus_mc_diff_vector;
+	  // ATTENTION: n_e_a_vector_control contains nu, epsilon, alpha in this order
+	  Eigen::VectorXd n_e_a_vector_control = A_control.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b_control);
+	  
+	  // Solve for epsilon, alpha diff only
+	  Eigen::MatrixXd A1_control = V_inv_sqrt_control*J_control.rightCols(2); 
+	  // ATTENTION: e_a_vector_control contains epsilon, alpha
+	  Eigen::VectorXd e_a_vector_control = A1_control.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b_control);
+	  
+	  // Solve for epsilon diff only
+	  Eigen::MatrixXd A2_control = V_inv_sqrt_control*J_control.col(1);
+	  // ATTENTION: e_vector_control contains epsilon
+	  Eigen::VectorXd e_vector_control = A2_control.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b_control);
+	  
+	  // Error on epsilon diff 
+	  Eigen::MatrixXd V_epsilon_control(1,1); 
+	  V_epsilon_control = (J_control.col(1).transpose()*(V_inv_sqrt_control*V_inv_sqrt_control)*J_control.col(1)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
+	  epsilon_control->SetBinError(epsilon_control->Fill(name.c_str(), n_e_a_vector_control(1)), pow(V_epsilon_control(0,0),0.5));
+	  // Error on nu diff
+	  Eigen::MatrixXd V_nu_control(1,1); 
+	  V_nu_control = (J_control.col(0).transpose()*(V_inv_sqrt_control*V_inv_sqrt_control)*J_control.col(0)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
+	  nu_control->SetBinError(nu_control->Fill(name.c_str(), n_e_a_vector_control(0)), pow(V_nu_control(0,0),0.5)); 
+	  // Error on alpha diff 
+	  Eigen::MatrixXd V_alpha_control(1,1);
+	  V_alpha_control = (J_control.col(2).transpose()*(V_inv_sqrt_control*V_inv_sqrt_control)*J_control.col(2)).completeOrthogonalDecomposition().solve(MatrixXd::Identity(1,1));
+	  alpha_control->SetBinError(alpha_control->Fill(name.c_str(), n_e_a_vector_control(2)), pow(V_alpha_control(0,0),0.5));
+	  
+	  //--------------------------------------------------------------------------
+	  // Add fitted parameters to diff fit panel 
+	  
+	  c1->cd();
+	  c1->cd(1);
+	  
+	  leg_entry = "Fit #varepsilon=" + to_string(n_e_a_vector_control(1)).substr(0, 6) + "#pm" + to_string(pow(V_epsilon_control(0,0),0.5)).substr(0, 6); // n_e_a_vector_control(1) is epsilon
+	  leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
+	  leg_entry = "Fit #Delta#nu=" + to_string(n_e_a_vector_control(0)).substr(0, 6) + "#pm" + to_string(pow(V_nu_control(0,0),0.5)).substr(0, 6); // n_e_a_vector_control(0) is nu 
+	  leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
+	  leg_entry = "Fit #Delta#alpha=" + to_string(n_e_a_vector_control(2)).substr(0, 6) + "#pm" + to_string(pow(V_alpha_control(0,0),0.5)).substr(0, 6); // n_e_a_vector_control(2) is alpha
+	  leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
+	  
+	  //--------------------------------------------------------------------------
+	  // Define corrected_diff histogram
+	  delete gROOT->FindObject("corrected_diff");
+	  TH1D *corrected_diff = new TH1D("corrected_diff", "corrected_diff", nbinsmll_diff, mll_diff_low, mll_diff_high);
+	  corrected_diff->SetTitle(("mll diff " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
+	  corrected_diff->GetXaxis()->SetTitle("mll_diff [GeV]");
+	  corrected_diff->GetYaxis()->SetTitle("Events");
+		
+	  position_to_fill = 0;
+	  for(int i=1; i<=nbinsmll_diff; i++){
+	    if ( find(good_indices_mll_diff.begin(), good_indices_mll_diff.end(), i) != good_indices_mll_diff.end() ){
+	      value_corrected = mDh_proj_diff_mc->GetBinContent(i) + n_e_a_vector_control(1)*J_control(position_to_fill,1) + n_e_a_vector_control(0)*J_control(position_to_fill,0) + n_e_a_vector_control(2)*J_control(position_to_fill,2);
+	      error_corrected = pow(
+				    pow(mDh_proj_diff_mc->GetBinError(i),2) +
+				    pow(n_e_a_vector_control(1)*jac_epsilon_control->GetBinError(i),2) +
+				    pow(J_control(position_to_fill,1),2)*V_epsilon_control(0,0) +
+				    pow(n_e_a_vector_control(0)*mDh_proj_diff_mc->GetBinError(i),2) + 
+				    pow(J_control(position_to_fill,0),2)*V_nu_control(0,0) +
+				    pow(n_e_a_vector_control(2)*jac_alpha_control->GetBinError(i),2) + 
+				    pow(J_control(position_to_fill,2),2)*V_alpha_control(0,0)
+				,0.5);
+	      
+	      corrected_diff->SetBinContent(i, value_corrected);
+	      corrected_diff->SetBinError(i, error_corrected);
+	      
+	      position_to_fill++;
+	    }
+	  }
+	  if (position_to_fill != filled_bins_mll_diff){ std::cout<<"PROBLEM: counting corrected_diff bins \n"; }
+	  
+	  // Draw corrected_diff in diff fit panel
+	  c1->cd();
+	  c1->cd(1);
+	  
+	  fitresult = fitHisto(corrected_diff, 1, 1, 5);
+	  
+	  // Save for pull distribution epsilon_control
+	  mean_corrected_diff = fitresult[0];
+	  sigma_corrected_diff = fitresult[1];
+	  error_mean_corrected_diff = fitresult[2];
+	  error_sigma_corrected_diff = fitresult[3];
+	  corrected_diff->SetLineColor(kBlack);
+	  corrected_diff->Draw("HIST SAME");
+	  
+	  // Draw pull distributions
+	  
+	  // nu diff
+	  pull_nu_control->Fill( (integral_diff_data - integral_mc - integral_mc*n_e_a_vector_control(0)) / integral_mc / pow(V_nu_control(0,0),0.5) );
+	  
+	  // epsilon diff
+	  pull_epsilon_control->Fill( (mean_diff_data - mean_mc - n_e_a_vector_control(1))/pow(V_epsilon_control(0,0),0.5) );
+	  pull_epsilon_control1->Fill( (mean_diff_data - mean_mc - e_a_vector_control(0))/pow(V_epsilon_control(0,0),0.5) );
+	  pull_epsilon_control2->Fill( (mean_diff_data - mean_mc - e_vector_control(0))/pow(V_epsilon_control(0,0),0.5) );
+	  
+	  // epsilon test
+	  epsilon_test1->SetBinError(epsilon_test1->Fill(name.c_str(), (mean_diff_data - mean_mc) / sigma_mc), 0.001);
+	  if ( abs((mean_diff_data - mean_mc) / sigma_mc) > 0.05 ){
+	    epsilon_test2->Fill(abs((mean_diff_data - mean_mc) / sigma_mc), (mean_diff_data - mean_mc - n_e_a_vector_control(1))/pow(V_epsilon_control(0,0),0.5));
+	  }
+	  
+	  // alpha diff
+	  pull_alpha_control->Fill( (sigma_diff_data - sigma_mc - sigma_mc*n_e_a_vector_control(2))/ sigma_mc / pow(V_alpha_control(0,0),0.5) );
+	  
+	  //--------------------------------------------------------------------------
+	  // Add to diff panel
+	  leg1->AddEntry(corrected_diff, "corrected diff", "l");
+	  leg_entry = "Pull #varepsilon=" + to_string( (mean_diff_data - mean_mc - n_e_a_vector_control(1))/pow(V_epsilon_control(0,0),0.5) ).substr(0, 6);
+	  leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
+	}
+	
+	// Finish drawing diff panel
+	c1->cd();
+	c1->cd(1);
+	leg1->Draw("");
+	
+	c1->cd();
+	// Write plots per k bin
+	f_fits->WriteObject(c1, name.c_str());
+	
+	// Fill control TTree
+	control_tree->Fill();
+	//std::cout<<"Filled tree in bin "<< name.c_str() <<" \n";
+	
       }
       
     }
+  }
+
+  f_pass_reg.close();
+  
+  hfrac = empty_histos_count / all_histos_count;
+  efrac = remaining_nevents / total_nevents;
+  
+  std::cout <<"For nbinspt="<<nbinspt<<" there are " << total_nevents << " events in the inclusive projection \n";
+  std::cout<<"CHECKPOINT: "<<stringify_name(nbinseta, nbinspt, nbinseta, nbinspt)<<" histos  empty/all="<< hfrac <<"; events remaining/all "<< efrac <<"\n";
+  
+  f_control_tree->WriteObject(control_tree, "control_tree");
+  
+  //--------------------------------------------------------------------------
+  // Write remaining histograms 
+  
+  gaus_integral->SetStats(0);
+  gaus_integral->LabelsDeflate();
+  f_control->WriteObject(gaus_integral, "gaus_integral");
+  
+  occupancy->SetStats(0);
+  occupancy->LabelsDeflate();
+  f_control->WriteObject(occupancy, "bin_occupancy");
+
+  mean_diff->SetStats(0);
+  mean_diff->LabelsDeflate();
+  f_control->WriteObject(mean_diff, "mean_diff");
+
+  sigma_diff->SetStats(0);
+  sigma_diff->LabelsDeflate();
+  f_control->WriteObject(sigma_diff, "sigma_diff");
+
+  mean_diff_by_idx->SetStats(0);
+  f_control->WriteObject(mean_diff_by_idx, "mean_diff_by_idx");
+
+  sigma_diff_by_idx->SetStats(0);
+  f_control->WriteObject(sigma_diff_by_idx, "sigma_diff_by_idx");
+  
+  f_control->WriteObject(alpha, "alpha");
+  f_control->WriteObject(jac_alpha_inclusive, "jacobian_alpha_inclusive");
+
+  f_control->WriteObject(beta, "beta");
+  f_control->WriteObject(jac_beta_inclusive, "jacobian_beta_inclusive");
+
+  f_control->WriteObject(nu, "nu");
+
+  // Validation plots
+  if (mode_option.compare("validation") == 0){
+    f_control->WriteObject(epsilon_control, "epsilon_control");
+    fitresult = fitHisto(pull_epsilon_control, 1, 1, 5);
+    f_control->WriteObject(pull_epsilon_control, "pull_epsilon_control");
+    
+    f_control->WriteObject(epsilon_test1, "epsilon_test1");
+    
+    f_control->WriteObject(alpha_control, "alpha_control");
+    fitresult = fitHisto(pull_alpha_control, 1, 1, 5);
+    f_control->WriteObject(pull_alpha_control, "pull_alpha_control");
+    
+    f_control->WriteObject(nu_control, "nu_control");
+    fitresult = fitHisto(pull_nu_control, 1, 1, 5);
+    f_control->WriteObject(pull_nu_control, "pull_nu_control");
+
+    //--------------------------------------------------------------------
+    // Superimposed histograms
+
+    // pull_epsilon_many
+
+    TCanvas *c4 = new TCanvas("c4","c4",800,600);
+    auto leg4 = new TLegend(0.68, 0.78, 0.90, 0.90);
+    
+    leg4->SetFillStyle(0);
+    leg4->SetBorderSize(0);
+    leg4->SetTextSize(0.025);
+    leg4->SetFillColor(10);
+    leg4->SetNColumns(1);
+    leg4->SetHeader("");
+    
+    pull_epsilon_control->SetMaximum( pull_epsilon_control->GetBinContent(pull_epsilon_control->GetMaximumBin())*1.3 );
+    pull_epsilon_control->SetStats(0);
+    fitresult = fitHisto(pull_epsilon_control, 1, 1, 5);
+    leg_entry = "freeze none, #mu = " + to_string(fitresult[0]).substr(0, 6) + ", #sigma= " + to_string(fitresult[1]).substr(0, 6);
+    leg4->AddEntry(pull_epsilon_control, leg_entry.c_str(), "l");
+    pull_epsilon_control->SetLineColor(kBlack);
+    pull_epsilon_control->Draw("E");
+    /*
+      fitresult = fitHisto(pull_epsilon_control1, 1, 2, 5);
+      leg_entry = "freeze nu, #mu = " + to_string(fitresult[0]).substr(0, 6) + ", #sigma= " + to_string(fitresult[1]).substr(0, 6);
+      leg4->AddEntry(pull_epsilon_control1, leg_entry.c_str(), "l");
+      pull_epsilon_control1->SetLineColor(kRed);
+      pull_epsilon_control1->Draw("SAME");
+      
+      fitresult = fitHisto(pull_epsilon_control2, 1, 3, 5);
+      leg_entry = "freeze nu, alpha, #mu = " + to_string(fitresult[0]).substr(0, 6) + ", #sigma= " + to_string(fitresult[1]).substr(0, 6);
+      leg4->AddEntry(pull_epsilon_control2, leg_entry.c_str(), "l");
+      pull_epsilon_control2->SetLineColor(kGreen);
+      pull_epsilon_control2->Draw("SAME");
+      
+    */
+    leg4->Draw("");
+    
+    f_control->WriteObject(c4, "pull_epsilon_many");
+    
+    //-----------------------------------------------------------
+    // Other histograms
+    
+    TCanvas *c3 = new TCanvas("c3","c3",800,600);
+    epsilon_test2->SetStats(0);
+    epsilon_test2->Draw("COLZ");
+    f_control->WriteObject(c3, "epsilon_test2");
   }
   
   //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   // Dataframe control histograms
   //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   
-  /*
+  
       //Save tree for debugging
-      std::unique_ptr<TFile> f1( TFile::Open("InOutputFiles/snapshot_output.root", "RECREATE") );
-      dlast->Snapshot("Events", "snapshot_output.root", {"GenPart_status", "GenPart_pt", "posPtSmearBetaVal", "negPtSmearBetaVal", "Muon_charge", "GenPart_pdgId", "GenPart_genPartIdxMother"});
-      f1->Close();
-      
+      //std::unique_ptr<TFile> f1( TFile::Open("InOutputFiles/snapshot_output.root", "RECREATE") );
+      //dlast->Snapshot("Events", "snapshot_output.root", {"GenPart_status", "GenPart_pt", "posPtSmearBetaVal", "negPtSmearBetaVal", "Muon_charge", "GenPart_pdgId", "GenPart_genPartIdxMother"});
+      //f1->Close();
+  /*      
       //Control histograms
       auto mll_smear = d_mc->Histo1D({"mll_smear", "mll inclusive all bins", 20, mll_low, mll_high},"mll_smear","weight");
       auto mll_diff_smear = d_mc->Histo1D({"mll_diff_smear", "mll_diff inclusive all bins", 20, mll_diff_low, mll_diff_high},"mll_diff_smear","weight");
@@ -714,7 +1702,7 @@ int bias_fitter(){
       pt_smear->Write();
       pt_smear_beta_val->Write();
       f2->Close();
-      
+ 
       std::unique_ptr<TFile> f3( TFile::Open("InOutputFiles/control_bin_histo.root", "RECREATE") );
       f3->WriteObject(pt_pos_uni.GetPtr(), "pt_pos_uni");
       
