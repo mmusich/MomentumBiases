@@ -22,6 +22,7 @@ using Eigen::VectorXd;
 
 //--------------------------------------------------------
 // Functions for TTree
+//--------------------------------------------------------
 
 //dxy_significance
 RVecF dxy_significance(RVecF Muon_dxy, RVecF Muon_dxyErr){
@@ -56,6 +57,7 @@ RVecB MuonisGoodData(RVecF Muon_pt, RVecF Muon_eta, RVecB Muon_isGlobal, RVecB M
 
 //--------------------------------------------------------
 // Functions for histograms
+//--------------------------------------------------------
 
 // Functions for label names
 string stringify_name(int a, int b, int c, int d){
@@ -134,8 +136,11 @@ vector<double> fitHisto(TH1* histogram, int draw_option, int color, int nsigma){
   return fitresult;
 }
 
+
+
 //--------------------------------------------------------
 // Main
+//--------------------------------------------------------
 int bias_fitter(){
 
   double t1(0.);
@@ -231,19 +236,28 @@ int bias_fitter(){
   for (int i=0; i<=nbins; i++){
     mybinsboundaries[i] = i;
   }
+
+  float kmean_val = 0.5*( 1./25. + 1./55. ); // TODO don't input pt bounds by hand
+  TRandom3* ran0 = new TRandom3(932);
   
   for (int i=0; i<nbinseta; i++){
     //std::cout<< "\n" << "i: " << i << "\n";
     // A from -0.0002 to 0.0005 and back
     A_values[i] = (-7.0*4.0/nbinseta/nbinseta*(i - nbinseta/2)*(i - nbinseta/2) + 5.0)*0.0001;
+    std::cout<< i << " A: "<<A_values[i] << " ";
+    //A_values[i] = -0.001*( 1 + ((etabinranges[i]+etabinranges[i+1])/2.0/2.4)*((etabinranges[i]+etabinranges[i+1])/2.0/2.4) );
     //A_values[i] = 0.0004; 
     //std::cout<< "A: " << A_values[i] << ", ";
     // e from 0.01 to 0.001 and back
     e_values[i] = (9.0*4.0/nbinseta/nbinseta*(i - nbinseta/2)*(i - nbinseta/2) + 1.0)*0.001;
+    std::cout<< i << " e: "<<e_values[i] << " ";
+    //e_values[i] = ran0->Uniform(-0.0001/kmean_val, 0.0001/kmean_val);
     //e_values[i] = 0.002; 
     //std::cout<< "e: " << e_values[i] << ", ";
     // M from 4*10^-5 to -2*10^-5 and back
     M_values[i] = (6.0*4.0/nbinseta/nbinseta*(i - nbinseta/2)*(i - nbinseta/2) - 2.0)*0.00001;
+    std::cout<< i << " M: "<<M_values[i] << "\n";
+    //M_values[i] = ran0->Uniform(-0.001*kmean_val, 0.001*kmean_val);
     //M_values[i] = 0.00001; 
     //std::cout<< "M: " << M_values[i] << ", ";
   }
@@ -955,6 +969,14 @@ int bias_fitter(){
   nu->GetXaxis()->SetTitle("Bin number");
   nu->GetYaxis()->SetTitle("#nu");
 
+  TH1D *h_scales = new TH1D("h_scales", "scales", nbins, 0, nbins);
+  h_scales->GetXaxis()->SetTitle("Bin idx");
+  h_scales->GetYaxis()->SetTitle("scale");
+
+  TH1D *h_masks = new TH1D("h_masks", "masks", nbins, 0, nbins);
+  h_masks->GetXaxis()->SetTitle("Bin idx");
+  h_masks->GetYaxis()->SetTitle("mask");
+
   TH1D *alpha_control=nullptr, *epsilon_control=nullptr, *nu_control=nullptr, *epsilon_test1=nullptr;
   TH2D *epsilon_test2=nullptr;
   
@@ -1069,6 +1091,11 @@ int bias_fitter(){
     pos_pt_bin = (multi_dim_bin%(nbinspt*nbinseta*nbinspt))/(nbinseta*nbinspt);
     neg_eta_bin = ((multi_dim_bin%(nbinspt*nbinseta*nbinspt))%(nbinseta*nbinspt))/nbinspt;
     neg_pt_bin = ((multi_dim_bin%(nbinspt*nbinseta*nbinspt))%(nbinseta*nbinspt))%nbinspt;
+
+    h_scales->SetBinContent(multi_dim_bin, 0.0);
+    h_scales->SetBinError(multi_dim_bin, 10.0);
+    
+    h_masks->SetBinContent(multi_dim_bin, 0);
     
     // Require enough stats in diff_mc for sigma_MC fit
     delete gROOT->FindObject("mDh_proj_diff_mc");
@@ -1091,6 +1118,7 @@ int bias_fitter(){
       
       if (fitresult[4] < 0.75){ // reject small gaus integral 
 	empty_histos_count++;
+
       } else {
 
 	name = stringify_name(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin);
@@ -1100,7 +1128,7 @@ int bias_fitter(){
 	remaining_nevents += nevents;      
 	occupancy->SetBinError(occupancy->Fill(name.c_str(), nevents), 100);
 	gaus_integral->SetBinError(gaus_integral->Fill(name.c_str(), fitresult[4]), 0.01);
-	
+
 	//--------------------------------------------------------------------------
 	// Diff histograms
 	//--------------------------------------------------------------------------
@@ -1367,6 +1395,10 @@ int bias_fitter(){
 	nu->SetBinError(nu->Fill(name.c_str(), fitted_nu), fitted_nu_error);
 	beta->SetBinError(beta->Fill(name.c_str(), fitted_beta), fitted_beta_error);
 	alpha->SetBinError(alpha->Fill(name.c_str(), fitted_alpha), fitted_alpha_error);
+
+	h_scales->SetBinContent(multi_dim_bin, 1.+ fitted_beta);
+	h_scales->SetBinError(multi_dim_bin, fitted_beta_error);
+	h_masks->SetBinContent(multi_dim_bin, 1);
 	
 	//--------------------------------------------------------------------------
 	// Add fitted parameters to mass fit panel
@@ -1698,6 +1730,9 @@ int bias_fitter(){
 
   f_control->WriteObject(nu, "nu");
 
+  f_control->WriteObject(h_scales, "h_scales");
+  f_control->WriteObject(h_masks, "h_masks");
+  
   // Validation plots
   if (mode_option.compare("validation") == 0){
     f_control->WriteObject(epsilon_control, "epsilon_control");
