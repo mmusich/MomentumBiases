@@ -39,7 +39,7 @@ public:
   vector<int> getIndices(string bin_label) const; 
   double getK(const int pT_index) const;
   
-  const vector<double> pT_binning {25.0, 33.3368, 38.4425, 42.2839, 45.9397, 55.0}; // pT binning goes here, this is for 2018
+  const vector<double> pT_binning {25.0, 33.2011, 38.3067, 42.2411, 46.055, 55.0}; // pT binning goes here, this is for 2016
   static constexpr double scaling_A = 0.001, scaling_e = 0.001 * 40.0, scaling_M = 0.001 / 40.0, scaling_e_prime = 0.001 / 0.01; // this scaling makes fitter parameters of order 1 
 
   vector<string> binLabels; // made public for the closure test
@@ -156,7 +156,7 @@ double TheoryFcn::operator()(const vector<double>& par) const {
  
   int ndof = scaleSquared.size() - par.size();
  
-  return chi2/ndof; // minimise reduced chi2 directly 
+  return (chi2/ndof - 1.0); // minimise reduced chi2 directly 
 
 }
 
@@ -655,7 +655,7 @@ int constants_fitter() {
     //-----------------------------------------------
     // Get data
     
-    std::unique_ptr<TFile> inputFile( TFile::Open("InOutputFiles/mass_fits_control_histos_smear_beta_val_2016.root") );
+    std::unique_ptr<TFile> inputFile( TFile::Open("InOutputFiles/mass_fits_control_histos_smear_beta_val.root") );
     std::unique_ptr<TH1D> beta(inputFile->Get<TH1D>("beta"));
     std::unique_ptr<TH1D> bin_occupancy(inputFile->Get<TH1D>("bin_occupancy"));
     std::unique_ptr<TH1D> gaus_integral(inputFile->Get<TH1D>("gaus_integral"));
@@ -839,7 +839,7 @@ int constants_fitter() {
     return 0;
   }
   
-  cout << "chi^2/ndf: " << min.Fval() << "\n" << "\n";
+  cout << "chi^2/ndf: " << min.Fval() + 1. << "\n" << "\n";
   cout << "min is valid: " << min.IsValid() << std::endl;
   cout << "HesseFailed: " << min.HesseFailed() << std::endl;
   cout << "HasCovariance: " << min.HasCovariance() << std::endl;
