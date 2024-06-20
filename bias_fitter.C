@@ -7,6 +7,12 @@
 #include "TCanvas.h"
 #include "TVector.h"
 #include "TVectorT.h"
+#include "Minuit2/FunctionMinimum.h"
+#include "Minuit2/MnMinimize.h"
+#include "Minuit2/MnMigrad.h"
+#include "Minuit2/MnPrint.h"
+#include "Minuit2/MnUserParameterState.h"
+#include "Minuit2/FCNGradientBase.h"
 #include <string.h>
 #include <eigen3/Eigen/Core>
 #include <eigen3/Eigen/Dense>
@@ -15,10 +21,15 @@
 
 using namespace ROOT;
 using namespace ROOT::VecOps;
+using namespace ROOT::Minuit2;
+using namespace std;
 using ROOT::RDF::RNode;
 
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
+
+const int nbinseta = 24; 
+const int nbinspt = 5;
 
 //--------------------------------------------------------
 // Functions for TTree
@@ -140,8 +151,286 @@ vector<double> fitHisto(TH1* histogram, int draw_option, int color, int nsigma){
 // Class and functions for minimization
 //--------------------------------------------------------
 
+class TheoryFcn : public FCNGradientBase {
+//class TheoryFcn : public FCNBase {
 
+public:
 
+  TheoryFcn(const vector<double> &meas, const vector<double> &err, const vector<string> &bin_labels, const TMatrixD &V_phys_to_int, const TMatrixD &V_int_to_phys) : scaleSquared(meas), scaleSquaredError(err), binLabels(bin_labels), VPhysToInt(V_phys_to_int), VIntToPhys(V_int_to_phys), errorDef(1.0) {}
+  ~TheoryFcn() {}
+
+  virtual double Up() const {return errorDef;}
+  virtual void SetErrorDef(double def) {errorDef = def;}
+
+  virtual double operator()(const vector<double>&) const;
+  virtual vector<double> Gradient(const vector<double>& ) const;
+  virtual bool CheckGradient() const {return true;} 
+  // virtual std::vector< double > ROOT::Minuit2::FCNGradientBase::Hessian(const std::vector< double > & )const -> allows to do Hessian analytically? 
+
+  vector<int> getIndices(string bin_label) const; 
+  double getK(const int pT_index) const;
+  
+  const vector<double> pT_binning {25.0, 33.2011, 38.3067, 42.2411, 46.055, 55.0}; // pT binning goes here, this is for 2016 //TODO add fct SetPtbinning
+  static constexpr double scaling_A = 0.001, scaling_e = 0.001 * 40.0, scaling_M = 0.001 / 40.0, scaling_e_prime = 0.001 / 0.01; // this scaling makes fitter parameters of order 1 
+
+  vector<string> binLabels; // made public for the closure test
+  TMatrixD VPhysToInt, VIntToPhys;
+  
+private:
+
+  vector<double> scaleSquared;
+  vector<double> scaleSquaredError;
+  double errorDef;
+};
+
+//-----------------------------------------------
+// Function to get bin index from label name
+
+vector<int> TheoryFcn::getIndices(string bin_label) const{
+  vector<int> indices;
+  int pos = 0;
+  for (int i=0; i<4-1;i++){ //4 for 4D binning
+    pos = bin_label.find("_");
+    indices.push_back(stoi(bin_label.substr(0,pos)));
+    bin_label.erase(0,pos+1); // 1 is the length of the delimiter, "_"
+  }
+  indices.push_back(stoi(bin_label));
+  return indices;
+}
+
+//-----------------------------------------------
+// Function to get average k from pT bin index
+
+double TheoryFcn::getK(const int pT_index) const{
+  // TODO what about errors on k?
+  // TODO could add the pT histo per eta,pt,eta,pt to get more accurate average pT
+  return 2.0 / (pT_binning[pT_index] + pT_binning[pT_index+1]); // k = 1 / avg_pT
+}
+
+//-----------------------------------------------
+// Function to build reduced chi2 
+
+double TheoryFcn::operator()(const vector<double>& par) const {
+  // par has size n_parameters = 3*number_eta_bins, idices from 0 to n-1 contain A, from n to 2n-1 epsilon, from 2n to 3n-1 M
+  assert(par.size() == 3*nbinseta); 
+
+  double chi2(0.0);
+  double diff(0.0);
+
+  double k_plus, k_minus, term_pos, term_neg;  
+  double my_func;
+  int eta_pos_index, eta_neg_index;
+  vector<int> bin_indices(4); // for 4D binning
+  
+  double k_middle = (1.0/pT_binning[nbinspt] + 1.0/pT_binning[0])/2.0;
+
+  vector<double> physical_M_pars(nbinseta);
+  TMatrixD internal_M_matrix(nbinseta,1), physical_M_matrix(nbinseta,1);
+  TArrayD internal_M_elements(nbinseta);
+  
+  for(int i=0; i<nbinseta; i++){
+    internal_M_elements[i] = par[2*nbinseta + i];
+  }
+  
+  internal_M_matrix.SetMatrixArray(internal_M_elements.GetArray());
+  physical_M_matrix = TMatrixD(VIntToPhys,TMatrixD::kMult,internal_M_matrix);
+ 
+  //std::cout<< "\n" << "physical M array"<< "\n";
+  for(int i=0; i<nbinseta; i++){
+    physical_M_pars[i] = TMatrixDColumn(physical_M_matrix,0)(i);
+    //std::cout<< " "<< physical_M_pars[i];
+  }
+  //std::cout<<"\n";
+
+  for(unsigned int n(0); n < scaleSquared.size() ; n++) {
+    bin_indices = getIndices(binLabels[n]); 
+    eta_pos_index = bin_indices[0];
+    eta_neg_index = bin_indices[2];
+
+    // get k value and TODO error from pT bin index
+    k_plus = getK(bin_indices[1]); 
+    k_minus = getK(bin_indices[3]);
+
+    // (1 + A(+) - e(+)k + M(+)/k)(1 + A(-) - e(-)k - M(-)/k) and scaling of A,e,M
+    //term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e*par[eta_pos_index + nbinseta]*k_plus +  scaling_M*par[eta_pos_index + 2*nbinseta]/k_plus);
+    //term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e*par[eta_neg_index + nbinseta]*k_minus - scaling_M*par[eta_neg_index + 2*nbinseta]/k_minus);
+    
+    // decorrelate A, e by shifting origin of k
+    // (1 + A'(+) - e'(+)k' + M(+)/k)(1 + A'(-) - e'(-)k' - M(-)/k) and scaling of A,e,M
+    //par[eta_pos_index] now has the meaning of A' rather than A
+    //par[eta_pos_index + nbinseta] now has the meaning of e' rather than e
+    //term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + nbinseta]*(k_plus - k_middle) + scaling_M*par[eta_pos_index + 2*nbinseta]/k_plus);
+    //term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + nbinseta]*(k_minus - k_middle) - scaling_M*par[eta_neg_index + 2*nbinseta]/k_minus);
+
+    // decorrelate A, e by shifting origin of k and decorrelate M by fitting a linear combination of physical parameters 
+    term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + nbinseta]*(k_plus - k_middle) + scaling_M*physical_M_pars[eta_pos_index]/k_plus);
+    term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + nbinseta]*(k_minus - k_middle) - scaling_M*physical_M_pars[eta_neg_index]/k_minus);
+
+    my_func = term_pos*term_neg; 
+    
+    diff = my_func - scaleSquared[n]; 
+    chi2 += diff*diff/(scaleSquaredError[n]*scaleSquaredError[n]);
+
+  }
+ 
+  int ndof = scaleSquared.size() - par.size();
+ 
+  return (chi2/ndof - 1.0); // minimise reduced chi2 directly 
+
+}
+
+//-----------------------------------------------
+// Function to build gradient of reduced chi2 analytically 
+
+vector<double> TheoryFcn::Gradient(const vector<double> &par ) const {
+
+  assert(par.size() == 3*nbinseta);
+
+  vector<double> grad(par.size(),0.0);
+  TArrayD grad_wrt_M_physical_array(nbinseta), grad_wrt_M_internal_array(nbinseta); // TODO and if not eta 24 bins?
+  TMatrixD grad_wrt_M_physical_matrix(nbinseta,1), grad_wrt_M_internal_matrix(nbinseta,1);
+  
+  double temp(0.0), local_func(0.0), local_grad(0.0);
+
+  double k_plus, k_minus, term_pos, term_neg;
+  double k_middle = (1.0/pT_binning[nbinspt] + 1.0/pT_binning[0])/2.0;
+  
+  int eta_pos_index, eta_neg_index;
+  vector<int> bin_indices(4); // for 4D binning
+  
+  int ndof = scaleSquared.size() - par.size();
+
+  vector<double> physical_M_pars(nbinseta);
+  TMatrixD internal_M_matrix(nbinseta,1), physical_M_matrix(nbinseta,1);
+  TArrayD internal_M_elements(nbinseta);
+  
+  for(int i=0; i<nbinseta; i++){
+    internal_M_elements[i] = par[2*nbinseta + i];
+  }
+    
+  internal_M_matrix.SetMatrixArray(internal_M_elements.GetArray());
+  physical_M_matrix = TMatrixD(VIntToPhys,TMatrixD::kMult,internal_M_matrix);
+  
+  for(int i=0; i<nbinseta; i++){
+    physical_M_pars[i] = TMatrixDColumn(physical_M_matrix,0)(i);
+  }
+  
+  for(unsigned int n(0); n < scaleSquared.size() ; n++) { // loops over measurements
+    // TODO I need everything from the chi2 function, maybe better solution to this
+    bin_indices = getIndices(binLabels[n]); 
+    eta_pos_index = bin_indices[0];
+    eta_neg_index = bin_indices[2];
+
+    // get k value and TODO error from pT bin index
+    k_plus = getK(bin_indices[1]); 
+    k_minus = getK(bin_indices[3]);
+
+    // (1 + A(+) - e(+)k + M(+)/k)(1 + A(-) - e(-)k - M(-)/k) and scaling of e,M
+    //term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e*par[eta_pos_index + nbinseta]*k_plus +  scaling_M*par[eta_pos_index + 2*nbinseta]/k_plus);
+    //term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e*par[eta_neg_index + nbinseta]*k_minus - scaling_M*par[eta_neg_index + 2*nbinseta]/k_minus);
+    
+    // decorrelate A, e by shifting origin of k
+    // (1 + A'(+) - e'(+)k' + M(+)/k)(1 + A'(-) - e'(-)k' - M(-)/k) and scaling of A,e,M
+    //par[eta_pos_index] now has the meaning of A' rather than A
+    //par[eta_pos_index + nbinseta] now has the meaning of e' rather than e
+    //term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + nbinseta]*(k_plus - k_middle) + scaling_M*par[eta_pos_index + 2*nbinseta]/k_plus);
+    //term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + nbinseta]*(k_minus - k_middle) - scaling_M*par[eta_neg_index + 2*nbinseta]/k_minus);
+
+    // decorrelate A, e by shifting origin of k and decorrelate M by fitting a linear combination of physical parameters
+    term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + nbinseta]*(k_plus - k_middle) + scaling_M*physical_M_pars[eta_pos_index]/k_plus);
+    term_neg = (1. + scaling_A*par[eta_neg_index] - scaling_e_prime*par[eta_neg_index + nbinseta]*(k_minus - k_middle) - scaling_M*physical_M_pars[eta_neg_index]/k_minus);
+
+    local_func = term_pos*term_neg;
+    
+    temp=2.0*(local_func - scaleSquared[n])/(scaleSquaredError[n]*scaleSquaredError[n])/ndof; 
+    
+    // derivative wrt A'(+), which is fpar[eta_pos_index]
+    local_grad = scaling_A*term_neg;
+    grad[eta_pos_index] += temp*local_grad;
+    
+    // derivative wrt e'(+)
+    local_grad = -scaling_e_prime*(k_plus-k_middle)*term_neg;
+    grad[eta_pos_index + nbinseta] += temp*local_grad;
+
+    // derivative wrt M(+), next transform to derivative wrt M_internal(+)
+    local_grad = scaling_M/k_plus*term_neg;
+    grad[eta_pos_index + 2*nbinseta] += temp*local_grad;
+    
+    // derivative wrt A'(-)
+    local_grad = scaling_A*term_pos;
+    grad[eta_neg_index] += temp*local_grad;
+
+    // derivative wrt e'(-)
+    local_grad = -scaling_e_prime*(k_minus-k_middle)*term_pos;
+    grad[eta_neg_index + nbinseta] += temp*local_grad;
+
+    // derivative wrt M(-), next transform to derivative wrt M_internal(-)
+    local_grad = -scaling_M/k_minus*term_pos;
+    grad[eta_neg_index + 2*nbinseta] += temp*local_grad;
+
+  }
+
+  // -----------------------------------------------
+  // Transform M terms to derivatives wrt M_internal
+  for(int i=0; i<nbinseta; i++){
+    grad_wrt_M_physical_array[i] = grad[2*nbinseta + i];
+  }
+  
+  grad_wrt_M_physical_matrix.SetMatrixArray(grad_wrt_M_physical_array.GetArray());
+  grad_wrt_M_internal_matrix = TMatrixD(VPhysToInt,TMatrixD::kMult,grad_wrt_M_physical_matrix);
+
+  for(int i=0; i<nbinseta; i++){
+    grad[2*nbinseta + i] = TMatrixDColumn(grad_wrt_M_internal_matrix,0)(i);
+  }
+  // -----------------------------------------------
+  
+  return grad;
+}
+
+//-----------------------------------------------
+// Function to get parameter name (A0, e1, etc.) and appropriate scaling from index in parameters array
+
+tuple<string,double,string> getParameterNameAndScaling(int index){
+
+  int whole = index / nbinseta;
+  int rest = index % nbinseta;
+  double scaling;
+
+  string name, physical_name;
+  if (whole == 0) {
+    name = "A_prime" + to_string(rest);
+    physical_name = "A" + to_string(rest);
+    scaling = TheoryFcn::scaling_A;
+  }
+  else if (whole == 1) {
+    name = "e_prime" + to_string(rest);
+    physical_name = "e" + to_string(rest);
+    scaling = TheoryFcn::scaling_e_prime;
+  }
+  else if (whole == 2) {
+    name = "M_internal" + to_string(rest);
+    physical_name = "M" + to_string(rest);
+    scaling = TheoryFcn::scaling_M;
+  }
+  else {
+    cout<<"\n"<<"ERROR counting parameters"<<"\n";
+  }
+
+  return make_tuple(name, scaling, physical_name);
+}
+
+//-----------------------------------------------
+// Overload << operator
+
+template <typename S>
+ostream& operator<<(ostream& os,
+                    const vector<S>& vector)
+{
+  for (auto element : vector) {
+    os << element << " ";
+  }
+  return os;
+}
 
 
 //--------------------------------------------------------
@@ -165,12 +454,12 @@ int bias_fitter(){
   // Define dataframe
   
   TChain chain("Events");
-  chain.Add("/scratch/wmass/y2016/DYJetsToMuMu_H2ErratumFix_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MCPostVFP_TrackFitV722_NanoProdv6/240509_040854/0000/NanoV9MCPostVFP_1.root");
-  chain.Add("/scratch/wmass/y2016/DYJetsToMuMu_H2ErratumFix_PDFExt_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MCPostVFP_TrackFitV722_NanoProdv6/240509_041233/0000/NanoV9MCPostVFP_1.root");
+  //chain.Add("/scratch/wmass/y2016/DYJetsToMuMu_H2ErratumFix_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MCPostVFP_TrackFitV722_NanoProdv6/240509_040854/0000/NanoV9MCPostVFP_1.root");
+  //chain.Add("/scratch/wmass/y2016/DYJetsToMuMu_H2ErratumFix_PDFExt_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MCPostVFP_TrackFitV722_NanoProdv6/240509_041233/0000/NanoV9MCPostVFP_1.root");
   //chain.Add("/scratch/wmass/y2017/DYJetsToMuMu_H2ErratumFix_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MC2017_TrackFitV722_NanoProdv3/NanoV9MC2017_1.root");
   
   string line;
-  /*
+  
   ifstream file("InOutputFiles/MCFilenames_2016.txt");
   if (file.is_open()) {
     while (getline(file, line)) {
@@ -178,7 +467,7 @@ int bias_fitter(){
     }
     file.close();
   }
-  */
+  
   RDataFrame df(chain); // TODO write for analysis mode, will need 2 data frames, but honestly should be a different script that people use
 
   auto d0 = std::make_unique<RNode>(df);
@@ -205,7 +494,7 @@ int bias_fitter(){
   
   // Binning (pT done later)
   double pt_low = 25.0, pt_high = 55.0, eta_low = -2.4, eta_high = 2.4, mll_diff_low = -7.0,  mll_diff_high = 7.0, mll_low = 75.0, mll_high = 105.0;
-  int nbinsmll_diff_over_gen=32, nbinsmll_diff=22, nbinsmll=32, nbinseta=24, nbinspt=5;
+  int nbinsmll_diff_over_gen=32, nbinsmll_diff=22, nbinsmll=32;
   vector<double> etabinranges, ptbinranges, mllbinranges;
   vector<double> mll_diffbinranges, mll_diff_over_genbinranges;
   vector<float> A_values(nbinseta), e_values(nbinseta), M_values(nbinseta);
@@ -1918,6 +2207,519 @@ int bias_fitter(){
   // Fitting constants part
   //---------------------------------------------------------------------------------------------------------------------------------------------------
 
+  // Set verbosity
+  int verbosity = 2;
+  ROOT::Minuit2::MnPrint::SetGlobalLevel(verbosity);
+
+  //-------------------------------------------------
+  // Internal to physical parameter transformation
+
+  TMatrixD V_internal_to_physical(nbinseta, nbinseta);
+  TArrayD V_internal_to_physical_elements(nbinseta*nbinseta);
+  
+  //identity e.g. M not decorrelated
+  for(int j=0; j<nbinseta; j++){
+    for(int i=0; i<nbinseta; i++){
+      if (j == i){
+        V_internal_to_physical_elements[j*nbinseta+i] = 1.0;
+      } else {
+        V_internal_to_physical_elements[j*nbinseta+i] = 0.0;
+      }
+    }
+  }
+  
+  V_internal_to_physical.SetMatrixArray(V_internal_to_physical_elements.GetArray());
+  
+  //std::cout<< "\n" << "VIntToPhys"<< "\n";
+  //V_internal_to_physical.Print();
+
+  //-------------------------------------------------
+  // Physical to internal parameter transformation
+  
+  TMatrixD V_physical_to_internal(nbinseta, nbinseta);
+  TArrayD V_physical_to_internal_elements(nbinseta*nbinseta);
+  
+  //identity e.g. M not decorrelated
+  for(int j=0; j<nbinseta; j++){
+    for(int i=0; i<nbinseta; i++){
+      if (j == i){
+	V_physical_to_internal_elements[j*nbinseta+i] = 1.0;
+      } else {
+	V_physical_to_internal_elements[j*nbinseta+i] = 0.0;
+      }
+    }
+  }
+  
+  V_physical_to_internal.SetMatrixArray(V_physical_to_internal_elements.GetArray());
+  //std::cout<< "\n" << "VPhysToInt"<< "\n";
+  //V_physical_to_internal.Print();
+  
+  unsigned int n_data_points, n_parameters;
+  vector<string> labels;
+  vector<double> scale_squared_values, scale_squared_error_values;
+
+  //-----------------------------------------------
+  // Get data
+    
+  int n_data_points_initial = beta->GetEntries();
+  n_data_points = 0;
+
+  std::cout << "\n" << n_data_points_initial <<" entries initially in beta histogram";
+  
+  for(int i=0; i<n_data_points_initial; i++){
+    if( occupancy->GetBinContent(i+1) > 300.0 && gaus_integral->GetBinContent(i+1) > 0.8 ){
+      scale_squared_values.push_back((1.0 + beta->GetBinContent(i+1))*(1.0 + beta->GetBinContent(i+1)));
+      scale_squared_error_values.push_back(2*abs(1.0 + beta->GetBinContent(i+1))*(beta->GetBinError(i+1)));
+      labels.push_back(beta->GetXaxis()->GetLabels()->At(i)->GetName());
+      
+      n_data_points += 1;
+    }
+  }
+  
+  for(int i=0; i<10; i++){
+    std::cout << "\n" << labels[i] << ": beta = " << beta->GetBinContent(i+1) << "; scale_squared =  " << scale_squared_values[i] << "; scale_squared_error = " << scale_squared_error_values[i] << "\n";
+  }
+  
+  std::cout << "\n" << n_data_points << "entries remain from beta histogram";
+  std::cout << "\n" << "scale_squared_values.size() = " << scale_squared_values.size() << "; scale_squared_error_values.size() = " << scale_squared_error_values.size() << "labels.size() = " << labels.size();
+
+  n_parameters = 3*nbinseta; // 3 for A,e,M model
+  
+  //-------------------------------------------------
+  // Use data
+
+  // TheoryFcn(const vector<double> &meas, const vector<double> &err, const vector<string> &bin_labels, const TMatrixD &V_phys_to_int, const TMatrixD &V_int_to_phys)
+  TheoryFcn fFCN(scale_squared_values, scale_squared_error_values, labels, V_physical_to_internal, V_internal_to_physical);
+  fFCN.SetErrorDef(1.0/(n_data_points - n_parameters)); // new error definition when minimising reduced chi2
+
+  // Create parameters with initial starting values
+
+  double start=0.0, par_error=0.01; // will store error on parameter before taking scaling into account
+  MnUserParameters upar;
+
+  for (int i=0; i<n_parameters/3; i++){ 
+    upar.Add(Form("param%d",i), start, par_error); // A_internal
+    //upar.Add(Form("param%d",i), start); // A_internal const
+  }
+  for (int i=n_parameters/3; i<2*n_parameters/3; i++){ // e_internal
+    upar.Add(Form("param%d",i), start, par_error);
+    //upar.Add(Form("param%d",i), start); // e_internal set constant to 0
+  }
+  for (int i=2*n_parameters/3; i<n_parameters; i++){ // M_internal
+    upar.Add(Form("param%d",i), start, par_error); //upar.Add(Form("param%d",i), double((i-2*nbinseta)/10.0), par_error);
+  }
+
+  // create Migrad minimizer
+
+  MnMigrad minimize(fFCN, upar, 1); //TODO strategy is 1, check others too
+
+  // ... and Minimize
+
+  unsigned int maxfcn(numeric_limits<unsigned int>::max());
+  
+  double tolerance(0.001); //MIGRAD will stop iterating when edm : 0.002 * tolerance * UPERROR
+  //fFCN.SetErrorDef(1.0/(n_data_points - n_parameters)); 
+  //3829.158
+    
+  FunctionMinimum min = minimize(maxfcn, tolerance);
+    
+  // save results
+  
+  double k_middle = (1.0/55.0 + 1.0/25.0)/2.0; //TODO change to not input by hand
+  vector<double> A_e_M_values(n_parameters), A_e_M_errors(n_parameters);
+  double cov_prime;
+  
+  TMatrixD internal_M_matrix(nbinseta,1), internal_M_err_matrix(nbinseta,1), physical_M_matrix(nbinseta,1), physical_M_err_matrix(nbinseta,1);
+  TArrayD internal_M_data(nbinseta), internal_M_error_data(nbinseta);
+  vector<double> physical_M_parameters(nbinseta), physical_M_errors(nbinseta);
+  
+  for(int i=0; i<nbinseta; i++){
+    internal_M_data[i] = min.UserState().Value(2*nbinseta + i);
+    internal_M_error_data[i] = min.UserState().Error(2*nbinseta + i);
+  }
+    
+  internal_M_matrix.SetMatrixArray(internal_M_data.GetArray());
+  physical_M_matrix = TMatrixD(V_internal_to_physical,TMatrixD::kMult,internal_M_matrix);
+  
+  internal_M_err_matrix.SetMatrixArray(internal_M_error_data.GetArray());
+  physical_M_err_matrix = TMatrixD(V_internal_to_physical,TMatrixD::kMult,internal_M_err_matrix);
+  
+  for(int i=0; i<nbinseta; i++){
+    physical_M_parameters[i] = TMatrixDColumn(physical_M_matrix,0)(i);
+    physical_M_errors[i] =TMatrixDColumn(physical_M_err_matrix,0)(i);
+  }
+
+  for (int i=0; i<n_parameters; i++){ 
+    int whole = i / nbinseta;
+
+    //term_pos = (1. + scaling_A*par[eta_pos_index] - scaling_e_prime*par[eta_pos_index + nbinseta]*(k_plus - k_middle) + scaling_M*physical_M_pars[eta_pos_index]/k_plus);
+    if (whole == 0) { // A = scaling_A_prime*par[A_prime] + scaling_e_prime*par[e_prime]*k_middle
+      cov_prime = min.UserState().Covariance().Data()[(i+nbinseta)*(i+nbinseta+1)/2.0 + i];
+      //corr_hist->SetBinContent(bin, covariance[(i_temp-1)*(i_temp)/2+(j_temp-1)] / min.UserState().Error(i-1) / min.UserState().Error(j-1));
+      A_e_M_values[i] = min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i)) + min.UserState().Value(i+nbinseta) * get<1>(getParameterNameAndScaling(i+nbinseta)) * k_middle;
+      A_e_M_errors[i] = pow(pow(get<1>(getParameterNameAndScaling(i)),2)*pow(min.UserState().Error(i),2)+pow(get<1>(getParameterNameAndScaling(i+nbinseta))*k_middle,2)*pow(min.UserState().Error(i+nbinseta),2)+2.0*get<1>(getParameterNameAndScaling(i))*get<1>(getParameterNameAndScaling(i+nbinseta))*k_middle*cov_prime, 0.5); // with cov[A',e']
+    }
+    else if (whole == 1) { // e = scaling_e_prime*par[e_prime]
+      A_e_M_values[i] = min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i));
+      A_e_M_errors[i] = min.UserState().Error(i) * abs(get<1>(getParameterNameAndScaling(i)));
+    }
+    else if (whole == 2) { // M
+      //cout << i<<" " << physical_M_parameters[i - 2*nbinseta] * get<1>(getParameterNameAndScaling(i)) << "\n";
+      A_e_M_values[i] = physical_M_parameters[i - 2*nbinseta] * get<1>(getParameterNameAndScaling(i)); //min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i));
+      //cout << i<<" " << A_e_M_values[i] << "\n";
+      A_e_M_errors[i] = physical_M_errors[i - 2*nbinseta] * abs(get<1>(getParameterNameAndScaling(i))); //min.UserState().Error(i) *get<1>(getParameterNameAndScaling(i));
+    }
+  }
+
+  cout << "chi^2/ndf: " << min.Fval() + 1. << "\n" << "\n";
+  cout << "min is valid: " << min.IsValid() << std::endl;
+  cout << "HesseFailed: " << min.HesseFailed() << std::endl;
+  cout << "HasCovariance: " << min.HasCovariance() << std::endl;
+  cout << "HasValidCovariance: " << min.HasValidCovariance() << std::endl;
+  cout << "HasValidParameters: " << min.HasValidParameters() << std::endl;
+  cout << "IsAboveMaxEdm: " << min.IsAboveMaxEdm() << std::endl;
+  cout << "HasReachedCallLimit: " << min.HasReachedCallLimit() << std::endl;
+  cout << "HasAccurateCovar: " << min.HasAccurateCovar() << std::endl;
+  cout << "HasPosDefCovar : " << min.HasPosDefCovar() << std::endl;
+  cout << "HasMadePosDefCovar : " << min.HasMadePosDefCovar() << std::endl;
+  cout << min << "\n";
+  
+  cout << "\tHesse..." << endl;
+  MnHesse hesse(1);
+  hesse(fFCN, min);
+  
+  vector<double> hessian = min.UserState().Hessian().Data();
+  vector<double> covariance = min.UserState().Covariance().Data();
+  
+  TH2D *hessian_hist = new TH2D("hessian_hist", "Hessian", n_parameters, 0, n_parameters, n_parameters, 0, n_parameters);
+  TH2D *covariance_hist = new TH2D("covariance_hist", "Covariance", n_parameters, 0, n_parameters, 0, n_parameters);
+  TH2D *corr_hist = new TH2D("corr_hist", "Correlation", n_parameters, 0, n_parameters, n_parameters, 0, n_parameters);
+
+  TH2D *corr_physical_hist = new TH2D("corr_physical_hist", "Correlation physical parameters", n_parameters, 0, n_parameters, n_parameters, 0, n_parameters);
+
+  int bin, i_temp, j_temp, bin_x, bin_y;
+  for (int i=1; i<=n_parameters; i++){ // counts x axis bins left to right
+    hessian_hist->GetXaxis()->SetBinLabel(i,get<0>(getParameterNameAndScaling(i-1)).c_str());
+    hessian_hist->GetYaxis()->SetBinLabel(i,get<0>(getParameterNameAndScaling(n_parameters-i)).c_str());
+    covariance_hist->GetXaxis()->SetBinLabel(i,get<0>(getParameterNameAndScaling(i-1)).c_str());
+    covariance_hist->GetYaxis()->SetBinLabel(i,get<0>(getParameterNameAndScaling(n_parameters-i)).c_str());
+    corr_hist->GetXaxis()->SetBinLabel(i,get<0>(getParameterNameAndScaling(i-1)).c_str());
+    corr_hist->GetYaxis()->SetBinLabel(i,get<0>(getParameterNameAndScaling(n_parameters-i)).c_str());
+    for (int j=1; j<=i; j++){ // counts y axis bins, n_parameters+1-j counts bins up to down
+      //if ((i<=nbinseta || i>nbinseta*2) && (j<=nbinseta || j>nbinseta*2)){ //TODO remove if and else block when fitting 3 pars
+      bin = hessian_hist->GetBin(i, n_parameters+1-j);
+      i_temp = i; // i_temp = (i > nbinseta*2) ? i - nbinseta : i; //TODO when fitting 3 pars i_temp can be just i
+      j_temp = j; // j_temp = (j > nbinseta*2) ? j - nbinseta : j; //TODO when fitting 3 pars j_temp can be just j
+      hessian_hist->SetBinContent(bin, hessian[(i_temp-1)*(i_temp)/2+(j_temp-1)]); 
+      covariance_hist->SetBinContent(bin, covariance[(i_temp-1)*(i_temp)/2+(j_temp-1)]); 
+      corr_hist->SetBinContent(bin, covariance[(i_temp-1)*(i_temp)/2+(j_temp-1)] / min.UserState().Error(i-1) / min.UserState().Error(j-1)); // TODO when fitting 2 pars is i i_temp, j j_temp?
+      
+      bin = hessian_hist->GetBin(j, n_parameters+1-i); 
+      
+      hessian_hist->SetBinContent(bin, hessian[(i_temp-1)*(i_temp)/2+(j_temp-1)]); 
+      covariance_hist->SetBinContent(bin, covariance[(i_temp-1)*(i_temp)/2+(j_temp-1)]); 
+      corr_hist->SetBinContent(bin, covariance[(i_temp-1)*(i_temp)/2+(j_temp-1)] / min.UserState().Error(i-1) / min.UserState().Error(j-1)); // TODO when fitting 2 pars is i i_temp, j j_temp?
+      
+      //} else {
+      //bin = hessian_hist->GetBin(i, n_parameters+1-j); 
+      //hessian_hist->SetBinContent(bin, 0.0);
+      //covariance_hist->SetBinContent(bin, 0.0);
+      //corr_hist->SetBinContent(bin, 0.0);
+      //bin = hessian_hist->GetBin(j, n_parameters+1-i); 
+      //hessian_hist->SetBinContent(bin, 0.0);
+      //covariance_hist->SetBinContent(bin, 0.0);
+      //corr_hist->SetBinContent(bin, 0.0);
+      // }
+    }
+  }
+  
+  double hessian_ar[n_parameters*n_parameters]; 
+  double covariance_ar[n_parameters*n_parameters];
+  double corr_ar[n_parameters*n_parameters];
+
+  for (int i=1; i<=n_parameters; i++){
+    for (int j=1; j<=n_parameters; j++){
+      // define arrays collumn wise
+      hessian_ar[(i-1)*n_parameters+(j-1)] = hessian_hist->GetBinContent(hessian_hist->GetBin(i, n_parameters+1-j)); 
+      covariance_ar[(i-1)*n_parameters+(j-1)] = covariance_hist->GetBinContent(covariance_hist->GetBin(i, n_parameters+1-j)); 
+      corr_ar[(i-1)*n_parameters+(j-1)] = corr_hist->GetBinContent(corr_hist->GetBin(i, n_parameters+1-j));
+      //TODO scaling???
+    }
+  }
+  
+  //cout << "Hessian: " << hessian <<"\n"<< "Hessian: " <<"\n";
+  
+  TMatrixTSym<double> Hessian_matrix(n_parameters, hessian_ar, "F"); //need option F to unroll collumn wise //TODO pass by ptr
+  
+  for(int i=0; i<n_parameters; i++){ 
+    for(int j=0; j<n_parameters; j++){
+      //cout << Hessian_matrix(i,j) << " ";
+    }
+    //cout << "\n";
+  }
+  //cout << "\n";
+  //cout << "Covariance: " << covariance << "\n" << "Covariance: " << "\n";
+ 
+  TMatrixTSym<double> Covariance_matrix(n_parameters, covariance_ar, "F"); //need option F to unroll collumn wise //TODO pass by ptr
+
+  for(int i=0; i<n_parameters; i++){
+    for(int j=0; j<n_parameters; j++){
+      //cout << Covariance_matrix(i,j) << " ";
+    }
+    //cout << "\n";
+  }
+
+  TMatrixD U_internal_to_physical(n_parameters, n_parameters); // TODO what if n_parameters != 3*netabins?
+  TArrayD U_internal_to_physical_elements(n_parameters*n_parameters);
+
+  for(int j=0; j<nbinseta*3; j++){ // counts rows 
+    if (j<nbinseta){ // A rows
+      for(int i=0; i<nbinseta*3; i++){ 
+	if(i == j){
+	  U_internal_to_physical_elements[j*nbinseta*3+i] = get<1>(getParameterNameAndScaling(i));  // A collumns non empty
+	} else if (i >= nbinseta && i == j + nbinseta && i < nbinseta*2){
+	  U_internal_to_physical_elements[j*nbinseta*3+i] = get<1>(getParameterNameAndScaling(i))*k_middle; // e collumns non empty
+	} else {
+	  U_internal_to_physical_elements[j*nbinseta*3+i] = 0.0; // M collumns and the rest
+	}
+      }
+    } else if(j<2*nbinseta){ // e rows
+      for(int i=0; i<nbinseta*3; i++){
+        if(i == j){
+          U_internal_to_physical_elements[j*nbinseta*3+i] = get<1>(getParameterNameAndScaling(i));  // e collumns non empty
+        } else {
+          U_internal_to_physical_elements[j*nbinseta*3+i] = 0.0; // the rest
+        }
+      }
+    } else if(j<3*nbinseta){ // M rows
+      for(int i=0; i<nbinseta*3; i++){
+        if(i == j){
+          U_internal_to_physical_elements[j*nbinseta*3+i] = get<1>(getParameterNameAndScaling(i));  // M collumns non empty // TODO this is insufficient if you decorrelate M
+        } else {
+          U_internal_to_physical_elements[j*nbinseta*3+i] = 0.0; // the rest
+        }
+      }
+    } else {std::cout << "\n" << "Miscounted U";}
+  }
+
+  U_internal_to_physical.SetMatrixArray(U_internal_to_physical_elements.GetArray());
+  //U_internal_to_physical.Print();
+
+  TMatrixD left_term(n_parameters, n_parameters), covariance_matrix_physical(n_parameters, n_parameters);
+  
+  left_term = TMatrixD(U_internal_to_physical,TMatrixD::kMult,Covariance_matrix);
+  covariance_matrix_physical = TMatrixD(left_term, TMatrixD::kMultTranspose,U_internal_to_physical);
+  
+  //TMatrixD U_internal_to_physical_transpose(TMatrixD::kTransposed,U_internal_to_physical);
+  //left_term = TMatrixD(U_internal_to_physical_transpose, TMatrixD::kMult, Covariance_matrix);
+  //covariance_matrix_physical = TMatrixD(left_term, TMatrixD::kMult,U_internal_to_physical);
+  
+  for(int i=1; i<=n_parameters; i++){
+    corr_physical_hist->GetXaxis()->SetBinLabel(i,get<2>(getParameterNameAndScaling(i-1)).c_str());
+    corr_physical_hist->GetYaxis()->SetBinLabel(i,get<2>(getParameterNameAndScaling(n_parameters-i)).c_str());
+    for(int j=1; j<=n_parameters; j++){
+      bin = corr_physical_hist->GetBin(i, n_parameters-j+1);
+      corr_physical_hist->SetBinContent(bin, covariance_matrix_physical(i-1,j-1) / A_e_M_errors[i-1] / A_e_M_errors[j-1]); 
+    }
+  }
+
+  //cout << "Correlation: " << "\n";
+
+  TMatrixTSym<double> Corr_matrix(n_parameters, corr_ar, "F"); //need option F to unroll collumn wise //TODO pass by ptr
+
+  for(int i=0; i<n_parameters; i++){ 
+    for(int j=0; j<n_parameters; j++){
+      //cout << Corr_matrix(i,j) << " ";
+    }
+    //cout << "\n";
+  }
+  
+  if (iter == total_iter-1){
+    unique_ptr<TFile> f_a( TFile::Open("InOutputFiles/constants_fitted_correlation.root", "RECREATE") );
+    
+    TCanvas *c4 = new TCanvas("c4","c4",800,600);
+    hessian_hist->SetStats(0);
+    hessian_hist->Draw("COLZ");
+    f_a->WriteObject(c4, "hessian_hist");
+
+    TCanvas *c5 = new TCanvas("c5","c5",800,600);
+    covariance_hist->SetStats(0);
+    covariance_hist->Draw("COLZ");
+    f_a->WriteObject(c5, "covariance_hist");
+
+    corr_hist->SetStats(0);
+    corr_hist->Draw("COLZ text");
+    f_a->WriteObject(c5, "corr_hist");
+
+    corr_physical_hist->SetStats(0);
+    corr_physical_hist->Draw("COLZ text");
+    f_a->WriteObject(c5, "corr_physical_hist");
+  }
+  cout << "\n" << "Fitted A' [ ], e' [GeV], M [GeV^-1] parameters: " << "\n";
+  for (unsigned int i(0); i<upar.Params().size(); i++) {
+    cout <<"par[" << i << "]: " << get<0>(getParameterNameAndScaling(i)) << " fitted to: "<< min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i)) << " +/- " << min.UserState().Error(i) * abs(get<1>(getParameterNameAndScaling(i))) << "\n";
+  }
+
+  // Histogram with dummy parameters and fitted parameters
+
+  TH1D *dummy_pars_A = new TH1D("dummy_pars_A", "A", nbinseta, -2.4, 2.4);
+  TH1D *dummy_pars_e = new TH1D("dummy_pars_e", "e", nbinseta, -2.4, 2.4);
+  TH1D *dummy_pars_M = new TH1D("dummy_pars_M", "M", nbinseta, -2.4, 2.4);
+  
+  TH1D *fitted_pars_A = new TH1D("fitted_pars_A", "A", nbinseta, -2.4, 2.4);
+  TH1D *fitted_pars_e = new TH1D("fitted_pars_e", "e", nbinseta, -2.4, 2.4);
+  TH1D *fitted_pars_M = new TH1D("fitted_pars_M", "M", nbinseta, -2.4, 2.4);
+
+  TH1D *pull_A = new TH1D("pull_A", "A", nbinseta, -2.4, 2.4);
+  TH1D *pull_e = new TH1D("pull_e", "e", nbinseta, -2.4, 2.4);
+  TH1D *pull_M = new TH1D("pull_M", "M", nbinseta, -2.4, 2.4);
+
+  for (int i=1; i<=nbinseta; i++){
+    fitted_pars_A->SetBinContent(i, A_e_M_values[i-1]); 
+    fitted_pars_A->SetBinError(i, A_e_M_errors[i-1]);
+    A_from_iter[i-1] = A_e_M_values[i-1];
+
+    fitted_pars_e->SetBinContent(i, A_e_M_values[i-1+nbinseta]);
+    fitted_pars_e->SetBinError(i, A_e_M_errors[i-1+nbinseta]);
+    e_from_iter[i-1] = A_e_M_values[i-1+nbinseta];
+
+    fitted_pars_M->SetBinContent(i, A_e_M_values[i-1+2*nbinseta]);
+    fitted_pars_M->SetBinError(i, A_e_M_errors[i-1+2*nbinseta]);
+    M_from_iter[i-1] = A_e_M_values[i-1+2*nbinseta];
+
+    dummy_pars_A->SetBinContent(i, A_values[i-1]);
+    dummy_pars_A->SetBinError(i, 1e-10);
+    dummy_pars_e->SetBinContent(i, e_values[i-1]);
+    dummy_pars_e->SetBinError(i, 1e-10);
+    dummy_pars_M->SetBinContent(i, M_values[i-1]);
+    dummy_pars_M->SetBinError(i, 1e-10);
+
+    pull_A->SetBinContent(i, (A_e_M_values[i-1] - A_values[i-1])/A_e_M_errors[i-1]);
+    pull_A->SetBinError(i, 1e-10);
+    pull_e->SetBinContent(i, (A_e_M_values[i-1+nbinseta] - e_values[i-1])/A_e_M_errors[i-1+nbinseta]);
+    pull_e->SetBinError(i, 1e-10);
+    pull_M->SetBinContent(i, (A_e_M_values[i-1+2*nbinseta] - M_values[i-1])/A_e_M_errors[i-1+2*nbinseta]);
+    pull_M->SetBinError(i, 1e-10);
+    
+  }
+
+  unique_ptr<TFile> f_for_plotting( TFile::Open("InOutputFiles/constants_fitted_for_plotting.root", "RECREATE") );
+  f_for_plotting->WriteObject(fitted_pars_A, "fitted_pars_A");
+  f_for_plotting->WriteObject(fitted_pars_e, "fitted_pars_e");
+  f_for_plotting->WriteObject(fitted_pars_M, "fitted_pars_M");
+  f_for_plotting->WriteObject(dummy_pars_A, "dummy_pars_A");
+  f_for_plotting->WriteObject(dummy_pars_e, "dummy_pars_e");
+  f_for_plotting->WriteObject(dummy_pars_M, "dummy_pars_M");
+  f_for_plotting->WriteObject(pull_A, "pull_A");
+  f_for_plotting->WriteObject(pull_e, "pull_e");
+  f_for_plotting->WriteObject(pull_M, "pull_M");
+
+  unique_ptr<TFile> f_control_const( TFile::Open("InOutputFiles/constants_fitted.root", "RECREATE") ); 
+
+  TCanvas *c1_c = new TCanvas("c1_c","c1_c",800,600);
+
+  auto leg1_c = new TLegend(0.68, 0.78, 0.90, 0.90);
+    
+  leg1_c->SetFillStyle(0);
+  leg1_c->SetBorderSize(0);
+  leg1_c->SetTextSize(0.025);
+  leg1_c->SetFillColor(10);
+  leg1_c->SetNColumns(1);
+  leg1_c->SetHeader("");
+  
+  //fitted_pars_A->SetMinimum(-0.00025);
+  //fitted_pars_A->SetMaximum(0.0007);
+  fitted_pars_A->GetYaxis()->SetNoExponent();
+  fitted_pars_A->SetStats(0);
+  fitted_pars_A->GetXaxis()->SetTitle("#eta");
+  fitted_pars_A->GetYaxis()->SetTitle("Magnetic field correction");
+  fitted_pars_A->Draw("");
+  
+  dummy_pars_A->SetLineColor(kRed);
+  dummy_pars_A->SetMarkerStyle(kPlus);
+  dummy_pars_A->SetMarkerColor(kRed);
+  dummy_pars_A->Draw("SAME");
+    
+  leg1_c->AddEntry(dummy_pars_A, "input par", "l");
+    
+  leg1_c->AddEntry(fitted_pars_A, "fitted par", "l");
+  leg1_c->Draw("SAME");
+  leg1_c->Clear();
+
+  TCanvas *c01_c = new TCanvas("c01_c","c01_c",800,600);
+
+  pull_A->GetYaxis()->SetNoExponent();
+  pull_A->SetStats(0);
+  pull_A->GetXaxis()->SetTitle("#eta");
+  pull_A->GetYaxis()->SetTitle("Pull");
+  pull_A->Draw("");
+
+  TCanvas *c2_c = new TCanvas("c2_c","c2_c",800,600);
+
+  //fitted_pars_e->SetMinimum(-0.001);
+  //fitted_pars_e->SetMaximum(0.017);
+  fitted_pars_e->GetYaxis()->SetNoExponent();
+  fitted_pars_e->SetStats(0);
+  fitted_pars_e->GetXaxis()->SetTitle("#eta");
+  fitted_pars_e->GetYaxis()->SetTitle("Material correction (GeV)");
+  fitted_pars_e->Draw("");
+
+
+  dummy_pars_e->SetLineColor(kRed);
+  dummy_pars_e->SetMarkerStyle(kPlus);
+  dummy_pars_e->SetMarkerColor(kRed);
+  dummy_pars_e->Draw("SAME");
+
+  leg1_c->AddEntry(dummy_pars_e, "input par", "l");
+  
+  leg1_c->AddEntry(fitted_pars_e, "fitted par", "l");
+  leg1_c->Draw("SAME");
+  leg1_c->Clear();
+
+  TCanvas *c02_c = new TCanvas("c02_c","c02_c",800,600);
+
+  pull_e->GetYaxis()->SetNoExponent();
+  pull_e->SetStats(0);
+  pull_e->GetXaxis()->SetTitle("#eta");
+  pull_e->GetYaxis()->SetTitle("Pull");
+  pull_e->Draw("");
+  
+  TCanvas *c3_c = new TCanvas("c3_c","c3_c",800,600);
+
+  //fitted_pars_M->SetMinimum(-3e-5);
+  fitted_pars_M->SetMaximum(4.5e-5);
+  //fitted_pars_M->SetMaximum(fitted_pars_M->GetBinContent(fitted_pars_M->GetMaximumBin())*1.1);
+  fitted_pars_M->SetStats(0);
+  fitted_pars_M->GetXaxis()->SetTitle("#eta");
+  fitted_pars_M->GetYaxis()->SetTitle("Misalignment correction (GeV^{-1})");
+  fitted_pars_M->Draw("");
+
+ 
+  dummy_pars_M->SetLineColor(kRed);
+  dummy_pars_M->SetMarkerStyle(kPlus);
+  dummy_pars_M->SetMarkerColor(kRed);
+  dummy_pars_M->Draw("SAME");
+
+  leg1_c->AddEntry(dummy_pars_M, "input par", "l");
+ 
+  leg1_c->AddEntry(fitted_pars_M, "fitted par", "l");
+  leg1_c->Draw("SAME");
+
+  TCanvas *c03_c = new TCanvas("c03_c","c03_c",800,600);
+
+  pull_M->GetYaxis()->SetNoExponent();
+  pull_M->SetStats(0);
+  pull_M->GetXaxis()->SetTitle("#eta");
+  pull_M->GetYaxis()->SetTitle("Pull");
+  pull_M->Draw("");
+  
+  f_control_const->WriteObject(c1_c, "A");
+  f_control_const->WriteObject(c2_c, "e");
+  f_control_const->WriteObject(c3_c, "M");
+  f_control_const->WriteObject(c01_c, "pull_A");
+  f_control_const->WriteObject(c02_c, "pull_e");
+  f_control_const->WriteObject(c03_c, "pull_M");
+  
   }
   
   
