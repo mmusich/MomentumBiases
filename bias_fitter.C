@@ -845,7 +845,7 @@ int bias_fitter(){
   
   //pT bin optimisation starts
   // Call 1st event loop
-  std::cout<<"Call 1st event loop"<<"\n";
+  std::cout<<"Call 1st event loop: pT binning optimization"<<"\n";
   auto pt_pos_uni = d0->Histo1D({"pt_pos_uni", "pt mu+", nbinspt*3, pt_low, pt_high},"posTrackPt","weight");
   
   // Get quartiles
@@ -921,7 +921,7 @@ int bias_fitter(){
   
   // MC diff
   // Call 2nd event loop
-  std::cout<<"Call 2nd event loop"<<"\n";
+  std::cout<<"Call 2nd event loop: get MC resolution"<<"\n";
   auto mll_diff_smear_diffbin_4Dbin = d1->Histo2D({"mll_diff_smear_diffbin_4Dbin", "mll_diff_smear_diffbin_4Dbin", nbinsmll_diff, mymll_diffboundaries, nbins, mybinsboundaries},"mll_diff_smear", "bin_index_smear", "weight");
   
   auto mDh_diff_mc_ptr = mll_diff_smear_diffbin_4Dbin;
@@ -1062,7 +1062,7 @@ int bias_fitter(){
 
   // 2D histos of data mll_diff, mass vs bin_index_(smear_beta_val)
   // Call 3rd event loop
-  std::cout<<"Call 3rd event loop"<<"\n";
+  std::cout<<"Call 3rd event loop: data histograms"<<"\n";
 
   // Dummy data mll_diff
   auto mll_diff_smear_beta_val_diffbin_4Dbin = d_sim_data->Histo2D({"mll_diff_smear_beta_val_diffbin_4Dbin", "mll_diff_smear_beta_val_diffbin_4Dbin", nbinsmll_diff, mymll_diffboundaries, nbins, mybinsboundaries},"mll_diff_smear_beta_val", "bin_index_smear_beta_val", "weight");
@@ -1077,47 +1077,52 @@ int bias_fitter(){
   d_mc = std::make_unique<RNode>(d_mc->Define("negGenPhi","return GenPart_phi[get<15>(pairs)];"));
 
   // Call 4th event loop -> save MC TTree
-  std::cout<<"Call 4th event loop"<<"\n";
+  std::cout<<"Call 4th event loop: save MC TTree"<<"\n";
   // Take snapshot of MC frame with weight, posPtSmear, negPtSmear, posGenEta, negGenEta, mll_gen to correct the pT and recalculate mll_smear and jacs and 4D bin
   d_mc->Snapshot("Events", "InOutputFiles/snapshot_mc.root", {"posPtSmear", "negPtSmear", "posGenEta", "negGenEta", "posGenPhi", "negGenPhi", "mll_gen", "weight"});
 
   vector<double> A_from_iter = {0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.};
   vector<double> e_from_iter = {0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.};
   vector<double> M_from_iter = {0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.};
-  
-  // Start loop over iterations of correcting MC with: for iter < last_iter, Redefine() d_mc_corr frame
-  std::cout<<"Start loop over iterations"<<"\n";
 
-  int total_iter = 3;
-  for(int iter=0; iter<total_iter; iter++){
-    std::cout<<"Iter "<<iter<<"\n";
-    
-  // define d_mc_corr frame with the jacobian branches
-  RDataFrame df_mc_corr("Events", "InOutputFiles/snapshot_mc.root");
-  auto d_mc_corr = std::make_unique<RNode>(df_mc_corr);
-  // Call correction of MC pT function
-
-  //TODO add funct correct MC pT with A, e, M -> output of previous fit iteration
+  // Funct correct MC pT with A, e, M -> output of previous fit iteration
   auto CorrectPt = [&](float pos_pt, float neg_pt, float pos_eta, float neg_eta, float pos_phi, float neg_phi){
     TLorentzVector posTrack, negTrack, mother;
     float mll, rest_mass = 0.105658; // muMass = 0.105658 GeV
     vector<float> result(3);
     int pos_eta_bin = GetEtaBin(pos_eta);
     int neg_eta_bin = GetEtaBin(neg_eta);
+
+    cout<<"A_from_iter: "<<A_from_iter<<"\n";
+    cout<<"e_from_iter: "<<e_from_iter<<"\n";
+    cout<<"M_from_iter: "<<M_from_iter<<"\n";
     
     float pos_pt_corr = pos_pt/( 1. + A_from_iter[pos_eta_bin] - e_from_iter[pos_eta_bin]/pos_pt + M_from_iter[pos_eta_bin]*pos_pt );
     float neg_pt_corr = neg_pt/( 1. + A_from_iter[neg_eta_bin] - e_from_iter[neg_eta_bin]/neg_pt - M_from_iter[neg_eta_bin]*neg_pt );
-    
+
     result[0] = pos_pt_corr;
     result[1] = neg_pt_corr;
     posTrack.SetPtEtaPhiM(pos_pt_corr, pos_eta, pos_phi, rest_mass);
     negTrack.SetPtEtaPhiM(neg_pt_corr, neg_eta, neg_phi, rest_mass);
     mother = posTrack + negTrack;
     mll = mother.M();
-    
+
     result[2] = mll;
     return result;
   };
+
+  unique_ptr<TFile> f_control_const( TFile::Open("InOutputFiles/constants_fitted.root", "RECREATE") );
+  
+  // Start loop over iterations of correcting MC with: for iter < last_iter, Redefine() d_mc_corr frame
+  std::cout<<"Start loop over iterations"<<"\n";
+
+  int total_iter = 2;
+  for(int iter=0; iter<total_iter; iter++){
+    std::cout<<"Iter "<<iter<<"\n";
+    
+  // define corrected MC frame with the jacobian branches
+  RDataFrame df_mc_corr("Events", "InOutputFiles/snapshot_mc.root");
+  auto d_mc_corr = std::make_unique<RNode>(df_mc_corr);
 
   d_mc_corr = std::make_unique<RNode>(d_mc_corr->Define("corrections", CorrectPt ,{"posPtSmear", "negPtSmear", "posGenEta", "negGenEta", "posGenPhi", "negGenPhi"}));
   d_mc_corr = std::make_unique<RNode>(d_mc_corr->Define("posPtSmearCorr","return corrections[0];"));
@@ -1143,7 +1148,7 @@ int bias_fitter(){
   
   // 2D histos of mll_diff, mass, jacobian terms vs bin_index_(smear/smear_beta_val)
   // Call MC TTree event loop
-  std::cout<<"Call MC TTree event loop"<<"\n";
+  std::cout<<"Call MC TTree event loop: MC histograms"<<"\n";
   
   // binned in mll_diff
   // MC
@@ -1641,7 +1646,9 @@ int bias_fitter(){
 	  }
 	}
 	if (filled_bins_mll < 5 ){
-	  std::cout<< "WARNING not enough points in mll to fit nu, beta, alpha in "<< name.c_str() <<". remaining_n_events still counts it in, empty_histos_count doesn't include it." << "\n";
+	  //std::cout<< "WARNING not enough points in mll to fit nu, beta, alpha in "<< name.c_str() << "\n";
+	  remaining_nevents -= nevents;
+	  empty_histos_count++;
 	  continue;
 	} 
 	f_pass_reg << name << "\n";
@@ -1826,8 +1833,10 @@ int bias_fitter(){
 	      filled_bins_mll_diff++;
 	    }
 	  }
-	  if (filled_bins_mll_diff < 5 ){ //TODO refine, maybe I want to carry on with mass fit
-	    std::cout<<"WARNING not enough points in mll_diff to fit nu, epsilon, alpha in "<< name.c_str() <<". remaining_n_events still counts it in, empty_histos_count doesn't include it." << "\n";
+	  if (filled_bins_mll_diff < 3 ){ //TODO refine, maybe I want to carry on with mass fit
+	    std::cout<<"WARNING not enough points in mll_diff to fit nu, epsilon, alpha in "<< name.c_str() << "\n";
+	    remaining_nevents -= nevents;
+	    empty_histos_count++;
 	    continue;
 	  } 
 		
@@ -2267,7 +2276,7 @@ int bias_fitter(){
   std::cout << "\n" << n_data_points_initial <<" entries initially in beta histogram";
   
   for(int i=0; i<n_data_points_initial; i++){
-    if( occupancy->GetBinContent(i+1) > 300.0 && gaus_integral->GetBinContent(i+1) > 0.8 ){
+    if( occupancy->GetBinContent(i+1) > 300.0 && gaus_integral->GetBinContent(i+1) > 0.7 ){
       scale_squared_values.push_back((1.0 + beta->GetBinContent(i+1))*(1.0 + beta->GetBinContent(i+1)));
       scale_squared_error_values.push_back(2*abs(1.0 + beta->GetBinContent(i+1))*(beta->GetBinError(i+1)));
       labels.push_back(beta->GetXaxis()->GetLabels()->At(i)->GetName());
@@ -2371,7 +2380,7 @@ int bias_fitter(){
     }
   }
 
-  cout << "chi^2/ndf: " << min.Fval() + 1. << "\n" << "\n";
+  cout << "\n" << "chi^2/ndf: " << min.Fval() + 1. << "\n";
   cout << "min is valid: " << min.IsValid() << std::endl;
   cout << "HesseFailed: " << min.HesseFailed() << std::endl;
   cout << "HasCovariance: " << min.HasCovariance() << std::endl;
@@ -2555,10 +2564,10 @@ int bias_fitter(){
     corr_physical_hist->Draw("COLZ text");
     f_a->WriteObject(c5, "corr_physical_hist");
   }
-  cout << "\n" << "Fitted A' [ ], e' [GeV], M [GeV^-1] parameters: " << "\n";
-  for (unsigned int i(0); i<upar.Params().size(); i++) {
-    cout <<"par[" << i << "]: " << get<0>(getParameterNameAndScaling(i)) << " fitted to: "<< min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i)) << " +/- " << min.UserState().Error(i) * abs(get<1>(getParameterNameAndScaling(i))) << "\n";
-  }
+  //cout << "\n" << "Fitted A' [ ], e' [GeV], M [GeV^-1] parameters: " << "\n";
+  //for (unsigned int i(0); i<upar.Params().size(); i++) {
+  //cout <<"par[" << i << "]: " << get<0>(getParameterNameAndScaling(i)) << " fitted to: "<< min.UserState().Value(i) * get<1>(getParameterNameAndScaling(i)) << " +/- " << min.UserState().Error(i) * abs(get<1>(getParameterNameAndScaling(i))) << "\n";
+  //}
 
   // Histogram with dummy parameters and fitted parameters
 
@@ -2614,8 +2623,6 @@ int bias_fitter(){
   f_for_plotting->WriteObject(pull_e, "pull_e");
   f_for_plotting->WriteObject(pull_M, "pull_M");
 
-  unique_ptr<TFile> f_control_const( TFile::Open("InOutputFiles/constants_fitted.root", "RECREATE") ); 
-
   TCanvas *c1_c = new TCanvas("c1_c","c1_c",800,600);
 
   auto leg1_c = new TLegend(0.68, 0.78, 0.90, 0.90);
@@ -2644,9 +2651,12 @@ int bias_fitter(){
     
   leg1_c->AddEntry(fitted_pars_A, "fitted par", "l");
   leg1_c->Draw("SAME");
-  leg1_c->Clear();
 
-  TCanvas *c01_c = new TCanvas("c01_c","c01_c",800,600);
+  f_control_const->WriteObject(c1_c, ("A_iter_" + to_string(iter)).c_str());
+  leg1_c->Clear();
+  c1_c->Clear();
+    
+  //TCanvas *c01_c = new TCanvas("c01_c","c01_c",800,600);
 
   pull_A->GetYaxis()->SetNoExponent();
   pull_A->SetStats(0);
@@ -2654,7 +2664,10 @@ int bias_fitter(){
   pull_A->GetYaxis()->SetTitle("Pull");
   pull_A->Draw("");
 
-  TCanvas *c2_c = new TCanvas("c2_c","c2_c",800,600);
+  f_control_const->WriteObject(c1_c, ("pull_A_iter_" + to_string(iter)).c_str());
+  c1_c->Clear();
+  
+  //TCanvas *c2_c = new TCanvas("c2_c","c2_c",800,600);
 
   //fitted_pars_e->SetMinimum(-0.001);
   //fitted_pars_e->SetMaximum(0.017);
@@ -2674,9 +2687,12 @@ int bias_fitter(){
   
   leg1_c->AddEntry(fitted_pars_e, "fitted par", "l");
   leg1_c->Draw("SAME");
+  
+  f_control_const->WriteObject(c1_c, ("e_iter_" + to_string(iter)).c_str());
   leg1_c->Clear();
-
-  TCanvas *c02_c = new TCanvas("c02_c","c02_c",800,600);
+  c1_c->Clear();
+  
+  //TCanvas *c02_c = new TCanvas("c02_c","c02_c",800,600);
 
   pull_e->GetYaxis()->SetNoExponent();
   pull_e->SetStats(0);
@@ -2684,7 +2700,11 @@ int bias_fitter(){
   pull_e->GetYaxis()->SetTitle("Pull");
   pull_e->Draw("");
   
-  TCanvas *c3_c = new TCanvas("c3_c","c3_c",800,600);
+  f_control_const->WriteObject(c1_c, ("pull_e_iter_" + to_string(iter)).c_str());
+  c1_c->Clear();
+
+  
+  //TCanvas *c3_c = new TCanvas("c3_c","c3_c",800,600);
 
   //fitted_pars_M->SetMinimum(-3e-5);
   fitted_pars_M->SetMaximum(4.5e-5);
@@ -2704,22 +2724,26 @@ int bias_fitter(){
  
   leg1_c->AddEntry(fitted_pars_M, "fitted par", "l");
   leg1_c->Draw("SAME");
-
-  TCanvas *c03_c = new TCanvas("c03_c","c03_c",800,600);
+  
+  f_control_const->WriteObject(c1_c, ("M_iter_" + to_string(iter)).c_str());
+  leg1_c->Clear();
+  c1_c->Clear();
+  
+  //TCanvas *c03_c = new TCanvas("c03_c","c03_c",800,600);
 
   pull_M->GetYaxis()->SetNoExponent();
   pull_M->SetStats(0);
   pull_M->GetXaxis()->SetTitle("#eta");
   pull_M->GetYaxis()->SetTitle("Pull");
   pull_M->Draw("");
+  f_control_const->WriteObject(c1_c, ("pull_M_iter_" + to_string(iter)).c_str());
+  c1_c->Clear();
   
-  f_control_const->WriteObject(c1_c, "A");
-  f_control_const->WriteObject(c2_c, "e");
-  f_control_const->WriteObject(c3_c, "M");
-  f_control_const->WriteObject(c01_c, "pull_A");
-  f_control_const->WriteObject(c02_c, "pull_e");
-  f_control_const->WriteObject(c03_c, "pull_M");
-  
+  cout<<"A_from_iter: "<<A_from_iter<<"\n";
+  cout<<"e_from_iter: "<<e_from_iter<<"\n";
+  cout<<"M_from_iter: "<<M_from_iter<<"\n";
+
+  cout<<"Finished iter "<<iter<<"\n";
   }
   
   
