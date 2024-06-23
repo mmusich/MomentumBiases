@@ -1006,18 +1006,9 @@ int bias_fitter(){
   };
   
   
-  // Choose validation/analysis mode //TODO decide if we keep this in this script
-  string mode_option("validation"), mc_name_root, data_name_root;
-
-  // Input files
-  if (mode_option.compare("analysis") == 0) {
-    mc_name_root = "reco";
-    data_name_root = "data2016";
-  } else if (mode_option.compare("validation") == 0){
-    mc_name_root = "smear";
-    data_name_root = "smear_beta_val";
-  }
-
+  // Choose "data" to be either the smeared and biased MC or reco 
+  string mc_name_root("smear"), data_name_root("smear_beta_val");
+  
   auto d2 = std::make_unique<RNode>(df);
   
   // Random numbers for pairs
@@ -1093,9 +1084,9 @@ int bias_fitter(){
     int pos_eta_bin = GetEtaBin(pos_eta);
     int neg_eta_bin = GetEtaBin(neg_eta);
 
-    cout<<"A_from_iter: "<<A_from_iter<<"\n";
-    cout<<"e_from_iter: "<<e_from_iter<<"\n";
-    cout<<"M_from_iter: "<<M_from_iter<<"\n";
+    //cout<<"A_from_iter: "<<A_from_iter<<"\n";
+    //cout<<"e_from_iter: "<<e_from_iter<<"\n";
+    //cout<<"M_from_iter: "<<M_from_iter<<"\n";
     
     float pos_pt_corr = pos_pt/( 1. + A_from_iter[pos_eta_bin] - e_from_iter[pos_eta_bin]/pos_pt + M_from_iter[pos_eta_bin]*pos_pt );
     float neg_pt_corr = neg_pt/( 1. + A_from_iter[neg_eta_bin] - e_from_iter[neg_eta_bin]/neg_pt - M_from_iter[neg_eta_bin]*neg_pt );
@@ -1116,7 +1107,9 @@ int bias_fitter(){
   // Start loop over iterations of correcting MC with: for iter < last_iter, Redefine() d_mc_corr frame
   std::cout<<"Start loop over iterations"<<"\n";
 
-  int total_iter = 2;
+  int total_iter = 1;
+  int do_mll_diff_fit = 0;
+  
   for(int iter=0; iter<total_iter; iter++){
     std::cout<<"Iter "<<iter<<"\n";
     
@@ -1528,7 +1521,7 @@ int bias_fitter(){
 	//--------------------------------------------------------------------------
 	// diff_data histogram 
 	
-	if (mode_option.compare("validation") == 0){
+	if (do_mll_diff_fit == 1){
 	  // Project diff_data histogram
 	  delete gROOT->FindObject("mDh_proj_diff_data");
 	  mDh_proj_diff_data = mDh_diff_data_ptr->ProjectionX("mDh_proj_diff_data", multi_dim_bin+1, multi_dim_bin+1, "e");
@@ -1556,7 +1549,7 @@ int bias_fitter(){
 	mDh_proj_diff_mc->SetMaximum(max_hist_mll_diff);
 	mDh_proj_diff_mc->SetTitle(("mll diff " + stringify_title(pos_eta_bin, pos_pt_bin, neg_eta_bin, neg_pt_bin, etabinranges, ptbinranges)).c_str());
 	mDh_proj_diff_mc->Draw("HIST");
-	if (mode_option.compare("validation") == 0) mDh_proj_diff_data->Draw("HIST SAME");
+	if (do_mll_diff_fit == 1) mDh_proj_diff_data->Draw("HIST SAME");
 	
 	// Legend
 	leg1->Clear();
@@ -1564,7 +1557,7 @@ int bias_fitter(){
 	leg1->SetHeader(leg_entry.c_str(),"C");
                     
 	leg1->AddEntry(mDh_proj_diff_mc, "smeared-gen, #beta_pT=1, #alpha=1", "l");
-	if (mode_option.compare("validation") == 0) leg1->AddEntry(mDh_proj_diff_data, "smeared-gen, #beta_pT!=1, #alpha=1", "l");
+	if (do_mll_diff_fit == 1) leg1->AddEntry(mDh_proj_diff_data, "smeared-gen, #beta_pT!=1, #alpha=1", "l");
 	leg_entry = "green fit: #mu=" + to_string(mean_mc).substr(0, 5) + ", #sigma=" + to_string(sigma_mc).substr(0, 5);
 	leg1->AddEntry((TObject*)0, leg_entry.c_str(), "");
 	
@@ -1815,7 +1808,7 @@ int bias_fitter(){
 	leg2->AddEntry(corrected_mll, "corrected mll", "l");
 	leg2->Draw("");
 	      
-	if (mode_option.compare("validation") == 0){
+	if (do_mll_diff_fit == 1){
 	  
 	  //--------------------------------------------------------------------------
 	  // Start diff fit
@@ -2097,7 +2090,7 @@ int bias_fitter(){
   f_control->WriteObject(h_masks, "h_masks");
   
   // Validation plots
-  if (mode_option.compare("validation") == 0){
+  if (do_mll_diff_fit == 1){
     f_control->WriteObject(epsilon_control, "epsilon_control");
     fitresult = fitHisto(pull_epsilon_control, 1, 1, 5);
     f_control->WriteObject(pull_epsilon_control, "pull_epsilon_control");
